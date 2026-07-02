@@ -40,6 +40,22 @@ except ModuleNotFoundError as erro:
 ALIQUOTA_IR_GERAL = 0.34
 
 
+def validar_bloco_anual(
+    conteudo: dict[str, Any],
+    caminho: Path,
+    bloco: str,
+) -> None:
+    """Valida que um bloco da projecao integrada traz os 8 anos esperados."""
+    dados_bloco = conteudo.get(bloco)
+    if not isinstance(dados_bloco, dict):
+        raise RuntimeError(f"Bloco obrigatorio ausente em {caminho}: {bloco}")
+
+    for ano in range(1, HORIZONTE_PROJECAO + 1):
+        chave_ano = f"ano{ano}"
+        if not isinstance(dados_bloco.get(chave_ano), dict):
+            raise RuntimeError(f"Bloco {bloco} sem {chave_ano} em {caminho}")
+
+
 def carregar_projecao_fcff(
     ticker: str,
     raiz_projeto: Path,
@@ -48,8 +64,7 @@ def carregar_projecao_fcff(
     caminho = raiz_projeto / "data" / "processed" / f"{ticker}_projecao.json"
     conteudo = carregar_json(caminho)
     for bloco in ("dre", "wk", "ppe", "divida"):
-        if not isinstance(conteudo.get(bloco), dict):
-            raise RuntimeError(f"Bloco obrigatorio ausente em {caminho}: {bloco}")
+        validar_bloco_anual(conteudo, caminho, bloco)
     return caminho, conteudo
 
 
@@ -112,9 +127,11 @@ def calcular_linhas_fcff(
         capex_saida_caixa = abs(capex)
 
         # Formula: FCFF = NOPAT + D&A - Delta NWC - CAPEX.
+        # Delta NWC positivo representa consumo de caixa no projeto.
         valor_fcff = nopat + depreciacao - delta_nwc - capex_saida_caixa
 
         # Formula: FCFE = LL + D&A - Delta NWC - CAPEX + Delta Divida.
+        # Delta NWC positivo tambem reduz o fluxo ao acionista.
         valor_fcfe = (
             lucro_liquido + depreciacao - delta_nwc - capex_saida_caixa + delta_divida
         )
