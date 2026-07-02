@@ -116,7 +116,7 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 - **Data da última atualização:** 02/07/2026
 - **Versão alvo:** v1.0 (prazo: 06/08/2026)
-- **Fase atual:** SEMANA 2 — Projeção das demonstrações
+- **Fase atual:** SEMANA 3 — Valuation: coleta de mercado/macro + FCFF
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -142,7 +142,7 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - Etapa 2 / Semana 2: projeção integrada das três demonstrações.
   - Validação humana dos números coletados para DIRR3 e MGLU3.
 - **PRÓXIMA TAREFA:**
-  - Semana 2: implementar o calculador de FCFF/FCFE.
+  - Semana 3: implementar `src/valuation/calculador_wacc.py`.
 - **Decisões de arquitetura tomadas nesta sessão:**
   - O coletor usa o cadastro de companhias abertas e os arquivos FCA da CVM para relacionar ticker negociado ao `CD_CVM`.
   - Como o FCA recente traz `CNPJ_Companhia` em vez de `CD_CVM`, o coletor cruza `FCA.CNPJ_Companhia` com `cad_cia_aberta.CNPJ_CIA` para obter o `CD_CVM`.
@@ -169,6 +169,38 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 - **Bugs conhecidos / pendências:**
   - A validação numérica de Receita Líquida e Lucro Líquido contra RI/Status Invest ainda depende de conferência humana.
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
+
+### Sessão 02/07/2026 — Fechamento da Semana 2 e início da Semana 3
+
+- **Concluído nesta sessão:**
+  - `tests/test_projecao.py` consolidado com teste integrado DRE -> WK -> PP&E -> dívida usando `tmp_path`, sem dados reais e sem rede, validando balanço fechado nos 8 anos, oito taxas individuais diferentes e `LL = PL_t - PL_(t-1)` com payout zero.
+  - `src/verificar_semana2.py` criado para rodar o pipeline real de DIRR3 e MGLU3, imprimir Ano 0, premissas anuais, DRE projetada e `diferenca_balanco` por ano.
+  - `data/premissas/DIRR3_premissas.json` e `data/premissas/MGLU3_premissas.json` conferidos com vetores anuais diferentes para crescimento, margem EBITDA e CAPEX/Receita.
+  - `src/coleta/coletor_mercado.py` criado: coleta yfinance para preço, beta mensal contra `^BVSP`, ações em circulação, market cap e `^TNX`, salvando em `data/raw/mercado/`.
+  - `src/coleta/coletor_macro.py` criado: coleta Selic atual via SGS 432 e expectativas Focus anuais de IPCA/Selic via `python-bcb`, salvando em `data/raw/macro/macro_brasil.json`.
+  - `src/valuation/calculador_fcff.py` criado: calcula e persiste blocos `fcff` e `fcfe` em `data/processed/<TICKER>_projecao.json`.
+  - `tests/test_valuation.py` criado cobrindo FCFF positivo, FCFF negativo permitido, FCFE e construtora RET com alíquota zero no NOPAT.
+  - `config/mapeamento_cvm.json` ampliado com campos de FCFF/FCFE, mercado e macro.
+- **Critérios de pronto:**
+  - Semana 2: `pytest tests -v` verde com 16 testes.
+  - Semana 2: `src/verificar_semana2.py` rodou para DIRR3 e MGLU3 e imprimiu `SEMANA 2 OK`.
+  - Semana 2: `black --check . --workers 1` e `flake8 .` verdes.
+  - Semana 3 parcial: `coletor_mercado.py` rodou para DIRR3 e MGLU3 com rede liberada e gravou `data/raw/mercado/`.
+  - Semana 3 parcial: `coletor_macro.py` rodou com rede liberada e gravou `data/raw/macro/macro_brasil.json`.
+  - Semana 3 parcial: `calculador_fcff.py` rodou para DIRR3 e imprimiu FCFF diferente ano a ano.
+- **Decisões de arquitetura tomadas:**
+  - O beta de mercado é calculado manualmente com retornos mensais do ativo contra `^BVSP`, usando até 60 meses; se houver menos meses, o coletor registra aviso e usa o máximo disponível.
+  - O `^TNX` é convertido para decimal anual em `rf_usd_tbond10y`.
+  - O yfinance usa cache local em `.cache/yfinance` para evitar falha de SQLite fora do workspace.
+  - O NOPAT usa 34% para empresas gerais e 0% para construtoras RET, porque o IR/CSLL da DRE já foi calculado por receita e não deve ser aplicado novamente ao EBIT.
+  - FCFF negativo é persistido normalmente, sem travar o pipeline.
+- **Bugs encontrados e corrigidos:**
+  - A `.venv` apontava para um Python 3.11 ausente em `AppData`; foi restaurada com Python 3.11.9 local em `.venv/base/Python311`.
+  - O runtime embutido do Codex era Python 3.12 e incompatível com os pacotes compilados da `.venv`; a validação voltou a usar Python 3.11.9.
+  - O yfinance falhava com `unable to open database file`; corrigido direcionando o cache para `.cache/yfinance`.
+  - O wrapper do Black 26.5.1 travava dentro do sandbox no encerramento dos workers; o comando literal passou fora do sandbox com `--workers 1`.
+- **PRÓXIMA TAREFA:**
+  - Implementar `src/valuation/calculador_wacc.py`.
 
 ---
 

@@ -190,10 +190,7 @@ def test_pipeline_integrado_semana2_fecha_balanco_e_preserva_taxas(
 
     dre = resultado["dre"]
     balanco = resultado["balanco"]
-    taxas = [
-        float(dre[f"ano{ano}"]["taxa_crescimento_receita"])
-        for ano in range(1, 9)
-    ]
+    taxas = [float(dre[f"ano{ano}"]["taxa_crescimento_receita"]) for ano in range(1, 9)]
     assert len(set(taxas)) == 8
     assert taxas == pytest.approx([ano / 100 for ano in range(1, 9)])
 
@@ -208,4 +205,3 @@ def test_pipeline_integrado_semana2_fecha_balanco_e_preserva_taxas(
             patrimonio_liquido - patrimonio_liquido_anterior
         )
         patrimonio_liquido_anterior = patrimonio_liquido
-

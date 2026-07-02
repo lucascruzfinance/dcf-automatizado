@@ -415,3 +415,4 @@ Enquanto a v1.0 não fechar, este bloco é apenas referência: **não começar n
 - Screenshots/GIF do dashboard (Streamlit e Power BI) no topo do `README.md`.
 - Mini case study "DIRR3 — meu modelo vs. modelo do trainee InFinance", mostrando que
   o Target Price bate na mesma ordem de magnitude (a prova de validação mais forte).
+

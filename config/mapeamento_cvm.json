@@ -207,6 +207,76 @@
       "sinal_esperado": "positivo_ou_negativo",
       "codigos_cvm": []
     },
+    "nopat": {
+      "descricao": "NOPAT Projetado",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "aliquota_ir_nopat": {
+      "descricao": "Aliquota de IR usada no NOPAT",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "fcff": {
+      "descricao": "Fluxo de Caixa Livre para a Firma",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "fcfe": {
+      "descricao": "Fluxo de Caixa Livre para o Acionista",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "preco_atual": {
+      "descricao": "Preco atual de mercado",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "beta_calculado": {
+      "descricao": "Beta calculado contra o Ibovespa",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "acoes_em_circulacao": {
+      "descricao": "Acoes em circulacao",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "market_cap": {
+      "descricao": "Valor de mercado",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "rf_usd_tbond10y": {
+      "descricao": "Taxa livre de risco USD pelo T-Bond 10Y",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "selic_atual": {
+      "descricao": "Selic atual",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "ipca_focus_1a": {
+      "descricao": "Expectativa Focus IPCA 1 ano a frente",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "ipca_focus_2a": {
+      "descricao": "Expectativa Focus IPCA 2 anos a frente",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "selic_focus_1a": {
+      "descricao": "Expectativa Focus Selic 1 ano a frente",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "selic_focus_2a": {
+      "descricao": "Expectativa Focus Selic 2 anos a frente",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
     "variacao_caixa_plug": {
       "descricao": "Variacao do Caixa Plug",
       "sinal_esperado": "positivo_ou_negativo",
