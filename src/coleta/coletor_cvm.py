@@ -14,7 +14,6 @@ from zipfile import ZipFile
 import pandas as pd
 import requests
 
-
 RAIZ_PROJETO = Path(__file__).resolve().parents[2]
 CAMINHO_PARAMETROS = RAIZ_PROJETO / "config" / "parametros.json"
 CAMINHO_MAPEAMENTO = RAIZ_PROJETO / "config" / "mapeamento_cvm.json"
@@ -197,8 +196,25 @@ def descobrir_empresa_por_ticker(ticker: str) -> EmpresaCvm:
             "Confira o ticker ou a disponibilidade dos dados na CVM."
         )
 
-    codigo_cvm = int(encontrados.sort_values("ANO_REFERENCIA").iloc[-1]["CD_CVM"])
-    cadastro_empresa = cadastro[cadastro["CD_CVM"].astype(int) == codigo_cvm]
+    encontrado_recente = encontrados.sort_values("ANO_REFERENCIA").iloc[-1]
+    if "CD_CVM" in encontrados.columns and pd.notna(encontrado_recente.get("CD_CVM")):
+        codigo_cvm = int(encontrado_recente["CD_CVM"])
+        cadastro_empresa = cadastro[cadastro["CD_CVM"].astype(int) == codigo_cvm]
+    elif "CNPJ_Companhia" in encontrados.columns:
+        cnpj = encontrado_recente["CNPJ_Companhia"]
+        cadastro_empresa = cadastro[cadastro["CNPJ_CIA"] == cnpj]
+        if cadastro_empresa.empty:
+            raise RuntimeError(
+                f"CNPJ {cnpj} encontrado para {ticker_normalizado}, "
+                "mas ausente no cadastro de companhias abertas."
+            )
+        codigo_cvm = int(cadastro_empresa.iloc[0]["CD_CVM"])
+    else:
+        raise RuntimeError(
+            "FCA nao trouxe CD_CVM nem CNPJ_Companhia. "
+            f"Colunas recebidas: {list(encontrados.columns)}"
+        )
+
     if cadastro_empresa.empty:
         raise RuntimeError(
             f"CD_CVM {codigo_cvm} encontrado para {ticker_normalizado}, "
@@ -347,11 +363,15 @@ def mapear_contas(
 
     registrar_contas_nao_mapeadas(empresa, dados, mapa_contas)
     dados = dados.copy()
-    dados["nome_padronizado"] = dados["CD_CONTA"].astype(str).map(
-        lambda codigo: mapa_contas.get(codigo, {}).get("nome_padronizado")
+    dados["nome_padronizado"] = (
+        dados["CD_CONTA"]
+        .astype(str)
+        .map(lambda codigo: mapa_contas.get(codigo, {}).get("nome_padronizado"))
     )
-    dados["sinal_esperado"] = dados["CD_CONTA"].astype(str).map(
-        lambda codigo: mapa_contas.get(codigo, {}).get("sinal_esperado")
+    dados["sinal_esperado"] = (
+        dados["CD_CONTA"]
+        .astype(str)
+        .map(lambda codigo: mapa_contas.get(codigo, {}).get("sinal_esperado"))
     )
     dados["valor_padronizado"] = dados.apply(
         lambda linha: normalizar_sinal(linha["VL_CONTA"], linha["sinal_esperado"]),
