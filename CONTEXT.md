@@ -141,7 +141,10 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - `src/valuation/calculador_wacc.py`, `src/valuation/calculador_vt.py` e `src/valuation/calculador_ev.py` existentes no repositório, com testes dedicados cobrindo WACC, valor terminal e bridge EV -> Equity -> Target Price.
   - `src/valuation/checklist.py` criado: lê os blocos já persistidos em `data/processed/<TICKER>_projecao.json`, executa verificações universais e de empresas não-financeiras, persiste o bloco `checklist` e imprime tabela ASCII.
   - `tests/test_checklist.py` criado com fixtures sintéticas em `tmp_path`, sem rede e sem rodar pipeline, cobrindo U1, U2, U4, NF1, NF5 e cenário aprovado.
-  - Validação atual: `pytest tests\ -v` verde com 45 testes; `flake8 .` verde; `black --check src\valuation\checklist.py tests\test_checklist.py --workers 1` verde.
+  - `src/projecao/schedule_wk.py` ajustado para suportar dois modos de capital de giro: `dias` para empresas de ciclo curto e `percentual_receita` para construtoras/ciclo longo.
+  - O schedule WK agora persiste `modo_capital_giro` em cada ano e aplica salvaguarda no `delta_nwc` do ano 1 quando o salto excede `teto_delta_nwc_receita` (default 50% da receita do ano 1).
+  - Testes de WK ampliados para construtora ancorada, preservação do modo por dias e truncamento do `delta_nwc` do ano 1.
+  - Validação atualizada: `pytest tests\ -v` verde com 47 testes; `flake8 .` verde; `src/verificar_semana2.py` rodou DIRR3 e MGLU3 com balanço fechado nos 8 anos.
 - **O que está EM PROGRESSO:**
   - Validação humana dos números coletados para DIRR3 e MGLU3.
   - Validação ponta a ponta da Semana 3 para DIRR3 e MGLU3 com Target Price, Upside e checklist impressos.
@@ -173,9 +176,12 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O checklist de valuation é consumidor puro da projeção persistida: não recalcula FCFF, WACC, valor terminal nem EV.
   - No checklist, `taxa_reinvestimento` ausente em `valor_terminal` fica `OK` com valor `n/d`; campos estruturais inválidos nos demais itens viram `ERRO`.
   - As verificações NF aplicam a empresas com `tipo = nao_financeira`; o RET não remove a empresa das verificações, apenas zera a alíquota usada no proxy de FCO/EBITDA.
+  - Para construtoras, WK passa a ancorar `NWC_t` no percentual histórico `NWC_ano0 / receita_ano0`, preservando a composição de contas a receber, estoques e fornecedores em vez de substituir o ciclo longo por DSO/DIO/DPO curto.
+  - A salvaguarda do ano 1 trunca apenas o choque inicial de `delta_nwc`; os anos seguintes usam o `NWC` ajustado como base anterior, preservando a coerência temporal do schedule.
 - **Bugs conhecidos / pendências:**
   - A validação numérica de Receita Líquida e Lucro Líquido contra RI/Status Invest ainda depende de conferência humana.
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
+  - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
 
 ### Sessão 02/07/2026 — Fechamento da Semana 2 e início da Semana 3
 

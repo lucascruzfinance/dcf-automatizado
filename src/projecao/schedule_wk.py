@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,10 @@ try:
     from src.projecao.projetor_dre import (
         HORIZONTE_PROJECAO,
         carregar_json,
+        carregar_metadados,
+        empresa_usa_ret,
         formatar_numero,
+        normalizar_texto,
         normalizar_ticker,
         normalizar_valor_json,
         resolver_raiz,
@@ -25,7 +29,10 @@ except ModuleNotFoundError as erro:
     from projetor_dre import (
         HORIZONTE_PROJECAO,
         carregar_json,
+        carregar_metadados,
+        empresa_usa_ret,
         formatar_numero,
+        normalizar_texto,
         normalizar_ticker,
         normalizar_valor_json,
         resolver_raiz,
@@ -36,6 +43,10 @@ except ModuleNotFoundError as erro:
 
 DIAS_ANO = 365
 CAMPOS_SALDO_WK = ("contas_receber", "estoques", "fornecedores")
+MODO_DIAS = "dias"
+MODO_PERCENTUAL_RECEITA = "percentual_receita"
+TETO_DELTA_NWC_RECEITA_PADRAO = 0.50
+EPSILON = 1e-12
 CAMPOS_WK_PROJETADOS = (
     "ano_projecao",
     "contas_receber",
@@ -43,7 +54,10 @@ CAMPOS_WK_PROJETADOS = (
     "fornecedores",
     "nwc",
     "delta_nwc",
+    "modo_capital_giro",
 )
+
+logger = logging.getLogger(__name__)
 
 
 def validar_nomes_mapeados_wk(raiz_projeto: Path) -> None:
@@ -67,10 +81,8 @@ def valor_dias_obrigatorio(premissas: dict[str, Any], campo: str) -> float:
     return valor
 
 
-def carregar_premissas_wk(ticker: str, raiz_projeto: Path) -> dict[str, float]:
-    """Carrega DSO, DIO e DPO do arquivo de premissas do ticker."""
-    caminho = raiz_projeto / "data" / "premissas" / f"{ticker}_premissas.json"
-    premissas = carregar_json(caminho)
+def extrair_premissas_dias(premissas: dict[str, Any]) -> dict[str, float]:
+    """Extrai DSO, DIO e DPO para empresas de ciclo curto."""
     return {
         "dso": valor_dias_obrigatorio(premissas, "dso"),
         "dio": valor_dias_obrigatorio(premissas, "dio"),
@@ -78,10 +90,65 @@ def carregar_premissas_wk(ticker: str, raiz_projeto: Path) -> dict[str, float]:
     }
 
 
+def carregar_premissas_wk(ticker: str, raiz_projeto: Path) -> dict[str, float]:
+    """Carrega DSO, DIO e DPO do arquivo de premissas do ticker."""
+    caminho = raiz_projeto / "data" / "premissas" / f"{ticker}_premissas.json"
+    premissas = carregar_json(caminho)
+    return extrair_premissas_dias(premissas)
+
+
+def premissas_tem_prazos(premissas: dict[str, Any]) -> bool:
+    """Indica se o analista informou DSO, DIO e DPO."""
+    return all(
+        campo in premissas and premissas[campo] is not None
+        for campo in ("dso", "dio", "dpo")
+    )
+
+
 def carregar_premissas_completas(ticker: str, raiz_projeto: Path) -> dict[str, Any]:
     """Carrega o arquivo integral de premissas para premissas opcionais."""
     caminho = raiz_projeto / "data" / "premissas" / f"{ticker}_premissas.json"
     return carregar_json(caminho)
+
+
+def obter_teto_delta_nwc_receita(premissas: dict[str, Any]) -> float:
+    """Le o teto de Delta NWC do ano 1 sobre receita, com default conservador."""
+    valor = premissas.get(
+        "teto_delta_nwc_receita",
+        TETO_DELTA_NWC_RECEITA_PADRAO,
+    )
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+        raise ValueError("Premissa teto_delta_nwc_receita precisa ser numerica.")
+    teto = float(valor)
+    if teto <= 0:
+        raise ValueError("Premissa teto_delta_nwc_receita precisa ser positiva.")
+    return teto
+
+
+def obter_modo_capital_giro(
+    premissas: dict[str, Any],
+    metadados: dict[str, Any],
+) -> str:
+    """Define o modo de projecao do capital de giro."""
+    usa_modo_ancorado = empresa_usa_ret(premissas, metadados)
+    modo_informado = normalizar_texto(premissas.get("modo_capital_giro"))
+    modo_informado = modo_informado.replace("-", "_").replace(" ", "_")
+
+    if modo_informado == MODO_PERCENTUAL_RECEITA:
+        usa_modo_ancorado = True
+    elif modo_informado and modo_informado != MODO_DIAS:
+        raise ValueError(
+            "Premissa modo_capital_giro invalida. Use 'dias' ou "
+            "'percentual_receita'."
+        )
+
+    if usa_modo_ancorado:
+        return MODO_PERCENTUAL_RECEITA
+    if premissas_tem_prazos(premissas):
+        return MODO_DIAS
+    raise ValueError(
+        "Premissas DSO/DIO/DPO ausentes para modo de capital de giro por dias."
+    )
 
 
 def carregar_projecao_existente(
@@ -246,17 +313,147 @@ def calcular_base_cpv(
     return receita_liquida, "proxy.receita_liquida"
 
 
-def projetar_linhas_wk(
-    dre: dict[str, dict[str, Any]],
+def obter_receita_ano0(conteudo: dict[str, Any]) -> float:
+    """Le a receita do Ano 0 ja persistida pela DRE."""
+    ano0 = conteudo.get("ano0")
+    if not isinstance(ano0, dict):
+        raise RuntimeError("Bloco ano0 ausente na projecao.")
+    receita = obter_float_obrigatorio(ano0, "receita_liquida", "ano0")
+    if receita <= 0:
+        raise ValueError("Receita liquida do ano0 precisa ser positiva.")
+    return receita
+
+
+def projetar_linha_por_dias(
+    linha_dre: dict[str, Any],
     premissas_wk: dict[str, float],
     premissas_completas: dict[str, Any],
     indice_cpv_historico: dict[str, Any] | None,
-    nwc_ano0: float,
+    ano: int,
+) -> tuple[float, float, float, float, str]:
+    """Projeta uma linha de WK por DSO/DIO/DPO."""
+    receita_liquida = obter_float_obrigatorio(linha_dre, "receita_liquida", f"ano{ano}")
+    base_cpv, fonte_base_cpv = calcular_base_cpv(
+        linha_dre,
+        premissas_completas,
+        indice_cpv_historico,
+        ano,
+    )
+
+    # Formula: contas_receber_t = (DSO / 365) x receita_t.
+    contas_receber = (premissas_wk["dso"] / DIAS_ANO) * receita_liquida
+
+    # Formula: estoques_t = (DIO / 365) x base_cpv_t.
+    estoques = (premissas_wk["dio"] / DIAS_ANO) * base_cpv
+
+    # Formula economica: fornecedores_abs_t = (DPO / 365) x base_cpv_t.
+    # O saldo e salvo negativo porque fornecedores e passivo no BP.
+    fornecedores = -((premissas_wk["dpo"] / DIAS_ANO) * base_cpv)
+    nwc = calcular_nwc(contas_receber, estoques, fornecedores)
+    return contas_receber, estoques, fornecedores, nwc, fonte_base_cpv
+
+
+def projetar_linha_por_percentual_receita(
+    ano0_wk: dict[str, Any],
+    receita_ano0: float,
+    receita_liquida: float,
+) -> tuple[float, float, float, float]:
+    """Projeta WK preservando o percentual historico sobre receita."""
+    fator_receita = receita_liquida / receita_ano0
+
+    # Modo ancorado: escala a composicao historica do WK por receita.
+    # Assim NWC_t = (NWC_ano0 / Receita_ano0) x Receita_t e construtoras
+    # com estoque/recebiveis longos nao liberam capital de giro ficticio no ano 1.
+    contas_receber = float(ano0_wk["contas_receber"]) * fator_receita
+    estoques = float(ano0_wk["estoques"]) * fator_receita
+    fornecedores = float(ano0_wk["fornecedores"]) * fator_receita
+    nwc = calcular_nwc(contas_receber, estoques, fornecedores)
+    return contas_receber, estoques, fornecedores, nwc
+
+
+def ajustar_componentes_para_nwc(
+    contas_receber: float,
+    estoques: float,
+    fornecedores: float,
+    nwc_original: float,
+    nwc_ajustado: float,
+) -> tuple[float, float, float]:
+    """Ajusta os componentes para manter a identidade de NWC."""
+    if abs(nwc_original) > EPSILON and (nwc_original * nwc_ajustado) >= 0:
+        fator = nwc_ajustado / nwc_original
+        return contas_receber * fator, estoques * fator, fornecedores * fator
+
+    fornecedores_ajustado = nwc_ajustado - contas_receber - estoques
+    return contas_receber, estoques, fornecedores_ajustado
+
+
+def aplicar_salvaguarda_delta_ano1(
+    *,
+    ticker: str,
+    chave_ano: str,
+    receita_liquida: float,
+    nwc_anterior: float,
+    contas_receber: float,
+    estoques: float,
+    fornecedores: float,
+    nwc: float,
+    teto_delta_nwc_receita: float,
+) -> tuple[float, float, float, float, float]:
+    """Trunca Delta NWC do ano 1 quando o salto e economicamente irreal."""
+    delta_nwc = nwc - nwc_anterior
+    if chave_ano != "ano1":
+        return contas_receber, estoques, fornecedores, nwc, delta_nwc
+
+    limite = teto_delta_nwc_receita * abs(receita_liquida)
+    if abs(delta_nwc) <= limite:
+        return contas_receber, estoques, fornecedores, nwc, delta_nwc
+
+    delta_truncado = limite if delta_nwc > 0 else -limite
+    nwc_ajustado = nwc_anterior + delta_truncado
+    logger.warning(
+        "%s: Delta NWC ano1 truncado de %.1f para %.1f " "(teto %.2fx receita ano1).",
+        ticker,
+        delta_nwc,
+        delta_truncado,
+        teto_delta_nwc_receita,
+    )
+
+    # O teto evita que o ano 1 carregue uma liberacao/consumo de caixa
+    # artificial. Reescalamos os componentes para preservar a identidade:
+    # NWC = contas_receber + estoques + fornecedores.
+    contas_ajustada, estoques_ajustado, fornecedores_ajustado = (
+        ajustar_componentes_para_nwc(
+            contas_receber,
+            estoques,
+            fornecedores,
+            nwc,
+            nwc_ajustado,
+        )
+    )
+    return (
+        contas_ajustada,
+        estoques_ajustado,
+        fornecedores_ajustado,
+        nwc_ajustado,
+        delta_truncado,
+    )
+
+
+def projetar_linhas_wk(
+    ticker: str,
+    dre: dict[str, dict[str, Any]],
+    premissas_wk: dict[str, float] | None,
+    premissas_completas: dict[str, Any],
+    indice_cpv_historico: dict[str, Any] | None,
+    ano0_wk: dict[str, Any],
+    receita_ano0: float,
+    modo_capital_giro: str,
+    teto_delta_nwc_receita: float,
 ) -> tuple[dict[str, dict[str, float | str]], dict[str, str]]:
     """Projeta contas de working capital de ano1 a ano8."""
     linhas = {}
     fontes_base_cpv = {}
-    nwc_anterior = nwc_ano0
+    nwc_anterior = float(ano0_wk["nwc"])
 
     for ano in range(1, HORIZONTE_PROJECAO + 1):
         chave_ano = f"ano{ano}"
@@ -266,29 +463,50 @@ def projetar_linhas_wk(
             "receita_liquida",
             chave_ano,
         )
-        base_cpv, fonte_base_cpv = calcular_base_cpv(
-            linha_dre,
-            premissas_completas,
-            indice_cpv_historico,
-            ano,
+
+        if modo_capital_giro == MODO_DIAS:
+            if premissas_wk is None:
+                raise ValueError("Premissas DSO/DIO/DPO ausentes para modo por dias.")
+            (
+                contas_receber,
+                estoques,
+                fornecedores,
+                nwc,
+                fonte_base_cpv,
+            ) = projetar_linha_por_dias(
+                linha_dre,
+                premissas_wk,
+                premissas_completas,
+                indice_cpv_historico,
+                ano,
+            )
+        else:
+            contas_receber, estoques, fornecedores, nwc = (
+                projetar_linha_por_percentual_receita(
+                    ano0_wk,
+                    receita_ano0,
+                    receita_liquida,
+                )
+            )
+            fonte_base_cpv = "nao_aplicavel.percentual_receita"
+
+        (
+            contas_receber,
+            estoques,
+            fornecedores,
+            nwc,
+            delta_nwc,
+        ) = aplicar_salvaguarda_delta_ano1(
+            ticker=ticker,
+            chave_ano=chave_ano,
+            receita_liquida=receita_liquida,
+            nwc_anterior=nwc_anterior,
+            contas_receber=contas_receber,
+            estoques=estoques,
+            fornecedores=fornecedores,
+            nwc=nwc,
+            teto_delta_nwc_receita=teto_delta_nwc_receita,
         )
-
-        # Formula: contas_receber_t = (DSO / 365) x receita_t.
-        contas_receber = (premissas_wk["dso"] / DIAS_ANO) * receita_liquida
-
-        # Formula: estoques_t = (DIO / 365) x base_cpv_t.
-        estoques = (premissas_wk["dio"] / DIAS_ANO) * base_cpv
-
-        # Formula economica: fornecedores_abs_t = (DPO / 365) x base_cpv_t.
-        # O saldo e salvo negativo porque fornecedores e passivo no BP.
-        fornecedores = -((premissas_wk["dpo"] / DIAS_ANO) * base_cpv)
-
-        nwc = calcular_nwc(contas_receber, estoques, fornecedores)
-
-        # Formula: Delta NWC_t = NWC_t - NWC_(t-1).
-        # Se Delta NWC > 0, houve consumo de caixa. No fluxo de caixa, o
-        # impacto deve entrar como saida: -Delta NWC.
-        delta_nwc = nwc - nwc_anterior
 
         linhas[chave_ano] = {
             "ano_projecao": chave_ano,
@@ -297,6 +515,7 @@ def projetar_linhas_wk(
             "fornecedores": fornecedores,
             "nwc": nwc,
             "delta_nwc": delta_nwc,
+            "modo_capital_giro": modo_capital_giro,
         }
         fontes_base_cpv[chave_ano] = fonte_base_cpv
         nwc_anterior = nwc
@@ -328,25 +547,39 @@ def projetar_wk(
     raiz = resolver_raiz(raiz_projeto)
     ticker_normalizado = normalizar_ticker(ticker)
     validar_nomes_mapeados_wk(raiz)
-    premissas_wk = carregar_premissas_wk(ticker_normalizado, raiz)
     premissas_completas = carregar_premissas_completas(ticker_normalizado, raiz)
+    metadados = carregar_metadados(ticker_normalizado, raiz)
+    modo_capital_giro = obter_modo_capital_giro(premissas_completas, metadados)
+    premissas_wk = (
+        extrair_premissas_dias(premissas_completas)
+        if modo_capital_giro == MODO_DIAS
+        else None
+    )
+    teto_delta_nwc_receita = obter_teto_delta_nwc_receita(premissas_completas)
     caminho_projecao, conteudo, dre = carregar_projecao_existente(
         ticker_normalizado,
         raiz,
     )
     ano0_wk = carregar_ano0_wk(ticker_normalizado, raiz)
+    receita_ano0 = obter_receita_ano0(conteudo)
     indice_cpv_historico = carregar_indice_cpv_historico(ticker_normalizado, raiz)
     wk, fontes_base_cpv = projetar_linhas_wk(
+        ticker=ticker_normalizado,
         dre=dre,
         premissas_wk=premissas_wk,
         premissas_completas=premissas_completas,
         indice_cpv_historico=indice_cpv_historico,
-        nwc_ano0=float(ano0_wk["nwc"]),
+        ano0_wk=ano0_wk,
+        receita_ano0=receita_ano0,
+        modo_capital_giro=modo_capital_giro,
+        teto_delta_nwc_receita=teto_delta_nwc_receita,
     )
     atualizar_projecao_wk(caminho_projecao, conteudo, ano0_wk, wk)
     return {
         "ticker": ticker_normalizado,
         "premissas_wk": premissas_wk,
+        "modo_capital_giro": modo_capital_giro,
+        "teto_delta_nwc_receita": teto_delta_nwc_receita,
         "ano0_wk": ano0_wk,
         "wk": wk,
         "base_cpv_historica": indice_cpv_historico,
@@ -368,6 +601,7 @@ def imprimir_tabela_wk(resultado: dict[str, Any]) -> None:
         f"data={ano0_wk.get('data_exercicio')} | "
         f"fonte={ano0_wk.get('fonte')}"
     )
+    print(f"Modo capital de giro: {resultado['modo_capital_giro']}")
     print("Delta NWC positivo = consumo de caixa; impacto no FCF = -Delta NWC.")
 
     cabecalho = (

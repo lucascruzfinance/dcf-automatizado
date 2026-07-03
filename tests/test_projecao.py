@@ -39,6 +39,7 @@ def criar_mapeamento_integrado_minimo(raiz: Path) -> None:
         "fornecedores": {},
         "nwc": {},
         "delta_nwc": {},
+        "modo_capital_giro": {},
     }
     salvar_json(raiz / "config" / "mapeamento_cvm.json", {"campos": campos})
 

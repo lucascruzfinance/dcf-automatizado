@@ -112,6 +112,11 @@
       "sinal_esperado": "positivo_ou_negativo",
       "codigos_cvm": []
     },
+    "modo_capital_giro": {
+      "descricao": "Modo de Projecao do Capital de Giro",
+      "sinal_esperado": "nao_aplicavel",
+      "codigos_cvm": []
+    },
     "imobilizado": {
       "descricao": "Imobilizado",
       "sinal_esperado": "positivo",
