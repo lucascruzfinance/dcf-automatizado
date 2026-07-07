@@ -97,6 +97,18 @@ def obter_preco_atual(simbolo: str, logger: logging.Logger) -> float | None:
     return float(serie.iloc[-1])
 
 
+def obter_faixa_52_semanas(
+    simbolo: str,
+    logger: logging.Logger,
+) -> tuple[float | None, float | None]:
+    """Obtem minima e maxima de fechamento das ultimas 52 semanas."""
+    serie = historico_fechamento(simbolo, "1y", "1d", logger)
+    if serie.empty:
+        logger.warning("Faixa de 52 semanas indisponivel para %s", simbolo)
+        return None, None
+    return float(serie.min()), float(serie.max())
+
+
 def obter_info_yfinance(simbolo: str, logger: logging.Logger) -> dict[str, Any]:
     """Coleta o dicionario info sem interromper o pipeline em falhas."""
     try:
@@ -165,6 +177,7 @@ def coletar_mercado(
     simbolo = ticker_yfinance_b3(ticker_normalizado)
 
     preco_atual = obter_preco_atual(simbolo, logger)
+    preco_minimo_52s, preco_maximo_52s = obter_faixa_52_semanas(simbolo, logger)
     beta = calcular_beta_rolling(simbolo, logger)
     info = obter_info_yfinance(simbolo, logger)
     acoes = info.get("sharesOutstanding")
@@ -185,6 +198,8 @@ def coletar_mercado(
         "ticker": ticker_normalizado,
         "ticker_yfinance": simbolo,
         "preco_atual": preco_atual,
+        "preco_minimo_52s": preco_minimo_52s,
+        "preco_maximo_52s": preco_maximo_52s,
         "beta_calculado": beta,
         "acoes_em_circulacao": None if acoes is None else float(acoes),
         "market_cap": None if market_cap is None else float(market_cap),

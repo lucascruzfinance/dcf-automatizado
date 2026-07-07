@@ -169,6 +169,21 @@ def selecionar_ultimo_exercicio(
     if selecionado.empty:
         raise RuntimeError(f"Conta {nome_padronizado} nao encontrada no Ano 0.")
 
+    # O Ano 0 precisa ser um exercicio ANUAL (DFP, 31/12): um ITR trimestral
+    # como base faria a projecao partir de 1/4 da receita real enquanto o
+    # bridge subtrai a divida bruta inteira. Se nao houver fechamento anual
+    # (fixtures sinteticas), mantem o comportamento antigo como fallback.
+    if "DT_FIM_EXERC" in selecionado.columns:
+        datas_exercicio = pd.to_datetime(
+            selecionado["DT_FIM_EXERC"],
+            errors="coerce",
+        )
+        anuais = selecionado[
+            (datas_exercicio.dt.month == 12) & (datas_exercicio.dt.day == 31)
+        ]
+        if not anuais.empty:
+            selecionado = anuais.copy()
+
     if "ano_arquivo" in selecionado.columns:
         selecionado["_ano_arquivo_num"] = pd.to_numeric(
             selecionado["ano_arquivo"],

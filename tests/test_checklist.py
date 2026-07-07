@@ -36,6 +36,10 @@ def criar_projecao_checklist(
     soma_vp_fcff: float = 900.0,
     diferenca_balanco_ano1: float = 0.0,
     divida_bruta_ano8: float = 300.0,
+    nopat_ano8: float = 66.0,
+    capex_ano8: float = -30.0,
+    delta_nwc_todos: float = 0.0,
+    acoes_fully_diluted: float = 1000.0,
 ) -> None:
     """Cria projecao integrada sintetica sem rodar o pipeline."""
     dre = {}
@@ -52,13 +56,13 @@ def criar_projecao_checklist(
         }
         fcff[chave_ano] = {
             "ano_projecao": chave_ano,
-            "nopat": 66.0,
-            "delta_nwc": 0.0,
+            "nopat": nopat_ano8 if ano == 8 else 66.0,
+            "delta_nwc": delta_nwc_todos,
             "fcff": 80.0,
         }
         ppe[chave_ano] = {
             "ano_projecao": chave_ano,
-            "capex": -30.0,
+            "capex": capex_ano8 if ano == 8 else -30.0,
             "depreciacao_amortizacao": 20.0,
         }
         balanco[chave_ano] = {
@@ -97,7 +101,7 @@ def criar_projecao_checklist(
                 "soma_vp_fcff": soma_vp_fcff,
                 "pct_ev_perpetuidade": vp_vt / (soma_vp_fcff + vp_vt),
             },
-            "ev_equity": {"acoes_fully_diluted": 1000.0},
+            "ev_equity": {"acoes_fully_diluted": acoes_fully_diluted},
             "balanco": balanco,
             "ppe": ppe,
             "divida": divida,
@@ -132,6 +136,28 @@ def test_u2_g_acima_5pct_alerta(tmp_path: Path) -> None:
     assert resultado["aprovado"] is True
 
 
+def test_u3_taxa_reinvestimento_fora_do_intervalo_reprova(tmp_path: Path) -> None:
+    """Taxa de reinvestimento acima de 100% deve reprovar o checklist."""
+    criar_meta(tmp_path)
+    criar_projecao_checklist(tmp_path, taxa_reinvestimento=1.5)
+
+    resultado = executar_checklist("TEST3", raiz_projeto=tmp_path)
+
+    assert item_por_id(resultado, "U3")["status"] == "ERRO"
+    assert resultado["aprovado"] is False
+
+
+def test_u5_acoes_fully_diluted_nao_positivas_reprova(tmp_path: Path) -> None:
+    """Acoes fully diluted iguais a zero devem reprovar o checklist."""
+    criar_meta(tmp_path)
+    criar_projecao_checklist(tmp_path, acoes_fully_diluted=0.0)
+
+    resultado = executar_checklist("TEST3", raiz_projeto=tmp_path)
+
+    assert item_por_id(resultado, "U5")["status"] == "ERRO"
+    assert resultado["aprovado"] is False
+
+
 def test_u4_perpetuidade_acima_85pct(tmp_path: Path) -> None:
     """VP(VT) com 90% do EV deve gerar alerta."""
     criar_meta(tmp_path)
@@ -151,6 +177,42 @@ def test_nf1_balanco_aberto_reprova(tmp_path: Path) -> None:
 
     assert item_por_id(resultado, "NF1")["status"] == "ERRO"
     assert resultado["aprovado"] is False
+
+
+def test_nf2_roiic_acima_de_50pct_alerta(tmp_path: Path) -> None:
+    """ROIIC implicito de 100% no ano 8 deve gerar alerta sem reprovar."""
+    criar_meta(tmp_path)
+    # Delta NOPAT ano8 = 96 - 66 = 30; denominador = |CAPEX ano7| = 30 -> 100%.
+    criar_projecao_checklist(tmp_path, nopat_ano8=96.0)
+
+    resultado = executar_checklist("TEST3", raiz_projeto=tmp_path)
+
+    assert item_por_id(resultado, "NF2")["status"] == "ALERTA"
+    assert resultado["aprovado"] is True
+
+
+def test_nf3_capex_abaixo_da_depreciacao_alerta(tmp_path: Path) -> None:
+    """CAPEX do ano 8 menor que a D&A deve alertar sobre a perpetuidade."""
+    criar_meta(tmp_path)
+    # |CAPEX ano8| = 10 < D&A ano8 = 20 -> perpetuidade encolhe o ativo.
+    criar_projecao_checklist(tmp_path, capex_ano8=-10.0)
+
+    resultado = executar_checklist("TEST3", raiz_projeto=tmp_path)
+
+    assert item_por_id(resultado, "NF3")["status"] == "ALERTA"
+    assert resultado["aprovado"] is True
+
+
+def test_nf4_fco_ebitda_abaixo_de_07x_alerta(tmp_path: Path) -> None:
+    """FCO/EBITDA abaixo de 0,7x em todos os anos deve gerar alerta."""
+    criar_meta(tmp_path)
+    # FCO ~= 120 - 20 - 66 x (0,34/0,66) = 66; razao 66/120 = 0,55x < 0,7x.
+    criar_projecao_checklist(tmp_path, delta_nwc_todos=20.0)
+
+    resultado = executar_checklist("TEST3", raiz_projeto=tmp_path)
+
+    assert item_por_id(resultado, "NF4")["status"] == "ALERTA"
+    assert resultado["aprovado"] is True
 
 
 def test_nf5_alavancagem_alta_alerta(tmp_path: Path) -> None:

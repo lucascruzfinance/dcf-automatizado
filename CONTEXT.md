@@ -114,9 +114,9 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
-- **Data da última atualização:** 03/07/2026
+- **Data da última atualização:** 07/07/2026
 - **Versão alvo:** v1.0 (prazo: 06/08/2026)
-- **Fase atual:** SEMANA 3 — Valuation completo: FCFF, WACC, VT, EV e checklist
+- **Fase atual:** SEMANA 4 CONCLUÍDA (Ondas 1 e 2) — visualizações Plotly + front-end Streamlit institucional. Próxima: SEMANA 5 (Etapa 5 — Excel 7 abas + exportador BI + main.py)
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -148,10 +148,13 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - `src/verificar_semana3.py` criado: executa DRE -> WK -> PP&E -> dívida -> FCFF -> WACC -> VT -> EV -> checklist para DIRR3 e MGLU3, imprime FCFF anual, painel-resumo e classificações E1-E8/S1-S4.
   - Validação de qualidade atual: `pytest tests\ -v` verde com 47 testes; `flake8 src\ tests\` verde.
 - **O que está EM PROGRESSO:**
-  - Validação humana dos números coletados para DIRR3 e MGLU3.
-  - Validação ponta a ponta da Semana 3 para DIRR3 e MGLU3 com Target Price, Upside e checklist impressos.
+  - Validação humana dos números coletados e das premissas reais de DIRR3 e MGLU3
+    (as premissas atuais são plausíveis mas ainda não são tese de investimento).
+  - Validação visual humana dos 14 gráficos em `outputs/graficos/` e da jornada
+    completa no `streamlit run app.py`.
 - **PRÓXIMA TAREFA:**
-  - Fechar a validação operacional da Semana 3 para DIRR3 e MGLU3 e, depois, iniciar a Etapa 4 de visualizações.
+  - SEMANA 5 / Etapa 5: `exportador_excel.py` (7 abas com fórmulas nativas),
+    `exportador_bi.py` (tabelas planas para Power BI) e `main.py` ponta a ponta.
 - **Decisões de arquitetura tomadas nesta sessão:**
   - O coletor usa o cadastro de companhias abertas e os arquivos FCA da CVM para relacionar ticker negociado ao `CD_CVM`.
   - Como o FCA recente traz `CNPJ_Companhia` em vez de `CD_CVM`, o coletor cruza `FCA.CNPJ_Companhia` com `cad_cia_aberta.CNPJ_CIA` para obter o `CD_CVM`.
@@ -186,6 +189,108 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 07/07/2026 — Fechamento da Semana 3 + Semana 4 completa (Ondas 1 e 2)
+
+- **Bug raiz corrigido (Semana 3):** o Ano 0 do pipeline vinha do ITR trimestral
+  (31/03/2026) em vez do exercício anual — a receita-base era 1/4 da real enquanto
+  o bridge subtraía a dívida bruta inteira, produzindo Target Price negativo.
+  `selecionar_ultimo_exercicio` em `projetor_dre.py` agora prefere linhas de
+  fechamento anual (31/12) quando existem, com fallback ao comportamento antigo
+  para fixtures sintéticas. Como todos os schedules reutilizam essa função, um
+  único fix corrigiu o pipeline inteiro.
+- **Semana 3 fechada:** `python -m src.verificar_semana3` imprime `SEMANA 3 OK`.
+  DIRR3: Target R$ 15,31 vs preço R$ 13,57 (+12,8%, NEUTRO), WACC 16,59%,
+  perpetuidade 40,9% do EV, múltiplo de saída 4,84x. MGLU3: Target R$ 6,02 vs
+  R$ 4,46 (+35,6%, COMPRA), WACC 19,38%, perpetuidade 59,3%. Resta apenas o
+  alerta não-bloqueante S3 da MGLU3 (múltiplo de saída 2,59x < 3x).
+- **Checklist auditado contra o PROMPT 5:** U1-U5 e NF1-NF5 já cobertos em
+  `checklist.py`; testes novos em `tests/test_checklist.py` para U3, U5, NF2,
+  NF3 e NF4 (antes só U1, U2, U4, NF1, NF5 tinham teste).
+- **`src/metricas/metricas_historicas.py` criado (trilha não-financeira):**
+  crescimento YoY, CAGR 3/5/7, margens bruta/EBITDA/EBIT/líquida, alíquota
+  efetiva, DSO/DIO/DPO/CCC, NWC/receita, CAPEX aproximado (ΔImobilizado + D&A),
+  dívida líquida/EBITDA, cobertura de juros, ROIC e beta desalavancado (Hamada).
+  Persiste `data/processed/<TICKER>_metricas.json`; trilha financeira devolve
+  esqueleto não validado (v1.5). Testes em `tests/test_metricas_historicas.py`.
+- **`coletor_mercado.py` ampliado:** persiste `preco_minimo_52s` e
+  `preco_maximo_52s` (faixa de 52 semanas do Football Field); recoletado para
+  DIRR3 e MGLU3.
+- **ONDA 1 — 7 módulos Plotly em `src/visualizacao/`** (HTML + PNG via kaleido
+  em `outputs/graficos/`, paleta institucional navy):
+  - `tema_institucional.py` — paleta/tipografia/salvamento compartilhados; PNG
+    falha com aviso (não derruba) em máquinas sem Chrome.
+  - `apoio_cenarios.py` — recalcula Target Price sob cenários (ΔWACC, Δg,
+    fator/Δ crescimento, Δ margem, fatores de NWC e CAPEX) a partir dos blocos
+    persistidos; devolve None quando g' >= WACC' (célula bloqueada). Aproximação
+    documentada: ΔNWC e CAPEX escalam com a receita do cenário; D&A fixa.
+  - `apoio_heatmap.py` — heatmaps com formatação condicional pelos limiares de
+    recomendação (verde COMPRA / amarelo NEUTRO / vermelho VENDA) e caso base
+    com borda dourada.
+  - `football_field.py` — 7 metodologias (DCF Bear/Base/Bull, Comps EV/EBITDA e
+    P/L como placeholders até a v2.0, Múltiplo de Saída ±20%, faixa 52 semanas),
+    preço atual em linha vertical vermelha. Parâmetros Bear/Bull e múltiplos
+    placeholder em `config/parametros.json` (`football_field`).
+  - `waterfall_ev.py` — VP(FCFF) 8 anos + VP(VT) → EV com % de cada bloco e
+    aviso quando VP(VT) > 80% do EV.
+  - `sensibilidade_wacc_g.py` — grade 7 WACC × 5 g (passos em
+    `config/parametros.json` → `sensibilidade`), segunda tabela com % do EV na
+    perpetuidade.
+  - `sensibilidade_receita_margem.py` — Δcrescimento × Δmargem (pp, 8 anos).
+  - `sensibilidade_setor.py` — construção: Margem × intensidade de NWC (proxy
+    inverso documentado de VSO, que não é observável no modelo v1.0); varejo:
+    Margem × intensidade de CAPEX.
+  - `historico_vs_projetado.py` — grade 2×2 (Receita, EBITDA, Margem EBITDA,
+    LL), histórico CVM sólido + projeção tracejada conectadas.
+  - `dashboard_final.py` — faixa de KPIs de decisão (anotações no papel; o
+    go.Indicator não renderizava valores em multilinha) + FCFF anual + ponte
+    EV→Equity + histórico vs projetado.
+  - Todos os `gerar_*` devolvem `{"html", "png", "figura"}` — o app Streamlit
+    reutiliza a figura via `st.plotly_chart` sem regenerar lógica.
+- **ONDA 2 — `app.py` + `.streamlit/config.toml` (tema navy institucional):**
+  - Sidebar com 6 seções: Overview, Historico, Premissas, Valuation, Analise,
+    Excel Preview (esta última é stub declarado até a Etapa 5).
+  - Premissas: 8 campos individuais por vetor (number_input em expanders, com
+    histórico CVM ao lado como âncora), sliders para DSO/DIO/DPO/beta/Kd/g com
+    histórico no rótulo; validação em tempo real bloqueia g >= WACC (st.error +
+    botão desabilitado) e alerta margem > máxima histórica + 5pp e g > 5%.
+    Slider de g com teto 25% de propósito, para permitir testar o bloqueio.
+  - Salvar premissas reexecuta o pipeline oficial completo (DRE → WK → PP&E →
+    Dívida → FCFF → WACC → VT → EV → Checklist), injetando Rf e preço atual dos
+    JSONs de mercado já coletados para não depender de rede.
+  - Valuation: decomposição completa do WACC em tabela, métricas do VT,
+    waterfall, football field e checklist com status.
+  - `tests/test_app.py` (Streamlit AppTest, sem navegador): Overview renderiza
+    Target Price; g=20% mostra BLOQUEADO e desabilita salvar; g=2% não bloqueia;
+    Valuation renderiza WACC + checklist. Pula com skipif se data/processed
+    estiver ausente.
+- **Validação de qualidade:** `pytest tests -q` verde com 63 testes;
+  `black --check` e `flake8` limpos; `python -m src.verificar_semana3` OK;
+  app validado no navegador (6 seções navegáveis, gráficos embutidos).
+- **Decisões de arquitetura tomadas nesta sessão:**
+  - O Ano 0 de toda projeção é o último exercício ANUAL da CVM (DFP 31/12),
+    nunca um ITR trimestral.
+  - Cenários e sensibilidades derivam do resultado persistido do motor
+    (`apoio_cenarios.recalcular_cenario`), sem reexecutar o pipeline — o caso
+    base continua nascendo exclusivamente do motor.
+  - Cores de sensibilidade seguem os mesmos limiares da recomendação do motor
+    (COMPRA > +20%, VENDA < −5%) para consistência semântica entre módulos.
+  - Parâmetros de cenário/sensibilidade (Bear/Bull, passos de grade, múltiplos
+    placeholder) vivem em `config/parametros.json`, não hard-coded.
+  - O app não recalcula nada em JavaScript: widgets apenas editam o JSON de
+    premissas e disparam o motor Python.
+- **Bugs conhecidos / pendências:**
+  - MGLU3 alerta S3 (múltiplo de saída implícito 2,59x < 3x) — não bloqueante;
+    revisão humana das premissas de perpetuidade da MGLU3 recomendada.
+  - Kd histórico da MGLU3 sai alto (~30%+) porque as despesas financeiras da
+    CVM incluem itens não-dívida (descontos de recebíveis etc.); o WACC ainda
+    fica na faixa de sanidade, mas vale revisão humana na Semana 5.
+  - `preview_screenshot` do harness apresentou timeout com os gráficos Plotly;
+    validação visual do app foi feita por snapshot/eval + AppTest.
+- **PRÓXIMA TAREFA:**
+  - SEMANA 5 / Etapa 5: `exportador_excel.py` (7 abas, fórmulas nativas,
+    convenção de cores), `exportador_bi.py` (tabelas planas em `outputs/bi/`),
+    `main.py` ponta a ponta e aba Excel Preview funcional no app.
 
 ### Sessão 02/07/2026 — Fechamento da Semana 2 e início da Semana 3
 

@@ -133,12 +133,8 @@ def montar_ajustes_bridge(
     divida_longo = obter_valor_opcional(
         divida_ano0, ("divida_longo_prazo", "divida_lp")
     )
-    leasing_ifrs16 = obter_valor_opcional(
-        premissas, ("leasing_ifrs16",), padrao=0.0
-    )
-    caixa = obter_valor_opcional(
-        balanco_ano0, ("caixa_equivalentes", "caixa")
-    )
+    leasing_ifrs16 = obter_valor_opcional(premissas, ("leasing_ifrs16",), padrao=0.0)
+    caixa = obter_valor_opcional(balanco_ano0, ("caixa_equivalentes", "caixa"))
     aplicacoes = obter_valor_opcional(
         balanco_ano0, ("aplicacoes_financeiras",), padrao=0.0
     )

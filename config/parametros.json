@@ -3,6 +3,24 @@
   "anos_historicos_coleta": 7,
   "vida_util_ppe_anos": 10,
   "payout_dividendos": 0,
+  "football_field": {
+    "cenario_bear": {
+      "fator_crescimento": 0.8,
+      "delta_margem_pp": -0.02,
+      "delta_wacc_pp": 0.01,
+      "delta_g_pp": -0.005
+    },
+    "comps_placeholder_ev_ebitda": [4.0, 8.0],
+    "comps_placeholder_pl": [6.0, 12.0],
+    "multiplo_saida_variacao": 0.2
+  },
+  "sensibilidade": {
+    "wacc_passos_pp": [-0.015, -0.01, -0.005, 0.0, 0.005, 0.01, 0.015],
+    "g_passos_pp": [-0.01, -0.005, 0.0, 0.005, 0.01],
+    "crescimento_passos_pp": [-0.02, -0.01, 0.0, 0.01, 0.02],
+    "margem_passos_pp": [-0.02, -0.01, 0.0, 0.01, 0.02],
+    "fatores_intensidade": [0.8, 0.9, 1.0, 1.1, 1.2]
+  },
   "checklist": {
     "crescimento_perpetuidade_maximo_brl": 0.05,
     "vp_valor_terminal_maximo_percentual_ev": 0.85,

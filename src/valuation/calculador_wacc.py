@@ -80,9 +80,7 @@ def ler_premissa_numerica(
         if alias in premissas and premissas[alias] is not None:
             valor = premissas[alias]
             if isinstance(valor, bool) or not isinstance(valor, (int, float)):
-                raise ValueError(
-                    f"Premissa precisa ser numerica: {alias}"
-                )
+                raise ValueError(f"Premissa precisa ser numerica: {alias}")
             return float(valor)
     if padrao is not None:
         logger.warning(
@@ -92,8 +90,7 @@ def ler_premissa_numerica(
         )
         return padrao
     raise ValueError(
-        "Premissa obrigatoria ausente. Aceito qualquer um de: "
-        + ", ".join(aliases)
+        "Premissa obrigatoria ausente. Aceito qualquer um de: " + ", ".join(aliases)
     )
 
 
@@ -222,9 +219,7 @@ def serie_anual_historica(
             f"Nenhum exercicio anual encontrado para {nome_padronizado}."
         )
 
-    selecao["_ano_arquivo"] = pd.to_numeric(
-        selecao.get("ano_arquivo"), errors="coerce"
-    )
+    selecao["_ano_arquivo"] = pd.to_numeric(selecao.get("ano_arquivo"), errors="coerce")
     if "CD_CONTA" in selecao.columns:
         selecao["_prioridade"] = selecao["CD_CONTA"].astype(str).str.len()
     else:
