@@ -151,6 +151,7 @@ activemq-data/
 .env
 .envrc
 .venv
+.python
 env/
 venv/
 ENV/
@@ -216,3 +217,21 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project generated data
+data/raw/**
+data/processed/**
+outputs/**
+logs/**
+!data/raw/
+!data/raw/cvm/
+!data/raw/mercado/
+!data/raw/macro/
+!data/raw/**/.gitkeep
+!data/processed/
+!data/processed/.gitkeep
+!outputs/
+!outputs/excel/
+!outputs/graficos/
+!outputs/bi/
+!outputs/**/.gitkeep

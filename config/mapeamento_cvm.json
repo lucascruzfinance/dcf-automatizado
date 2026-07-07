@@ -1,0 +1,296 @@
+{
+  "versao": 1,
+  "descricao": "Mapeamento de CD_CONTA da CVM para nomes padronizados do sistema.",
+  "campos": {
+    "receita_liquida": {
+      "descricao": "Receita Liquida",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": ["3.01"]
+    },
+    "cpv_cmv": {
+      "descricao": "CPV/CMV",
+      "sinal_esperado": "negativo",
+      "codigos_cvm": ["3.02"]
+    },
+    "lucro_bruto": {
+      "descricao": "Lucro Bruto",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": ["3.03"]
+    },
+    "ebit": {
+      "descricao": "EBIT",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": ["3.05"]
+    },
+    "depreciacao_amortizacao": {
+      "descricao": "Depreciacao e Amortizacao",
+      "sinal_esperado": "negativo",
+      "codigos_cvm": ["6.01.01.02", "6.02.01.02"]
+    },
+    "receitas_financeiras": {
+      "descricao": "Receitas Financeiras",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": ["3.06.01"]
+    },
+    "despesas_financeiras": {
+      "descricao": "Despesas Financeiras",
+      "sinal_esperado": "negativo",
+      "codigos_cvm": ["3.06.02"]
+    },
+    "resultado_financeiro": {
+      "descricao": "Resultado Financeiro",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": ["3.06"]
+    },
+    "ebt": {
+      "descricao": "EBT",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": ["3.07"]
+    },
+    "ir_csll": {
+      "descricao": "IR/CSLL",
+      "sinal_esperado": "negativo",
+      "codigos_cvm": ["3.08"]
+    },
+    "lucro_liquido": {
+      "descricao": "Lucro Liquido",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": ["3.11"]
+    },
+    "ano_projecao": {
+      "descricao": "Ano da Projecao",
+      "sinal_esperado": "nao_aplicavel",
+      "codigos_cvm": []
+    },
+    "taxa_crescimento_receita": {
+      "descricao": "Taxa de Crescimento da Receita",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "margem_ebitda": {
+      "descricao": "Margem EBITDA",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "ebitda": {
+      "descricao": "EBITDA",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "caixa_equivalentes": {
+      "descricao": "Caixa e Equivalentes",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": ["1.01.01"]
+    },
+    "aplicacoes_financeiras": {
+      "descricao": "Aplicacoes Financeiras",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": ["1.01.02"]
+    },
+    "contas_receber": {
+      "descricao": "Contas a Receber",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": ["1.01.03", "1.01.03.01"]
+    },
+    "estoques": {
+      "descricao": "Estoques",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": ["1.01.04"]
+    },
+    "fornecedores": {
+      "descricao": "Fornecedores",
+      "sinal_esperado": "negativo",
+      "codigos_cvm": ["2.01.02"]
+    },
+    "nwc": {
+      "descricao": "Capital de Giro Liquido",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "delta_nwc": {
+      "descricao": "Variacao do Capital de Giro Liquido",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "modo_capital_giro": {
+      "descricao": "Modo de Projecao do Capital de Giro",
+      "sinal_esperado": "nao_aplicavel",
+      "codigos_cvm": []
+    },
+    "imobilizado": {
+      "descricao": "Imobilizado",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": ["1.02.03"]
+    },
+    "capex_receita": {
+      "descricao": "CAPEX sobre Receita",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "capex": {
+      "descricao": "CAPEX",
+      "sinal_esperado": "negativo",
+      "codigos_cvm": []
+    },
+    "divida_curto_prazo": {
+      "descricao": "Divida de Curto Prazo",
+      "sinal_esperado": "negativo",
+      "codigos_cvm": ["2.01.04", "2.01.04.01", "2.01.04.02"]
+    },
+    "divida_longo_prazo": {
+      "descricao": "Divida de Longo Prazo",
+      "sinal_esperado": "negativo",
+      "codigos_cvm": ["2.02.01", "2.02.01.01", "2.02.01.02"]
+    },
+    "divida_bruta": {
+      "descricao": "Divida Bruta",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "saldo_medio_divida": {
+      "descricao": "Saldo Medio da Divida",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "juros": {
+      "descricao": "Juros sobre Divida",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "delta_divida": {
+      "descricao": "Variacao da Divida Bruta",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "patrimonio_liquido": {
+      "descricao": "Patrimonio Liquido",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": ["2.03"]
+    },
+    "outros_ativos": {
+      "descricao": "Outros Ativos Projetados",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "outros_passivos": {
+      "descricao": "Outros Passivos Projetados",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "ativo_total": {
+      "descricao": "Ativo Total Projetado",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "passivo_total": {
+      "descricao": "Passivo Total Projetado",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "passivo_patrimonio_liquido": {
+      "descricao": "Passivo mais Patrimonio Liquido Projetado",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "diferenca_balanco": {
+      "descricao": "Diferenca de Fechamento do Balanco",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "dividendos": {
+      "descricao": "Dividendos Projetados",
+      "sinal_esperado": "negativo",
+      "codigos_cvm": []
+    },
+    "capex_saida_caixa": {
+      "descricao": "CAPEX como Saida de Caixa",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "fluxo_caixa_livre": {
+      "descricao": "Fluxo de Caixa Livre Projetado",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "nopat": {
+      "descricao": "NOPAT Projetado",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "aliquota_ir_nopat": {
+      "descricao": "Aliquota de IR usada no NOPAT",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "fcff": {
+      "descricao": "Fluxo de Caixa Livre para a Firma",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "fcfe": {
+      "descricao": "Fluxo de Caixa Livre para o Acionista",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "preco_atual": {
+      "descricao": "Preco atual de mercado",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "beta_calculado": {
+      "descricao": "Beta calculado contra o Ibovespa",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "acoes_em_circulacao": {
+      "descricao": "Acoes em circulacao",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "market_cap": {
+      "descricao": "Valor de mercado",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "rf_usd_tbond10y": {
+      "descricao": "Taxa livre de risco USD pelo T-Bond 10Y",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "selic_atual": {
+      "descricao": "Selic atual",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "ipca_focus_1a": {
+      "descricao": "Expectativa Focus IPCA 1 ano a frente",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "ipca_focus_2a": {
+      "descricao": "Expectativa Focus IPCA 2 anos a frente",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "selic_focus_1a": {
+      "descricao": "Expectativa Focus Selic 1 ano a frente",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "selic_focus_2a": {
+      "descricao": "Expectativa Focus Selic 2 anos a frente",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": []
+    },
+    "variacao_caixa_plug": {
+      "descricao": "Variacao do Caixa Plug",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "participacao_nao_controladores": {
+      "descricao": "Participacao de Nao Controladores",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": ["2.03.09"]
+    }
+  }
+}

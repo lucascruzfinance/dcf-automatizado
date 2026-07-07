@@ -13,6 +13,14 @@ plotly>=5.22.0
 kaleido>=0.2.1
 openpyxl>=3.1.2
 
+# ===== Camada de BI (Power BI) =====
+# A exportação das tabelas planas (star-schema, formato long/tidy) que o Power BI
+# consome usa pandas + pyarrow, já listados acima — NENHUMA dependência Python
+# adicional é necessária na v1.0. O Power BI Desktop é uma ferramenta externa
+# (gratuita, Windows) que se conecta aos CSV/Parquet gerados em `outputs/bi/`;
+# não é instalável via pip. O motor Python continua sendo a fonte única de verdade;
+# o Power BI apenas apresenta o resultado, não recalcula nada.
+
 # ===== Front-end institucional =====
 streamlit>=1.37.0
 streamlit-aggrid>=1.0.5
@@ -24,3 +32,8 @@ flake8>=7.0.0
 
 # ===== Infraestrutura =====
 python-dotenv>=1.0.1
+
+# ===== Backlog Pós-v1.0 (NÃO instalar na v1.0 — apenas referência) =====
+# Estas dependências só entram quando os itens de backlog forem implementados
+# (ver Seção 7 do ROTEIRO.md). Mantê-las comentadas evita poluir o ambiente v1.0.
+# reportlab>=4.2.0        # Nota de research em PDF (1 página) — item pós-v1.0

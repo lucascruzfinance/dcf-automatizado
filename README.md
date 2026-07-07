@@ -221,8 +221,10 @@ O desenvolvimento deste projeto usa um paradigma de vibe coding assistido por IA
 |------------|-----|
 | VS Code | Editor principal com suporte a Python, Jupyter e Git integrado |
 | OpenAI Codex CLI | Geração autônoma de código via terminal com acesso ao repositório |
+| Claude Code | Geração dos prompts cirúrgicos entregues ao Codex e revisão final de código |
 | GitHub Copilot | Assistência contextual em código dentro do VS Code |
 | Git + GitHub | Controle de versão e publicação do repositório |
+| Power BI Desktop | Ferramenta externa (gratuita, Windows) — painel executivo sobre as tabelas de `outputs/bi/`; não recalcula, apenas apresenta (backlog pós-v1.0) |
 
 ---
 
@@ -236,6 +238,12 @@ O front-end é construído em Streamlit seguindo princípios de design de interf
 - **Cada elemento se justifica.** Sem ícone decorativo, gradiente gratuito ou sombra sem função. Todo output importante é auditável — o Target Price expõe o WACC e o g que o geraram.
 
 A navegação é uma sidebar fixa com seis seções que espelham a jornada do analista: **Overview**, **Histórico**, **Premissas**, **Valuation**, **Análise** e **Excel Preview**.
+
+### Camada de BI complementar — Power BI
+
+O Streamlit é o front-end **interativo** (onde o analista ajusta premissas e o motor recalcula). Sobre o mesmo motor, o sistema exporta um **painel executivo em Power BI** — a ferramenta que times de finanças reconhecem de imediato. A arquitetura preserva a **fonte única de verdade**: o motor Python calcula uma vez e grava tabelas planas (formato *long*, organizadas como *star-schema*) em `outputs/bi/`; o Power BI apenas se conecta a essas tabelas e desenha os visuais. **Nenhum cálculo de valuation é reimplementado em DAX** — atualizar o painel significa rodar o Python de novo e clicar em *Refresh*. Streamlit e Power BI não competem: o primeiro é o ambiente de trabalho do analista; o segundo é o entregável de apresentação.
+
+Na v1.0 o sistema já entrega o **contrato de export** (as tabelas planas em `outputs/bi/`). O arquivo `.pbix` do painel é um entregável de backlog pós-v1.0 (ver [Roadmap](#roadmap)), construído sobre essas tabelas sem alterar o motor.
 
 ---
 
@@ -304,7 +312,12 @@ dcf-automatizado/
 │   │   ├── historico_vs_projetado.py   # Grade 2×2 com 4 métricas principais
 │   │   └── dashboard_final.py          # Painel consolidado com Recomendação e Checklist
 │   └── exportacao/
-│       └── exportador_excel.py         # Excel com 7 abas formatadas profissionalmente
+│       ├── exportador_excel.py         # Excel com 7 abas (fórmulas nativas + cor de input)
+│       └── exportador_bi.py            # Tabelas planas star-schema para o Power BI
+│
+├── powerbi/                            # Painel Power BI (backlog pós-v1.0)
+│   ├── dcf_dashboard.pbix              # Dashboard executivo — consome outputs/bi/
+│   └── tema.json                       # Tema institucional do Power BI
 │
 ├── tests/
 │   ├── test_coleta.py
@@ -320,7 +333,8 @@ dcf-automatizado/
 │
 └── outputs/                            # Ignorada pelo Git
     ├── excel/                          # Arquivos .xlsx gerados
-    └── graficos/                       # HTMLs e PNGs gerados pelo Plotly
+    ├── graficos/                       # HTMLs e PNGs gerados pelo Plotly
+    └── bi/                             # Tabelas planas (CSV/Parquet) consumidas pelo Power BI
 ```
 
 ---
@@ -357,7 +371,9 @@ O checklist de consistência é executado ao final e classifica cada verificaç�
 
 **Tabelas de Sensibilidade:** A tabela WACC × g é obrigatória porque ela mapeia o espaço de incerteza das duas premissas mais impactantes do modelo. A tabela Receita × Margem EBITDA mapeia o "espaço de segurança" — as combinações de premissas onde ainda há upside mesmo sob cenários mais conservadores. A sensibilidade setorial é específica por setor porque os principais vetores de incerteza variam: para construtoras é Margem Bruta × VSO (Velocidade de Vendas sobre Oferta), para bancos é NIM × Índice de Eficiência, para mineração é Preço da Commodity × Custo de Produção (C1).
 
-**Front-end e Exportação Excel:** O front-end Streamlit consolida todos os outputs em seis seções navegáveis. As 7 abas do Excel seguem a lógica do modelo Direcional e os padrões de estruturação de Wall Street Prep (WSP) — Capa, Premissas, Modelo Integrado, Schedules, Valuation, Sensibilidades e Output. A Aba de Premissas exibe explicitamente os 8 valores individuais de crescimento de receita por ano com a referência histórica ao lado, tornando o raciocínio do analista auditável por qualquer leitor do modelo.
+**Front-end e Exportação Excel:** O front-end Streamlit consolida todos os outputs em seis seções navegáveis. As 7 abas do Excel seguem a lógica do modelo Direcional e os padrões de estruturação de Wall Street Prep (WSP) — Capa, Premissas, Modelo Integrado, Schedules, Valuation, Sensibilidades e Output. As abas de modelo carregam **fórmulas nativas do Excel** (não valores colados) e a **convenção de cor de input** de banco (azul = premissa, preto = fórmula, verde = link entre abas), de modo que o leitor possa clicar numa célula e auditar o cálculo. A Aba de Premissas exibe explicitamente os 8 valores individuais de crescimento de receita por ano com a referência histórica ao lado, tornando o raciocínio do analista auditável por qualquer leitor do modelo.
+
+**Exportação para BI (Power BI):** O mesmo resultado do motor é gravado como tabelas planas (*star-schema*) em `outputs/bi/`, prontas para o Power BI conectar por "Get Data → Folder". Isso separa o *cálculo* (Python, fonte única de verdade) da *apresentação* (Power BI), sem duplicar lógica. Na v1.0 o sistema entrega essas tabelas; o painel `.pbix` é backlog pós-v1.0.
 
 ---
 
@@ -405,6 +421,8 @@ Para cada empresa analisada, o sistema entrega automaticamente:
 | Sensibilidade Setorial | `.html` + `.png` | Margem × VSO (construção), genérica (varejo) |
 | Waterfall do EV | `.html` + `.png` | Decomposição por componente com % de cada contribuição |
 | Dashboard Final | `.html` | Target Price, Recomendação, MOIC, Checklist consolidados |
+| Tabelas para BI | `.csv` / `.parquet` (star-schema) | Camada de dados plana que alimenta o painel Power BI |
+| Painel Power BI | `.pbix` (backlog pós-v1.0) | Dashboard executivo conectado às tabelas de `outputs/bi/` |
 
 ---
 
@@ -493,10 +511,10 @@ pytest tests/ -v
 
 | Versão | Prazo | Escopo |
 |--------|-------|--------|
-| **v1.0** | Agosto 2026 | Pipeline completo validado para **DIRR3 (referência)** e **MGLU3 (prova de universalidade)**. Motor FCFF/WACC de ponta a ponta. Arquitetura de duas trilhas construída (trilha financeira ainda não validada). 8 taxas de crescimento individuais por ano. Football Field, WACC×g, Dashboard, Excel 7 abas. Front-end institucional em Streamlit. |
-| **v1.5** | Out 2026 | Validação da trilha financeira (FCFE/Ke) contra banco real. Expansão para VALE3 (mineração), PETR4 (O&G) e ITUB4 (banco). Sensibilidades setoriais específicas por setor. |
-| **v2.0** | Jan 2027 | Trading Comps automatizado via yfinance para peers do setor. Módulo de qualidade de lucro (FCO/EBITDA histórico, accruals). Build-up de receita setorial para construtoras (VGV × VSO × PoC). |
-| **v3.0** | Mid 2027 | Exportação em PDF estilo research report institucional. Módulo de LBO simplificado. Integração com modelos unitários de empreendimento para construtoras. |
+| **v1.0** | Agosto 2026 | Pipeline completo validado para **DIRR3 (referência)** e **MGLU3 (prova de universalidade)**. Motor FCFF/WACC de ponta a ponta. Arquitetura de duas trilhas construída (trilha financeira ainda não validada). 8 taxas de crescimento individuais por ano. Football Field, WACC×g, Dashboard, Excel 7 abas com fórmulas nativas. Front-end institucional em Streamlit. **Contrato de export para BI** (tabelas planas star-schema em `outputs/bi/`). |
+| **v1.5** | Out 2026 | **Painel Power BI (`.pbix`)** conectado às tabelas de `outputs/bi/`. Validação da trilha financeira (FCFE/Ke) contra banco real. Expansão para VALE3 (mineração), PETR4 (O&G) e ITUB4 (banco). Sensibilidades setoriais específicas por setor. |
+| **v2.0** | Jan 2027 | **Comparáveis / CCA** automatizado via yfinance para peers do setor (triangula o DCF por múltiplos EV/EBITDA, P/L, P/VP). **Módulo Projetado vs. Realizado** (análise de variância / FP&A: projetado contra o realizado da CVM). Módulo de qualidade de lucro (FCO/EBITDA histórico, accruals). Build-up de receita setorial para construtoras (VGV × VSO × PoC). |
+| **v3.0** | Mid 2027 | **Nota de research em PDF** de 1 página (estilo mesa de análise). Exportação em PDF estilo research report institucional. Módulo de LBO simplificado. Integração com modelos unitários de empreendimento para construtoras. |
 
 ---
 

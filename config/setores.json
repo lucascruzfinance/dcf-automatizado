@@ -1,0 +1,41 @@
+{
+  "nao_financeiras": {
+    "construcao_civil": {
+      "nome": "Construcao Civil",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": {
+        "usa_ret": true,
+        "aliquota_ret_receita_bruta": 0.04,
+        "base_ret": "receita_bruta"
+      },
+      "tickers_v1": ["DIRR3"]
+    },
+    "varejo": {
+      "nome": "Varejo",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": {
+        "usa_ret": false,
+        "base_padrao": "ebt"
+      },
+      "tickers_v1": ["MGLU3"]
+    }
+  },
+  "financeiras": {
+    "bancos": {
+      "nome": "Bancos",
+      "metodo_valuation": "FCFE",
+      "taxa_desconto": "Ke",
+      "validacao": "v1.5"
+    },
+    "seguradoras": {
+      "nome": "Seguradoras",
+      "metodo_valuation": "FCFE",
+      "taxa_desconto": "Ke",
+      "validacao": "v1.5"
+    }
+  }
+}

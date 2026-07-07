@@ -1,0 +1,17 @@
+# Tema institucional do DCF Automatizado (ROTEIRO, Etapa 4).
+# Paleta navy com azul ancora; verde/vermelho ficam restritos ao uso
+# semantico (upside/downside) dentro do proprio app.
+
+[theme]
+base = "dark"
+primaryColor = "#1B4F8C"
+backgroundColor = "#0A1628"
+secondaryBackgroundColor = "#0F1E33"
+textColor = "#E6EDF5"
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
