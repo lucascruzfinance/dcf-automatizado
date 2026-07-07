@@ -84,8 +84,10 @@ Equity = EV − Dívida Bruta (CP+LP+Leasing IFRS16) + Caixa + Aplicações
 Target Price = Equity Value / Ações Fully Diluted
 Upside = (Target Price / Preço Atual) − 1
 Beta desalavancado (Hamada): βu = βL / [1 + (1 − t) × (D/E)]
-ROIC   = NOPAT / Capital Investido médio
-IC     = NWC + Imobilizado líquido + Goodwill + Outros ativos operacionais
+ROIC   = NOPAT / IC
+IC     = Working Capital + PP&E + Intangível
+Working Capital = Estoques + Contas a Receber − Fornecedores − Obrigações sociais/trabalhistas
+ROIIC_t = (NOPAT_t − NOPAT_(t−1)) / (IC_(t−1) − IC_(t−2))
 ```
 
 **Tributação:** empresas gerais → IR/CSLL de 34% sobre o EBT. Construtoras no RET →
@@ -114,7 +116,7 @@ Estes são os "aceites" que cada módulo deve respeitar para não quebrar o pró
 - **Motor -> Dashboard/Excel:** produz um objeto/estrutura de resultado do valuation
   contendo, no mínimo: DRE/BP/DFC projetados (8 anos), FCFF por ano, WACC com
   decomposição, VT, VP(VT), % do EV na perpetuidade, EV, Equity, Target Price,
-  Upside, Recomendação, e o resultado do checklist. Visualização e exportação
+  Upside, Recomendação, ROIC e ROIIC por ano, e o resultado do checklist. Visualização e exportação
   consomem essa mesma estrutura — não recalculam nada por conta própria.
 - **Motor -> Camada de BI (Power BI):** a MESMA estrutura de resultado alimenta um
   exportador de tabelas planas (formato tidy/long, organizado como star-schema)
@@ -201,7 +203,7 @@ cada ano (prova das 8 taxas individuais).
 `calculador_vt.py`; `calculador_ev.py`; `checklist.py`; `tests/test_valuation.py`.
 
 - **calculador_fcff.py:** FCFF pelos 8 anos (mantém negativo sem travar); calcula
-  FCFE também.
+  FCFE, ROIC e ROIIC também.
 - **calculador_wacc.py:** Rf via `^TNX`; Ke_USD -> Ke_BRL; Kd histórico; WACC com
   decomposição completa exibida. Para financeiras: apenas Ke, usando peers do setor
   bancário para beta.
@@ -220,8 +222,8 @@ Price de DIRR3 na mesma ordem de magnitude do Excel de referência (validação 
 
 **Arquivos de visualização:** `src/visualizacao/football_field.py`; `waterfall_ev.py`;
 `sensibilidade_wacc_g.py`; `sensibilidade_receita_margem.py`; `sensibilidade_setor.py`;
-`historico_vs_projetado.py`; `dashboard_final.py`. Todos Plotly, salvando HTML + PNG
-em `outputs/graficos/`.
+`historico_vs_projetado.py`; `roic_roiic.py`; `dashboard_final.py`. Todos Plotly,
+salvando HTML + PNG em `outputs/graficos/`.
 
 **Front-end:** `app.py` (Streamlit) + `.streamlit/config.toml` (tema institucional).
 
@@ -259,9 +261,10 @@ resultado.
 - **exportador_excel.py (openpyxl):** 7 abas — (1) Capa; (2) Premissas com os 8
   valores individuais + histórico ao lado; (3) Modelo Integrado (DRE+BP+DFC, 3 anos
   históricos + 8 projetados lado a lado, common-size ao lado); (4) Schedules (WK, PP&E,
-  Dívida em blocos verticais); (5) Valuation (FCFF 8 anos, decomposição WACC, bridge,
-  Football Field e Waterfall embutidos como PNG); (6) Sensibilidades (3 tabelas,
-  formatação condicional, caso base destacado); (7) Output (dashboard + checklist).
+  Dívida em blocos verticais); (5) Valuation (FCFF 8 anos, ROIC/ROIIC por ano,
+  decomposição WACC, bridge, Football Field e Waterfall embutidos como PNG); (6)
+  Sensibilidades (3 tabelas, formatação condicional, caso base destacado); (7)
+  Output (dashboard + checklist + gráfico ROIC/ROIIC).
   Cabeçalhos navy, números com separador de milhar e 2 casas, percentuais com 1 casa.
   **Padrão de qualidade "nível Direcional" (obrigatório):** nas abas de Modelo
   Integrado, Schedules e Valuation, as células de cálculo devem conter FÓRMULAS
@@ -281,7 +284,7 @@ resultado.
     upside, recomendacao.
   - `fato_demonstracoes.csv` — long: ticker, cenario, ano (hist/proj), demonstracao,
     linha_padronizada, valor. (DRE+BP+DFC históricos e projetados no mesmo formato.)
-  - `fato_fcff.csv` — ano, fcff, fator_desconto, vp_fcff.
+  - `fato_fcff.csv` — ano, fcff, fator_desconto, vp_fcff, capital_investido, roic, roiic.
   - `fato_sensibilidade_wacc_g.csv` — wacc, g, target_price (e/ou ev).
   - `fato_sensibilidade_receita_margem.csv` — delta_receita, delta_margem, target_price.
   - `fato_football_field.csv` — metodologia, valor_min, valor_base, valor_max.
@@ -415,4 +418,3 @@ Enquanto a v1.0 não fechar, este bloco é apenas referência: **não começar n
 - Screenshots/GIF do dashboard (Streamlit e Power BI) no topo do `README.md`.
 - Mini case study "DIRR3 — meu modelo vs. modelo do trainee InFinance", mostrando que
   o Target Price bate na mesma ordem de magnitude (a prova de validação mais forte).
-

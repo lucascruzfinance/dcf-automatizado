@@ -36,6 +36,7 @@ def criar_projecao_fcff(
     raiz: Path,
     ticker: str = "TEST3",
     ebit: float = 100.0,
+    ebit_por_ano: dict[int, float] | None = None,
     depreciacao: float = 10.0,
     lucro_liquido: float = 50.0,
     delta_nwc: float = 5.0,
@@ -49,19 +50,24 @@ def criar_projecao_fcff(
     divida = {}
     for ano in range(1, 9):
         chave_ano = f"ano{ano}"
+        ebit_ano = ebit_por_ano.get(ano, ebit) if ebit_por_ano else ebit
         dre[chave_ano] = {
             "ano_projecao": chave_ano,
-            "ebit": ebit,
+            "ebit": ebit_ano,
             "depreciacao_amortizacao": depreciacao,
             "lucro_liquido": lucro_liquido,
         }
         wk[chave_ano] = {
             "ano_projecao": chave_ano,
+            "contas_receber": 100.0,
+            "estoques": 50.0,
+            "fornecedores": -20.0,
             "delta_nwc": delta_nwc,
         }
         ppe[chave_ano] = {
             "ano_projecao": chave_ano,
             "capex": capex,
+            "imobilizado": 200.0,
         }
         divida[chave_ano] = {
             "ano_projecao": chave_ano,
@@ -74,6 +80,14 @@ def criar_projecao_fcff(
             "ticker": ticker,
             "tipo": "nao_financeira",
             "setor": "varejo",
+            "ano0": {
+                "wk": {
+                    "contas_receber": 90.0,
+                    "estoques": 40.0,
+                    "fornecedores": -20.0,
+                },
+                "ppe": {"imobilizado": 190.0},
+            },
             "dre": dre,
             "wk": wk,
             "ppe": ppe,
@@ -91,6 +105,19 @@ def test_calcular_fcff_positivo_com_valores_conhecidos(tmp_path: Path) -> None:
 
     assert resultado["fcff"]["ano1"]["nopat"] == pytest.approx(66.0)
     assert resultado["fcff"]["ano1"]["fcff"] == pytest.approx(51.0)
+    assert resultado["fcff"]["ano1"]["capital_investido"] == pytest.approx(330.0)
+    assert resultado["fcff"]["ano1"]["roic"] == pytest.approx(0.20)
+    assert resultado["fcff"]["ano1"]["roiic"] is None
+
+
+def test_calcular_roiic_usa_delta_capital_previo(tmp_path: Path) -> None:
+    """Valida ROIIC com Delta NOPAT_t sobre Delta IC_(t-1)."""
+    criar_metadados_e_premissas(tmp_path)
+    criar_projecao_fcff(tmp_path, ebit_por_ano={2: 130.0})
+
+    resultado = calcular_fcff("TEST3", raiz_projeto=tmp_path)
+
+    assert resultado["fcff"]["ano2"]["roiic"] == pytest.approx((85.8 - 66.0) / 30.0)
 
 
 def test_calcular_fcff_negativo_nao_trava(tmp_path: Path) -> None:

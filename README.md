@@ -123,6 +123,7 @@ O sistema é organizado em **5 módulos sequenciais** que se comunicam via arqui
 │  Não-Financeiras:                                                        │
 │  DRE + BP + DFC Projetados → Schedules WK, PP&E, Dívida                │
 │  FCFF = NOPAT + D&A − ΔNWC − CAPEX                                     │
+│  ROIC = NOPAT / IC | ROIIC = ΔNOPAT_t / ΔIC_(t−1)                      │
 │  WACC = (E/V)×Ke + (D/V)×Kd×(1−t)                                     │
 │  TV = FCFF₈ × (1+g) / (WACC−g)                                         │
 │  EV → Equity Value → Target Price                                       │
@@ -146,6 +147,7 @@ O sistema é organizado em **5 módulos sequenciais** que se comunicam via arqui
 │  Tabela de Sensibilidade Receita × Margem EBITDA                        │
 │  Sensibilidade Setorial específica por setor                            │
 │  Histórico vs. Projetado (grade 2×2 com 4 métricas)                    │
+│  ROIC e ROIIC histórico vs. projetado                                   │
 │  Dashboard consolidado com Recomendação e Checklist                     │
 │  Front-end Streamlit + Exportação Excel com 7 abas                      │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -310,6 +312,7 @@ dcf-automatizado/
 │   │   ├── sensibilidade_receita_margem.py
 │   │   ├── sensibilidade_setor.py      # Sensibilidade específica por setor
 │   │   ├── historico_vs_projetado.py   # Grade 2×2 com 4 métricas principais
+│   │   ├── roic_roiic.py               # Reality check de ROIC e ROIIC
 │   │   └── dashboard_final.py          # Painel consolidado com Recomendação e Checklist
 │   └── exportacao/
 │       ├── exportador_excel.py         # Excel com 7 abas (fórmulas nativas + cor de input)
@@ -361,7 +364,7 @@ Os campos de crescimento de receita, margem EBITDA e CAPEX/Receita são solicita
 
 ### Módulo 4 — Motor de Cálculo
 
-A cadeia de cálculo é executada em sequência obrigatória porque cada passo depende do anterior. Para empresas não-financeiras: a DRE é projetada primeiro porque o Working Capital depende da Receita e do CMV, o schedule de PP&E depende do CAPEX que é percentual da Receita, o schedule de Dívida gera o Resultado Financeiro que fecha o LL da DRE, o FCFF é calculado com os componentes de todos os schedules, e o WACC desconta os fluxos para chegar no EV. Para instituições financeiras: a DRE adaptada gera o LL diretamente, o FCFE é calculado subtraindo a variação do capital regulatório mínimo retido, e o Ke desconta os fluxos sem bridge EV→Equity.
+A cadeia de cálculo é executada em sequência obrigatória porque cada passo depende do anterior. Para empresas não-financeiras: a DRE é projetada primeiro porque o Working Capital depende da Receita e do CMV, o schedule de PP&E depende do CAPEX que é percentual da Receita, o schedule de Dívida gera o Resultado Financeiro que fecha o LL da DRE, o FCFF é calculado com os componentes de todos os schedules, e o WACC desconta os fluxos para chegar no EV. O bloco FCFF também persiste ROIC e ROIIC por ano como reality check de consistência interna, sem impor trajetória crescente ou decrescente. Para instituições financeiras: a DRE adaptada gera o LL diretamente, o FCFE é calculado subtraindo a variação do capital regulatório mínimo retido, e o Ke desconta os fluxos sem bridge EV→Equity.
 
 O checklist de consistência é executado ao final e classifica cada verificação como aprovada ou com alerta. Os itens do checklist são derivados diretamente das condições matemáticas obrigatórias do Gordon Growth Model e das melhores práticas de valuation documentadas por Damodaran, McKinsey e CFA Institute.
 
@@ -371,7 +374,7 @@ O checklist de consistência é executado ao final e classifica cada verificaç�
 
 **Tabelas de Sensibilidade:** A tabela WACC × g é obrigatória porque ela mapeia o espaço de incerteza das duas premissas mais impactantes do modelo. A tabela Receita × Margem EBITDA mapeia o "espaço de segurança" — as combinações de premissas onde ainda há upside mesmo sob cenários mais conservadores. A sensibilidade setorial é específica por setor porque os principais vetores de incerteza variam: para construtoras é Margem Bruta × VSO (Velocidade de Vendas sobre Oferta), para bancos é NIM × Índice de Eficiência, para mineração é Preço da Commodity × Custo de Produção (C1).
 
-**Front-end e Exportação Excel:** O front-end Streamlit consolida todos os outputs em seis seções navegáveis. As 7 abas do Excel seguem a lógica do modelo Direcional e os padrões de estruturação de Wall Street Prep (WSP) — Capa, Premissas, Modelo Integrado, Schedules, Valuation, Sensibilidades e Output. As abas de modelo carregam **fórmulas nativas do Excel** (não valores colados) e a **convenção de cor de input** de banco (azul = premissa, preto = fórmula, verde = link entre abas), de modo que o leitor possa clicar numa célula e auditar o cálculo. A Aba de Premissas exibe explicitamente os 8 valores individuais de crescimento de receita por ano com a referência histórica ao lado, tornando o raciocínio do analista auditável por qualquer leitor do modelo.
+**Front-end e Exportação Excel:** O front-end Streamlit consolida todos os outputs em seis seções navegáveis. As 7 abas do Excel seguem a lógica do modelo Direcional e os padrões de estruturação de Wall Street Prep (WSP) — Capa, Premissas, Modelo Integrado, Schedules, Valuation, Sensibilidades e Output. As abas de modelo carregam **fórmulas nativas do Excel** (não valores colados) e a **convenção de cor de input** de banco (azul = premissa, preto = fórmula, verde = link entre abas), de modo que o leitor possa clicar numa célula e auditar o cálculo. A Aba de Valuation deve exibir linhas anuais de ROIC e ROIIC junto ao FCFF; a aba Output deve incorporar o gráfico ROIC/ROIIC. A Aba de Premissas exibe explicitamente os 8 valores individuais de crescimento de receita por ano com a referência histórica ao lado, tornando o raciocínio do analista auditável por qualquer leitor do modelo.
 
 **Exportação para BI (Power BI):** O mesmo resultado do motor é gravado como tabelas planas (*star-schema*) em `outputs/bi/`, prontas para o Power BI conectar por "Get Data → Folder". Isso separa o *cálculo* (Python, fonte única de verdade) da *apresentação* (Power BI), sem duplicar lógica. Na v1.0 o sistema entrega essas tabelas; o painel `.pbix` é backlog pós-v1.0.
 
@@ -390,6 +393,7 @@ O checklist de consistência é executado ao final e classifica cada verificaç�
 - Projetar as demonstrações financeiras para 8 anos a partir das premissas
 - Verificar o fechamento do balanço em todos os anos projetados
 - Calcular FCFF ou FCFE, WACC ou Ke, Valor Terminal, EV, Equity Value, Target Price
+- Persistir ROIC e ROIIC por ano no forecast como reality check do crescimento
 - Executar o checklist de consistência e sinalizar problemas
 - Gerar Football Field, Waterfall, Sensibilidades e Dashboard
 - Exportar o Excel com 7 abas formatadas profissionalmente
@@ -420,6 +424,7 @@ Para cada empresa analisada, o sistema entrega automaticamente:
 | Tabela Receita × Margem | `.html` + `.png` | Espaço de segurança visual do valuation |
 | Sensibilidade Setorial | `.html` + `.png` | Margem × VSO (construção), genérica (varejo) |
 | Waterfall do EV | `.html` + `.png` | Decomposição por componente com % de cada contribuição |
+| ROIC e ROIIC | `.html` + `.png` | Histórico vs. projetado com média e mediana históricas |
 | Dashboard Final | `.html` | Target Price, Recomendação, MOIC, Checklist consolidados |
 | Tabelas para BI | `.csv` / `.parquet` (star-schema) | Camada de dados plana que alimenta o painel Power BI |
 | Painel Power BI | `.pbix` (backlog pós-v1.0) | Dashboard executivo conectado às tabelas de `outputs/bi/` |

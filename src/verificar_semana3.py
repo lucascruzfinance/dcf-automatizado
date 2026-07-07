@@ -356,17 +356,24 @@ def verificar_conteudo(conteudo: dict[str, Any]) -> list[dict[str, Any]]:
 
 def imprimir_tabela_fcff(conteudo: dict[str, Any]) -> None:
     """Imprime FCFF dos 8 anos projetados."""
-    print("\nFCFF projetado")
-    cabecalho = f"{'Ano':<6} {'FCFF':>18}"
+    print("\nFCFF, ROIC e ROIIC projetados")
+    cabecalho = f"{'Ano':<6} {'FCFF':>18} {'ROIC':>10} {'ROIIC':>10}"
     print(cabecalho)
     print("-" * len(cabecalho))
     fcff = conteudo.get("fcff", {})
     for ano in range(1, HORIZONTE_PROJECAO + 1):
         chave_ano = f"ano{ano}"
         valor = None
+        roic = None
+        roiic = None
         if isinstance(fcff, dict) and isinstance(fcff.get(chave_ano), dict):
             valor = numero_opcional(fcff[chave_ano], "fcff")
-        print(f"{chave_ano:<6} {formatar_valor(valor):>18}")
+            roic = numero_opcional(fcff[chave_ano], "roic")
+            roiic = numero_opcional(fcff[chave_ano], "roiic")
+        print(
+            f"{chave_ano:<6} {formatar_valor(valor):>18} "
+            f"{formatar_pct(roic):>10} {formatar_pct(roiic):>10}"
+        )
 
 
 def imprimir_painel_resumo(conteudo: dict[str, Any]) -> None:

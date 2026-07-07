@@ -87,6 +87,8 @@ A ordem de cálculo do Módulo 4 é obrigatória: DRE → schedule WK → schedu
 ```
 FCFF   = NOPAT + D&A − ΔNWC − CAPEX          onde NOPAT = EBIT × (1 − t)
 FCFE   = LL + D&A − ΔNWC − CAPEX + ΔDívida Líquida
+ROIC   = NOPAT / IC, com IC = Working Capital + PP&E + Intangível
+ROIIC  = ΔNOPAT_t / ΔIC_(t−1), usando o capital comprometido antes do retorno
 Ke_USD = Rf + Beta_realavancado × (ERP_EUA + CRP_Brasil)
 Ke_BRL = [(1 + Ke_USD) × (1 + IPCA)] / (1 + CPI_EUA) − 1
 WACC   = (E/V) × Ke_BRL + (D/V) × Kd × (1 − t)
@@ -291,6 +293,29 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - SEMANA 5 / Etapa 5: `exportador_excel.py` (7 abas, fórmulas nativas,
     convenção de cores), `exportador_bi.py` (tabelas planas em `outputs/bi/`),
     `main.py` ponta a ponta e aba Excel Preview funcional no app.
+
+### Sessão 07/07/2026 — ROIC/ROIIC projetado como reality check
+
+- `calculador_fcff.py` agora persiste, para cada `ano1..ano8`, `capital_giro_operacional`,
+  `capital_investido`, `roic` e `roiic` dentro do bloco `fcff`, mantendo FCFF/FCFE
+  como contratos existentes. `ROIIC ano1` fica `n/d`; a partir do ano 2 usa
+  `ΔNOPAT_t / ΔIC_(t-1)`.
+- `metricas_historicas.py` passou a calcular `capital_investido` e `roiic` históricos,
+  além de média e mediana 3a para ROIC/ROIIC. Não há regressão à média automática nem
+  regra que force ROIC/ROIIC a subir ou cair; a métrica é apenas diagnóstico.
+- `roic_roiic.py` criado em `src/visualizacao/`, gerando HTML+PNG em
+  `outputs/graficos/` e incorporado na seção Análise do Streamlit.
+- `checklist.py` consome o ROIIC persistido pelo motor para NF2, evitando fórmula
+  duplicada no checklist.
+- `config/mapeamento_cvm.json` recebeu `intangivel`, `obrigacoes_sociais_trabalhistas`,
+  `capital_giro_operacional`, `capital_investido`, `roic` e `roiic`.
+- O exportador Excel ainda não existe nesta branch; o contrato da Etapa 5 foi atualizado
+  para que a aba Valuation inclua linhas anuais de ROIC/ROIIC e a aba Output incorpore
+  o gráfico ROIC/ROIIC.
+- Validação: testes direcionados (`test_valuation.py`, `test_checklist.py`,
+  `test_metricas_historicas.py`) verdes; `test_app.py` verde; `flake8` direcionado
+  verde; `python -m src.verificar_semana3` imprime `SEMANA 3 OK`; gráfico ROIC/ROIIC
+  gerado para DIRR3 e MGLU3.
 
 ### Sessão 02/07/2026 — Fechamento da Semana 2 e início da Semana 3
 

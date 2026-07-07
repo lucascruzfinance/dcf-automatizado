@@ -102,8 +102,18 @@
       "sinal_esperado": "negativo",
       "codigos_cvm": ["2.01.02"]
     },
+    "obrigacoes_sociais_trabalhistas": {
+      "descricao": "Obrigacoes Sociais e Trabalhistas",
+      "sinal_esperado": "negativo",
+      "codigos_cvm": ["2.01.01"]
+    },
     "nwc": {
       "descricao": "Capital de Giro Liquido",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "capital_giro_operacional": {
+      "descricao": "Capital de Giro usado no ROIC",
       "sinal_esperado": "positivo_ou_negativo",
       "codigos_cvm": []
     },
@@ -121,6 +131,11 @@
       "descricao": "Imobilizado",
       "sinal_esperado": "positivo",
       "codigos_cvm": ["1.02.03"]
+    },
+    "intangivel": {
+      "descricao": "Intangivel",
+      "sinal_esperado": "positivo",
+      "codigos_cvm": ["1.02.04"]
     },
     "capex_receita": {
       "descricao": "CAPEX sobre Receita",
@@ -214,6 +229,21 @@
     },
     "nopat": {
       "descricao": "NOPAT Projetado",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "capital_investido": {
+      "descricao": "Capital Investido",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "roic": {
+      "descricao": "Retorno sobre Capital Investido",
+      "sinal_esperado": "positivo_ou_negativo",
+      "codigos_cvm": []
+    },
+    "roiic": {
+      "descricao": "Retorno sobre Capital Investido Incremental",
       "sinal_esperado": "positivo_ou_negativo",
       "codigos_cvm": []
     },
