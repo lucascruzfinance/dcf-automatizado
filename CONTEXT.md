@@ -118,7 +118,7 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 - **Data da última atualização:** 07/07/2026
 - **Versão alvo:** v1.0 (prazo: 06/08/2026)
-- **Fase atual:** SEMANA 4 CONCLUÍDA (Ondas 1 e 2) — visualizações Plotly + front-end Streamlit institucional. Próxima: SEMANA 5 (Etapa 5 — Excel 7 abas + exportador BI + main.py)
+- **Fase atual:** SEMANA 5 — Prompts 1 e 2 CONCLUÍDOS (`exportador_excel.py` com 7 abas + `main.py` ponta a ponta, ambos validados para DIRR3 e MGLU3). Faltam da Etapa 5: `exportador_bi.py` e a aba Excel Preview funcional no app (Prompt 3).
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -155,8 +155,9 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - Validação visual humana dos 14 gráficos em `outputs/graficos/` e da jornada
     completa no `streamlit run app.py`.
 - **PRÓXIMA TAREFA:**
-  - SEMANA 5 / Etapa 5: `exportador_excel.py` (7 abas com fórmulas nativas),
-    `exportador_bi.py` (tabelas planas para Power BI) e `main.py` ponta a ponta.
+  - SEMANA 5 / Etapa 5 (restante): `exportador_bi.py` (tabelas planas para
+    Power BI em `outputs/bi/<TICKER>/`) e aba Excel Preview funcional no
+    `app.py` (renderizar as 7 abas + botão de download do `.xlsx`).
 - **Decisões de arquitetura tomadas nesta sessão:**
   - O coletor usa o cadastro de companhias abertas e os arquivos FCA da CVM para relacionar ticker negociado ao `CD_CVM`.
   - Como o FCA recente traz `CNPJ_Companhia` em vez de `CD_CVM`, o coletor cruza `FCA.CNPJ_Companhia` com `cad_cia_aberta.CNPJ_CIA` para obter o `CD_CVM`.
@@ -316,6 +317,78 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   `test_metricas_historicas.py`) verdes; `test_app.py` verde; `flake8` direcionado
   verde; `python -m src.verificar_semana3` imprime `SEMANA 3 OK`; gráfico ROIC/ROIIC
   gerado para DIRR3 e MGLU3.
+
+### Sessão 07/07/2026 — Semana 5, Prompts 1 e 2 (exportador Excel + main.py)
+
+- **`src/exportacao/exportador_excel.py` criado (Prompt 1):** openpyxl gerando
+  `outputs/excel/<TICKER>_dcf.xlsx` com as 7 abas da seção 5.10 — Capa,
+  Premissas (8 valores individuais por vetor em fonte azul + histórico CVM ao
+  lado), Modelo Integrado (DRE+BP+DFC, 3 exercícios históricos + 8 projetados
+  lado a lado, common-size ao lado), Schedules (WK, PP&E e Dívida em blocos
+  verticais com coluna Ano 0), Valuation (FCFF 8 anos com ROIC/ROIIC,
+  decomposição completa do WACC, VT de Gordon, bridge EV→Equity→Target,
+  Football Field e Waterfall embutidos como PNG), Sensibilidades (3 tabelas
+  com formatação condicional verde/âmbar/vermelho pelos limiares do motor e
+  caso base com borda dourada) e Output (dashboard de KPIs + checklist
+  colorido + PNGs do dashboard executivo e ROIC/ROIIC).
+- **Padrão "nível Direcional" implementado:** fórmulas nativas nas células de
+  cálculo (Modelo Integrado com ~436 células de fórmula; Schedules ~81;
+  Valuation ~80), convenção de cores WSP (azul = input, preto = fórmula,
+  verde = link entre abas) e nomes definidos `WACC` e `g_perpetuidade` para
+  Data Tables futuras.
+- **Mecanismo `escrever_calculo` (decisão de arquitetura):** cada fórmula
+  nativa só entra na célula se o valor que ela produziria (recalculado em
+  Python com os mesmos operandos) bater com o valor persistido pelo motor;
+  caso contrário a célula recebe o VALOR do motor (ex.: salvaguarda do
+  ΔNWC do ano 1). O Excel nunca exibe número diferente do pipeline.
+- **Layout fixo por constantes `LINHA_*`:** Modelo Integrado e Valuation
+  referenciam células da aba Schedules antes de ela ser construída; o
+  contrato é travado por constantes e por teste de alinhamento de rótulos.
+- **Validação no Excel REAL (COM/PowerShell):** os dois arquivos foram
+  abertos no Excel 16.0, recalculados e conferidos célula a célula contra
+  `data/processed/<TICKER>_projecao.json` — receita e LL dos 8 anos, FCFF,
+  WACC (via nome definido), VT bruto, Target Price, Upside e a linha de
+  verificação `Ativo − (Passivo+PL) = 0` nas fórmulas dos 8 anos: TUDO OK.
+- **Bug corrigido na formatação condicional:** `PatternFill` de regra
+  condicional exige `start_color` E `end_color` (estilo diferencial usa o
+  bgColor); sem o end_color a regra existia mas pintava branco. Verificado
+  pós-fix via `DisplayFormat.Interior.Color` (DIRR3: 11 verdes/24 âmbar).
+- **`main.py` criado (Prompt 2):** CLI com `--ticker`, `--setor`
+  (construcao|varejo) e `--usar-premissas-existentes`; executa as 8 etapas
+  com timestamp e duração por etapa (coleta → limpeza/validação → métricas →
+  premissas → projeção → valuation → gráficos → Excel) e imprime resumo
+  final com Target Price, Upside, Recomendação e o checklist completo.
+  Detecta o tipo via `_meta.json` e bloqueia trilha financeira na v1.0.
+- **Semântica da flag de premissas:** sem premissas no disco, cria do
+  template e para com instrução ao analista; com premissas e SEM a flag,
+  para pedindo a flag explícita (protege o julgamento humano); com a flag,
+  valida os 24 campos anuais individuais + escalares e segue. Os três
+  caminhos têm mensagem de erro orientada a ação.
+- **Coleta com fallback offline:** cada coletor (CVM, yfinance, BACEN) que
+  falhar cai para os dados já persistidos em `data/raw/` com aviso; só
+  aborta se não houver dado nenhum.
+- **Etapa "limpeza" = validação de contrato:** confere arquivos brutos,
+  linhas com `nome_padronizado`/`valor_padronizado` e contas-chave mapeadas
+  (decisão v1: a projeção lê os JSONs brutos direto; não há Parquet).
+- **Execução ponta a ponta validada COM REDE:** `python main.py --ticker
+  DIRR3 --setor construcao --usar-premissas-existentes` (161s, coleta CVM
+  real) e idem MGLU3 (`--setor varejo`, 168s), ambos exit 0. DIRR3: Target
+  R$ 15,29 vs R$ 13,41 (+14,0%, NEUTRO), WACC 16,60%. MGLU3: Target R$ 6,01
+  vs R$ 4,42 (+35,9%, COMPRA), WACC 19,39%. Checklists APROVADOS (alertas
+  não-bloqueantes NF4 nos dois; NF2 marginal na MGLU3 com dados recoletados).
+- **Testes novos:** `tests/test_exportador_excel.py` (8 testes: 7 abas na
+  ordem, alinhamento das constantes de layout, fórmulas nativas, fonte azul
+  de input, nomes definidos, formatação condicional, PNGs embutidos,
+  checklist na aba Output). Suíte total: 73 testes verdes.
+- **Validação de qualidade:** `black --check` limpo, `flake8` limpo,
+  `pytest tests -q` com 73 passed; abas Capa/Premissas/Sensibilidades/Output
+  exportadas para PDF via Excel COM e inspecionadas visualmente.
+- **Bugs conhecidos / pendências:**
+  - `exportador_bi.py` e aba Excel Preview do app ainda não existem
+    (Prompt 3 da Semana 5).
+  - Sensibilidades usam valores calculados (via `apoio_cenarios`) com
+    formatação condicional nativa; Data Tables nativas do Excel ficam como
+    evolução possível já que WACC e g têm nomes definidos.
 
 ### Sessão 02/07/2026 — Fechamento da Semana 2 e início da Semana 3
 
