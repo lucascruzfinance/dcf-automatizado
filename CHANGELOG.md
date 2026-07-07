@@ -11,6 +11,8 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Em desenvolvimento
 - Semana 0 (01/07–06/07): fundação do repositório e coletor da CVM.
+- ROIC/ROIIC projetado no bloco FCFF, gráfico `roic_roiic.py` e contrato da Etapa 5
+  atualizado para exibir linhas anuais de ROIC/ROIIC no Excel.
 
 ---
 

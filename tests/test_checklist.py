@@ -37,6 +37,7 @@ def criar_projecao_checklist(
     diferenca_balanco_ano1: float = 0.0,
     divida_bruta_ano8: float = 300.0,
     nopat_ano8: float = 66.0,
+    roiic_ano8: float | None = None,
     capex_ano8: float = -30.0,
     delta_nwc_todos: float = 0.0,
     acoes_fully_diluted: float = 1000.0,
@@ -50,6 +51,9 @@ def criar_projecao_checklist(
 
     for ano in range(1, 9):
         chave_ano = f"ano{ano}"
+        roiic = 0.0
+        if ano == 8:
+            roiic = roiic_ano8 if roiic_ano8 is not None else 0.0
         dre[chave_ano] = {
             "ano_projecao": chave_ano,
             "ebitda": 120.0,
@@ -58,6 +62,7 @@ def criar_projecao_checklist(
             "ano_projecao": chave_ano,
             "nopat": nopat_ano8 if ano == 8 else 66.0,
             "delta_nwc": delta_nwc_todos,
+            "roiic": roiic,
             "fcff": 80.0,
         }
         ppe[chave_ano] = {
@@ -182,8 +187,7 @@ def test_nf1_balanco_aberto_reprova(tmp_path: Path) -> None:
 def test_nf2_roiic_acima_de_50pct_alerta(tmp_path: Path) -> None:
     """ROIIC implicito de 100% no ano 8 deve gerar alerta sem reprovar."""
     criar_meta(tmp_path)
-    # Delta NOPAT ano8 = 96 - 66 = 30; denominador = |CAPEX ano7| = 30 -> 100%.
-    criar_projecao_checklist(tmp_path, nopat_ano8=96.0)
+    criar_projecao_checklist(tmp_path, roiic_ano8=1.0)
 
     resultado = executar_checklist("TEST3", raiz_projeto=tmp_path)
 

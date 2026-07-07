@@ -285,32 +285,11 @@ def verificar_nf2(conteudo: dict[str, Any]) -> dict[str, float | str]:
 
     for ano in (7, 8):
         chave_ano = f"ano{ano}"
-        chave_anterior = f"ano{ano - 1}"
-        nopat = _valor_anual(conteudo, "fcff", chave_ano, "nopat")
-        nopat_anterior = _valor_anual(conteudo, "fcff", chave_anterior, "nopat")
-        capex_anterior = _valor_anual(conteudo, "ppe", chave_anterior, "capex")
-        delta_nwc_anterior = _valor_anual(
-            conteudo,
-            "fcff",
-            chave_anterior,
-            "delta_nwc",
-        )
-        if (
-            nopat is None
-            or nopat_anterior is None
-            or capex_anterior is None
-            or delta_nwc_anterior is None
-        ):
-            erros.append(f"{chave_ano}=campos invalidos")
+        roiic = _valor_anual(conteudo, "fcff", chave_ano, "roiic")
+        if roiic is None:
+            erros.append(f"{chave_ano}=roiic invalido")
             continue
 
-        # Formula: ROIIC_t = Delta NOPAT_t / (CAPEX_(t-1) + Delta NWC_(t-1)).
-        denominador = abs(capex_anterior) + delta_nwc_anterior
-        if abs(denominador) < EPSILON:
-            valores.append(f"{chave_ano}=n/d")
-            continue
-
-        roiic = (nopat - nopat_anterior) / denominador
         valores.append(f"{chave_ano}={formatar_percentual(roiic)}")
         if roiic >= LIMITE_ROIIC:
             violacoes.append(f"{chave_ano}={formatar_percentual(roiic)}")

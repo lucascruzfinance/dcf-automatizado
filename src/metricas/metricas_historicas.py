@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
+from statistics import median
 from typing import Any
 
 import pandas as pd
@@ -158,7 +159,12 @@ def montar_series_anuais(
         "contas_receber": serie_anual_por_ano(bp, "contas_receber"),
         "estoques": serie_anual_por_ano(bp, "estoques"),
         "fornecedores": serie_anual_por_ano(bp, "fornecedores"),
+        "obrigacoes_sociais_trabalhistas": serie_anual_por_ano(
+            bp,
+            "obrigacoes_sociais_trabalhistas",
+        ),
         "imobilizado": serie_anual_por_ano(bp, "imobilizado"),
+        "intangivel": serie_anual_por_ano(bp, "intangivel"),
         "divida_curto_prazo": serie_anual_por_ano(bp, "divida_curto_prazo"),
         "divida_longo_prazo": serie_anual_por_ano(bp, "divida_longo_prazo"),
         "caixa_equivalentes": serie_anual_por_ano(bp, "caixa_equivalentes"),
@@ -178,6 +184,8 @@ def calcular_metricas_por_ano(
     receitas = series["receita_liquida"]
     anos = sorted(receitas)
     metricas: dict[str, dict[str, float | None]] = {}
+    capital_investido_por_ano: dict[int, float] = {}
+    nopat_por_ano: dict[int, float] = {}
 
     for indice, ano in enumerate(anos):
         receita = receitas.get(ano)
@@ -193,10 +201,12 @@ def calcular_metricas_por_ano(
         contas_receber = series["contas_receber"].get(ano)
         estoques = series["estoques"].get(ano)
         fornecedores = series["fornecedores"].get(ano)
+        obrigacoes_sociais = series["obrigacoes_sociais_trabalhistas"].get(ano, 0.0)
         imobilizado = series["imobilizado"].get(ano)
         imobilizado_anterior = (
             series["imobilizado"].get(anos[indice - 1]) if indice > 0 else None
         )
+        intangivel = series["intangivel"].get(ano, 0.0)
         divida_cp = series["divida_curto_prazo"].get(ano)
         divida_lp = series["divida_longo_prazo"].get(ano)
         caixa = series["caixa_equivalentes"].get(ano)
@@ -220,14 +230,20 @@ def calcular_metricas_por_ano(
         if divida_bruta is not None and caixa is not None:
             divida_liquida = divida_bruta - caixa - (aplicacoes or 0.0)
 
-        # Formula: NWC = Contas a Receber + Estoques - |Fornecedores|.
+        # Formula: WC ROIC = Estoques + Contas a Receber - Fornecedores -
+        # obrigacoes sociais/trabalhistas. A ultima linha fica zero se ausente.
         nwc = None
         if (
             contas_receber is not None
             and estoques is not None
             and fornecedores is not None
         ):
-            nwc = contas_receber + estoques - abs(fornecedores)
+            nwc = (
+                contas_receber
+                + estoques
+                - abs(fornecedores)
+                - abs(obrigacoes_sociais or 0.0)
+            )
 
         # Formula: CAPEX aproximado = Imobilizado_t - Imobilizado_(t-1) + D&A_t.
         # Aproximacao necessaria porque a linha de CAPEX do DFC nao esta mapeada.
@@ -252,8 +268,11 @@ def calcular_metricas_por_ano(
         # Formula: ROIC = NOPAT / Capital Investido (NWC + Imobilizado).
         roic = None
         if nopat is not None and nwc is not None and imobilizado is not None:
-            capital_investido = nwc + imobilizado
+            # Formula: IC = Working Capital + PP&E + Intangivel.
+            capital_investido = nwc + imobilizado + (intangivel or 0.0)
             roic = _razao(nopat, capital_investido)
+            capital_investido_por_ano[ano] = capital_investido
+            nopat_por_ano[ano] = nopat
 
         cpv_magnitude = abs(cpv) if cpv is not None else None
         dso = _razao(contas_receber, receita)
@@ -285,6 +304,12 @@ def calcular_metricas_por_ano(
             "ccc": ccc,
             "nwc": nwc,
             "nwc_receita": _razao(nwc, receita),
+            "intangivel": intangivel,
+            "capital_investido": (
+                capital_investido_por_ano.get(ano)
+                if ano in capital_investido_por_ano
+                else None
+            ),
             "capex_aproximado": capex_aproximado,
             "capex_receita": _razao(capex_aproximado, receita),
             "divida_bruta": divida_bruta,
@@ -295,7 +320,31 @@ def calcular_metricas_por_ano(
                 abs(despesas_financeiras) if despesas_financeiras is not None else None,
             ),
             "roic": roic,
+            "roiic": None,
         }
+
+    for indice, ano in enumerate(anos):
+        if indice < 2:
+            continue
+        ano_anterior = anos[indice - 1]
+        ano_base_capital = anos[indice - 2]
+        if (
+            ano not in nopat_por_ano
+            or ano_anterior not in nopat_por_ano
+            or ano_anterior not in capital_investido_por_ano
+            or ano_base_capital not in capital_investido_por_ano
+        ):
+            continue
+        delta_capital_previo = (
+            capital_investido_por_ano[ano_anterior]
+            - capital_investido_por_ano[ano_base_capital]
+        )
+        if delta_capital_previo == 0:
+            continue
+        # Formula: ROIIC_t = Delta NOPAT_t / Delta IC_(t-1).
+        metricas[str(ano)]["roiic"] = (
+            nopat_por_ano[ano] - nopat_por_ano[ano_anterior]
+        ) / delta_capital_previo
 
     return metricas
 
@@ -313,6 +362,21 @@ def _media_metrica(
     if not valores:
         return None
     return sum(valores) / len(valores)
+
+
+def _mediana_metrica(
+    metricas: dict[str, dict[str, float | None]],
+    campo: str,
+    janela: int,
+) -> float | None:
+    """Mediana dos ultimos ``janela`` anos com valor definido."""
+    anos = sorted(metricas)[-janela:]
+    valores = [
+        metricas[ano][campo] for ano in anos if metricas[ano].get(campo) is not None
+    ]
+    if not valores:
+        return None
+    return float(median(valores))
 
 
 def calcular_beta_desalavancado(
@@ -403,8 +467,10 @@ def calcular_metricas_historicas(
             "nwc_receita",
             "aliquota_efetiva",
             "roic",
+            "roiic",
         ):
             agregados[f"{campo}_media_3a"] = _media_metrica(metricas, campo, 3)
+            agregados[f"{campo}_mediana_3a"] = _mediana_metrica(metricas, campo, 3)
         agregados["margem_ebitda_maxima"] = max(
             (
                 linha["margem_ebitda"]

@@ -46,6 +46,7 @@ from src.visualizacao.football_field import gerar_football_field  # noqa: E402
 from src.visualizacao.historico_vs_projetado import (  # noqa: E402
     gerar_historico_vs_projetado,
 )
+from src.visualizacao.roic_roiic import gerar_roic_roiic  # noqa: E402
 from src.visualizacao.sensibilidade_receita_margem import (  # noqa: E402
     gerar_sensibilidade_receita_margem,
 )
@@ -106,7 +107,9 @@ def carregar_projecao_app(ticker: str) -> dict[str, Any] | None:
 def obter_metricas(ticker: str) -> dict[str, Any]:
     """Metricas historicas persistidas; calcula na primeira execucao."""
     metricas = carregar_metricas(ticker, RAIZ_PROJETO)
-    if not metricas.get("metricas_por_ano"):
+    if not metricas.get("metricas_por_ano") or "roiic_media_3a" not in metricas.get(
+        "agregados", {}
+    ):
         metricas = calcular_metricas_historicas(ticker, RAIZ_PROJETO)
     return metricas
 
@@ -221,6 +224,7 @@ def secao_historico(ticker: str) -> None:
         "nwc_receita",
         "capex_receita",
         "roic",
+        "roiic",
     ]
     formato: dict[str, Any] = {coluna: "{:.1%}" for coluna in colunas_pct}
     for coluna in ("dso", "dio", "dpo", "ccc"):
@@ -523,6 +527,9 @@ def secao_valuation(ticker: str, conteudo: dict[str, Any]) -> None:
 
 def secao_analise(ticker: str) -> None:
     """Sensibilidades WACC x g, crescimento x margem e setorial."""
+    resultado_roic = gerar_roic_roiic(ticker, RAIZ_PROJETO)
+    st.plotly_chart(resultado_roic["figura"], width="stretch")
+
     resultado_wacc_g = gerar_sensibilidade_wacc_g(ticker, RAIZ_PROJETO)
     st.plotly_chart(resultado_wacc_g["figura"], width="stretch")
 
