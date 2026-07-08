@@ -106,6 +106,7 @@ def gerar_sensibilidade_wacc_g(
     rotulos_g = [formatar_percentual_br(g_base + passo, 2) for passo in passos_g]
 
     def calcular_celula(passo_g: float, passo_wacc: float) -> dict[str, Any] | None:
+        """Recalcula o cenario da celula com os deltas de WACC e g."""
         return recalcular_cenario(
             conteudo,
             delta_wacc=passo_wacc,

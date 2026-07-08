@@ -169,6 +169,7 @@ def montar_metodologias(
         marcador: float | None = None,
         observacao: str = "",
     ) -> None:
+        """Adiciona uma metodologia ao football field, ignorando faixas nulas."""
         if faixa is None:
             return
         metodologias.append(

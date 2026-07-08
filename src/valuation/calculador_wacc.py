@@ -202,6 +202,11 @@ def serie_anual_historica(
     """
     if "nome_padronizado" not in dados.columns:
         raise RuntimeError("Base historica sem coluna nome_padronizado.")
+    if "valor_padronizado" not in dados.columns:
+        raise RuntimeError(
+            "Base historica sem coluna valor_padronizado: rode a coleta CVM "
+            "novamente para regenerar o mapeamento."
+        )
 
     selecao = dados[dados["nome_padronizado"] == nome_padronizado].copy()
     selecao = selecao[selecao["valor_padronizado"].notna()]
@@ -321,12 +326,15 @@ def calcular_wacc(
 
     if kd_historico is None:
         kd_historico = calcular_kd_historico(ticker_normalizado, raiz)
+    # Formula: Kd liquido = Kd x (1 - t) — escudo fiscal da divida.
     kd_liquido = kd_historico * (1 - aliquota_ir)
 
+    # Pesos da estrutura de capital: E/V e D/V com V = E + D (medios 1-8).
     valor_total = pl_medio + divida_media
     peso_equity = pl_medio / valor_total
     peso_divida = 1 - peso_equity
 
+    # Formula: WACC = (E/V) x Ke_BRL + (D/V) x Kd x (1 - t).
     wacc = peso_equity * ke_brl + peso_divida * kd_liquido
     if wacc <= 0:
         raise ValueError(

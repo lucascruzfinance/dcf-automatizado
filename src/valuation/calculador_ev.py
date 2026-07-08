@@ -349,6 +349,7 @@ def calcular_ev(
     target_price = equity_absoluto / acoes
 
     preco = obter_preco_atual(premissas, ticker_normalizado, raiz, preco_atual)
+    # Formula: Upside = Target Price / Preco atual - 1.
     upside = target_price / preco - 1
     recomendacao = classificar_recomendacao(upside)
 
