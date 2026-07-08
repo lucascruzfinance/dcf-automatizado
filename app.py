@@ -10,6 +10,7 @@ VT -> EV -> Checklist). Nenhum calculo de valuation e reimplementado aqui.
 from __future__ import annotations
 
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,12 @@ RAIZ_PROJETO = Path(__file__).resolve().parent
 if str(RAIZ_PROJETO) not in sys.path:
     sys.path.insert(0, str(RAIZ_PROJETO))
 
+from src.exportacao.exportador_excel import (  # noqa: E402
+    NOMES_ABAS,
+    caminho_excel,
+    exportar_excel,
+    montar_preview_por_aba,
+)
 from src.metricas.metricas_historicas import (  # noqa: E402
     calcular_metricas_historicas,
 )
@@ -540,22 +547,78 @@ def secao_analise(ticker: str) -> None:
     st.plotly_chart(resultado_setor["figura"], width="stretch")
 
 
-def secao_excel_preview(ticker: str) -> None:
-    """Previa da exportacao Excel (entregue na Etapa 5 do roteiro)."""
-    st.info(
-        "A exportacao Excel de 7 abas (com formulas nativas e convencao de "
-        "cores de input) e entregue na Etapa 5 do roteiro, junto com o "
-        "exportador de tabelas para BI. Esta secao vai exibir a previa das "
-        "abas geradas em outputs/excel/."
+@st.cache_data(show_spinner="Montando o preview das 7 abas...")
+def preview_excel_cacheado(
+    ticker: str,
+    versao: tuple[float, float],
+) -> dict[str, list[tuple[str, pd.DataFrame]]]:
+    """Preview das 7 abas em cache; ``versao`` invalida apos novo pipeline."""
+    return montar_preview_por_aba(ticker, RAIZ_PROJETO)
+
+
+def _versao_dados(ticker: str) -> tuple[float, float]:
+    """Mtimes de projecao e premissas — chave de invalidacao do preview."""
+    arquivos = (caminho_projecao(ticker), caminho_premissas(ticker))
+    return tuple(
+        arquivo.stat().st_mtime if arquivo.exists() else 0.0 for arquivo in arquivos
     )
-    pasta_excel = RAIZ_PROJETO / "outputs" / "excel"
-    arquivos = sorted(pasta_excel.glob(f"{ticker}*.xlsx"))
-    if arquivos:
-        st.write("Arquivos ja gerados:")
-        for arquivo in arquivos:
-            st.write(f"- `{arquivo.name}`")
+
+
+def secao_excel_preview(ticker: str) -> None:
+    """Renderiza as 7 abas do Excel dentro do app + download do .xlsx.
+
+    O preview consome ``montar_preview_por_aba`` do exportador — o MESMO
+    ``montar_contexto`` que alimenta o .xlsx —, entao as tabelas exibidas
+    aqui nunca divergem do arquivo baixado. O preview mostra VALORES ja
+    formatados; as formulas nativas, os graficos embutidos e a convencao
+    de cores vivem no .xlsx real.
+    """
+    caminho_xlsx = caminho_excel(ticker, RAIZ_PROJETO)
+
+    st.caption(
+        "Preview fiel das 7 abas geradas pelo exportador. O download "
+        "entrega o .xlsx real, com formulas nativas, graficos embutidos, "
+        "formatacao condicional e a convencao de cores de banco "
+        "(AZUL = input | PRETO = formula | VERDE = link entre abas)."
+    )
+
+    coluna_gerar, coluna_baixar, coluna_info = st.columns([1, 1, 2])
+    with coluna_gerar:
+        if st.button("Gerar/atualizar Excel", width="stretch"):
+            with st.spinner("Exportando o Excel de 7 abas..."):
+                exportar_excel(ticker, RAIZ_PROJETO)
+            st.toast("Excel atualizado a partir do pipeline persistido.")
+    if caminho_xlsx.exists():
+        with coluna_baixar:
+            st.download_button(
+                label=f"Baixar {caminho_xlsx.name}",
+                data=caminho_xlsx.read_bytes(),
+                file_name=caminho_xlsx.name,
+                mime=(
+                    "application/vnd.openxmlformats-officedocument"
+                    ".spreadsheetml.sheet"
+                ),
+                type="primary",
+                width="stretch",
+            )
+        with coluna_info:
+            gerado_em = datetime.fromtimestamp(caminho_xlsx.stat().st_mtime)
+            tamanho_kb = caminho_xlsx.stat().st_size / 1024
+            st.caption(f"Gerado em {gerado_em:%d/%m/%Y %H:%M} | {tamanho_kb:,.0f} KB")
     else:
-        st.caption("Nenhum Excel gerado ainda para este ticker.")
+        with coluna_info:
+            st.info(
+                "Excel ainda nao gerado para este ticker — use o botao "
+                "'Gerar/atualizar Excel' ao lado."
+            )
+
+    preview = preview_excel_cacheado(ticker, _versao_dados(ticker))
+    abas = st.tabs(list(NOMES_ABAS))
+    for aba, nome in zip(abas, NOMES_ABAS):
+        with aba:
+            for subtitulo, quadro in preview[nome]:
+                st.subheader(subtitulo)
+                st.dataframe(quadro, hide_index=True, width="stretch")
 
 
 def main() -> None:
