@@ -71,6 +71,13 @@ def serie_anual_por_ano(
     """
     if dados.empty or "nome_padronizado" not in dados.columns:
         return {}
+    if "valor_padronizado" not in dados.columns:
+        logger.warning(
+            "Base historica sem coluna valor_padronizado ao buscar %s; "
+            "serie devolvida vazia.",
+            nome_padronizado,
+        )
+        return {}
 
     selecao = dados[dados["nome_padronizado"] == nome_padronizado].copy()
     selecao = selecao[selecao["valor_padronizado"].notna()]
@@ -275,6 +282,9 @@ def calcular_metricas_por_ano(
             nopat_por_ano[ano] = nopat
 
         cpv_magnitude = abs(cpv) if cpv is not None else None
+        # Formulas dos prazos medios (em dias):
+        # DSO = Contas a Receber / Receita x 365;
+        # DIO = Estoques / CPV x 365; DPO = Fornecedores / CPV x 365.
         dso = _razao(contas_receber, receita)
         dso = dso * DIAS_ANO if dso is not None else None
         dio = _razao(estoques, cpv_magnitude)
@@ -510,9 +520,11 @@ def imprimir_resumo(resultado: dict[str, Any]) -> None:
     print("-" * len(cabecalho))
 
     def _fmt_pct(valor: float | None) -> str:
+        """Formata decimal como percentual de 1 casa ou 'n/d'."""
         return f"{valor:.1%}" if valor is not None else "n/d"
 
     def _fmt_num(valor: float | None) -> str:
+        """Formata numero com separador de milhar ou 'n/d'."""
         return f"{valor:,.0f}" if valor is not None else "n/d"
 
     for ano in sorted(metricas):

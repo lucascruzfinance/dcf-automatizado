@@ -104,6 +104,7 @@ def gerar_sensibilidade_receita_margem(
         passo_margem: float,
         passo_crescimento: float,
     ) -> dict[str, Any] | None:
+        """Recalcula o cenario da celula com deltas de crescimento e margem."""
         return recalcular_cenario(
             conteudo,
             delta_crescimento_pp=passo_crescimento,

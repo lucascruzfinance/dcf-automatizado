@@ -126,6 +126,7 @@ def gerar_sensibilidade_setor(
             fator: float,
             passo_margem: float,
         ) -> dict[str, Any] | None:
+            """Cenario de construcao: delta de margem x fator de NWC."""
             return recalcular_cenario(
                 conteudo,
                 delta_margem_pp=passo_margem,
@@ -140,6 +141,7 @@ def gerar_sensibilidade_setor(
             fator: float,
             passo_margem: float,
         ) -> dict[str, Any] | None:
+            """Cenario de varejo: delta de margem x fator de CAPEX."""
             return recalcular_cenario(
                 conteudo,
                 delta_margem_pp=passo_margem,

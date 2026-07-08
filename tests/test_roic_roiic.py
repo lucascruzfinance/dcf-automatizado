@@ -65,6 +65,7 @@ def test_gerar_roic_roiic_monta_figura(monkeypatch, tmp_path: Path) -> None:
     criar_projecao_e_metricas(tmp_path)
 
     def salvar_stub(figura, raiz_projeto, ticker, nome):
+        """Stub de salvar_grafico que evita escrever HTML/PNG no teste."""
         return {"html": raiz_projeto / f"{ticker}_{nome}.html", "png": None}
 
     monkeypatch.setattr(roic_roiic, "salvar_grafico", salvar_stub)

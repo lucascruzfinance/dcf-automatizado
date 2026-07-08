@@ -231,6 +231,7 @@ def gerar_dashboard_final(
     ano_final = int(anos_hist[-1]) if anos_hist else 0
 
     def _serie_hist(campo: str) -> tuple[list[int], list[float]]:
+        """Serie historica (anos, valores) de uma metrica anual."""
         eixo_x: list[int] = []
         valores: list[float] = []
         for ano in anos_hist:
@@ -241,6 +242,7 @@ def gerar_dashboard_final(
         return eixo_x, valores
 
     def _serie_proj(campo: str) -> tuple[list[int], list[float]]:
+        """Serie projetada (anos, valores) de um campo da DRE."""
         eixo_x = [ano_final + indice for indice in range(1, HORIZONTE_PROJECAO + 1)]
         valores = [
             obter_float_obrigatorio(conteudo["dre"][chave], campo, chave)

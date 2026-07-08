@@ -459,6 +459,7 @@ def _texto_historico_vetor(campo: str, agregados: dict[str, Any]) -> str:
     """Ancora historica exibida ao lado de cada vetor de premissas."""
 
     def _pct(valor: Any) -> str:
+        """Formata decimal como percentual de 1 casa ou 'n/d'."""
         return f"{float(valor) * 100:.1f}%" if valor is not None else "n/d"
 
     if campo == "crescimento_receita":
@@ -542,6 +543,7 @@ def _aba_premissas(wb: Workbook, ctx: dict[str, Any]) -> None:
     linha += 1
 
     def _hist(chave: str, formato: str = "{:.0f}") -> str:
+        """Texto de ancora historica de um agregado, quando disponivel."""
         valor = agregados.get(chave)
         if valor is None:
             return "sem historico"
@@ -705,6 +707,7 @@ def _aba_modelo_integrado(wb: Workbook, ctx: dict[str, Any]) -> None:
     )
 
     def _colunas_hist(campo: str) -> list[float | None]:
+        """Serie historica de uma conta CVM alinhada aos 3 anos do modelo."""
         valores: list[float | None] = [
             _valor_historico(series, campo, ano) for ano in anos_hist
         ]
@@ -713,6 +716,7 @@ def _aba_modelo_integrado(wb: Workbook, ctx: dict[str, Any]) -> None:
         return valores
 
     def _hist_metricas(campo: str) -> list[float | None]:
+        """Serie historica de uma metrica anual alinhada aos 3 anos."""
         valores: list[float | None] = [
             metricas_ano.get(str(ano), {}).get(campo) for ano in anos_hist
         ]
@@ -721,6 +725,7 @@ def _aba_modelo_integrado(wb: Workbook, ctx: dict[str, Any]) -> None:
         return valores
 
     def _escrever_linha_historica(linha: int, valores: list[float | None]) -> None:
+        """Escreve os 3 valores historicos nas colunas do bloco historico."""
         for indice, valor in enumerate(valores):
             escrever_numero(ws, linha, COL_MODELO_HIST + indice, valor)
 
@@ -1988,6 +1993,7 @@ def _aba_valuation(wb: Workbook, ctx: dict[str, Any]) -> None:
         valor_python: Any = None,
         negrito: bool = False,
     ) -> None:
+        """Escreve uma linha do bridge e registra sua posicao para formulas."""
         nonlocal linha_atual
         celula_rotulo = ws.cell(row=linha_atual, column=7, value=rotulo)
         celula_rotulo.font = Font(name=FONTE_TEXTO, size=10, bold=negrito)
@@ -2163,9 +2169,11 @@ def _formula_wacc(
     """Formula nativa e valor recalculado de um componente do WACC."""
 
     def _b(campo: str) -> str:
+        """Endereco B<linha> do componente do WACC na propria aba."""
         return f"B{linhas[campo]}"
 
     def _v(campo: str) -> float | None:
+        """Valor do componente no bloco wacc do motor (None se ausente)."""
         valor = wacc.get(campo)
         return float(valor) if valor is not None else None
 
@@ -2313,6 +2321,7 @@ def _escrever_tabela_sensibilidade(
     # Nos estilos diferenciais do Excel o preenchimento solido usa start E
     # end color; sem o end_color a regra existe mas pinta de branco.
     def _fill_condicional(cor: str) -> PatternFill:
+        """PatternFill solido com start e end color (regra diferencial)."""
         return PatternFill(start_color=cor, end_color=cor, fill_type="solid")
 
     faixa = (
@@ -2453,6 +2462,7 @@ def _aba_sensibilidades(wb: Workbook, ctx: dict[str, Any]) -> None:
         )
 
         def _cenario_setor(fator: float, passo_margem: float):
+            """Cenario setorial de construcao: margem x intensidade de WK."""
             return recalcular_cenario(
                 projecao, delta_margem_pp=passo_margem, fator_nwc=fator
             )
@@ -2463,6 +2473,7 @@ def _aba_sensibilidades(wb: Workbook, ctx: dict[str, Any]) -> None:
         )
 
         def _cenario_setor(fator: float, passo_margem: float):
+            """Cenario setorial de varejo: margem x intensidade de CAPEX."""
             return recalcular_cenario(
                 projecao, delta_margem_pp=passo_margem, fator_capex=fator
             )
@@ -2740,8 +2751,14 @@ def _preview_premissas(ctx: dict[str, Any]) -> list[tuple[str, pd.DataFrame]]:
         ),
         ("ERP — premio de risco EUA", _fmt_pct_preview(premissas.get("erp"), 2)),
         ("CRP — risco-pais Brasil", _fmt_pct_preview(premissas.get("crp"), 2)),
-        ("Estrutura alvo — % divida", _fmt_pct_preview(estrutura.get("percentual_divida"))),
-        ("Estrutura alvo — % equity", _fmt_pct_preview(estrutura.get("percentual_equity"))),
+        (
+            "Estrutura alvo — % divida",
+            _fmt_pct_preview(estrutura.get("percentual_divida")),
+        ),
+        (
+            "Estrutura alvo — % equity",
+            _fmt_pct_preview(estrutura.get("percentual_equity")),
+        ),
     ]
     return [
         ("Vetores anuais (8 valores individuais + historico)", df_vetores),
@@ -2758,21 +2775,40 @@ def _preview_modelo_integrado(
         f"Ano {ano}" for ano in range(1, HORIZONTE_PROJECAO + 1)
     ]
 
-    def _linha(rotulo: str, hist: list[float | None], proj_campo_bloco: tuple[str, str]):
+    def _linha(
+        rotulo: str, hist: list[float | None], proj_campo_bloco: tuple[str, str]
+    ):
+        """Monta (rotulo, valores formatados) de uma linha historico+projetado."""
         bloco, campo = proj_campo_bloco
         proj = _serie_anual(projecao, bloco, campo)
         valores = [_fmt_num_preview(valor) for valor in hist + proj]
         return (rotulo, valores)
 
     dre = [
-        _linha("Receita liquida", _hist_series_preview(ctx, "receita_liquida"), ("dre", "receita_liquida")),
+        _linha(
+            "Receita liquida",
+            _hist_series_preview(ctx, "receita_liquida"),
+            ("dre", "receita_liquida"),
+        ),
         _linha("EBITDA", _hist_metricas_preview(ctx, "ebitda"), ("dre", "ebitda")),
-        _linha("(-) D&A", _hist_series_preview(ctx, "depreciacao_amortizacao"), ("dre", "depreciacao_amortizacao")),
+        _linha(
+            "(-) D&A",
+            _hist_series_preview(ctx, "depreciacao_amortizacao"),
+            ("dre", "depreciacao_amortizacao"),
+        ),
         _linha("EBIT", _hist_series_preview(ctx, "ebit"), ("dre", "ebit")),
-        _linha("Resultado financeiro", _hist_series_preview(ctx, "resultado_financeiro"), ("dre", "resultado_financeiro")),
+        _linha(
+            "Resultado financeiro",
+            _hist_series_preview(ctx, "resultado_financeiro"),
+            ("dre", "resultado_financeiro"),
+        ),
         _linha("EBT", _hist_series_preview(ctx, "ebt"), ("dre", "ebt")),
         _linha("(-) IR/CSLL", _hist_series_preview(ctx, "ir_csll"), ("dre", "ir_csll")),
-        _linha("Lucro liquido", _hist_series_preview(ctx, "lucro_liquido"), ("dre", "lucro_liquido")),
+        _linha(
+            "Lucro liquido",
+            _hist_series_preview(ctx, "lucro_liquido"),
+            ("dre", "lucro_liquido"),
+        ),
     ]
 
     fornecedores_hist = [
@@ -2780,23 +2816,63 @@ def _preview_modelo_integrado(
         for valor in _hist_series_preview(ctx, "fornecedores")
     ]
     bp = [
-        _linha("Caixa e equivalentes", _hist_series_preview(ctx, "caixa_equivalentes"), ("balanco", "caixa_equivalentes")),
-        _linha("Aplicacoes financeiras", _hist_series_preview(ctx, "aplicacoes_financeiras"), ("balanco", "aplicacoes_financeiras")),
-        _linha("Contas a receber", _hist_series_preview(ctx, "contas_receber"), ("balanco", "contas_receber")),
-        _linha("Estoques", _hist_series_preview(ctx, "estoques"), ("balanco", "estoques")),
-        _linha("Imobilizado (PP&E)", _hist_series_preview(ctx, "imobilizado"), ("balanco", "imobilizado")),
-        _linha("Ativo total", [None] * ANOS_HISTORICOS_MODELO, ("balanco", "ativo_total")),
+        _linha(
+            "Caixa e equivalentes",
+            _hist_series_preview(ctx, "caixa_equivalentes"),
+            ("balanco", "caixa_equivalentes"),
+        ),
+        _linha(
+            "Aplicacoes financeiras",
+            _hist_series_preview(ctx, "aplicacoes_financeiras"),
+            ("balanco", "aplicacoes_financeiras"),
+        ),
+        _linha(
+            "Contas a receber",
+            _hist_series_preview(ctx, "contas_receber"),
+            ("balanco", "contas_receber"),
+        ),
+        _linha(
+            "Estoques", _hist_series_preview(ctx, "estoques"), ("balanco", "estoques")
+        ),
+        _linha(
+            "Imobilizado (PP&E)",
+            _hist_series_preview(ctx, "imobilizado"),
+            ("balanco", "imobilizado"),
+        ),
+        _linha(
+            "Ativo total", [None] * ANOS_HISTORICOS_MODELO, ("balanco", "ativo_total")
+        ),
         _linha("Fornecedores", fornecedores_hist, ("balanco", "fornecedores")),
-        _linha("Divida de curto prazo", _hist_series_preview(ctx, "divida_curto_prazo"), ("balanco", "divida_curto_prazo")),
-        _linha("Divida de longo prazo", _hist_series_preview(ctx, "divida_longo_prazo"), ("balanco", "divida_longo_prazo")),
-        _linha("Passivo total", [None] * ANOS_HISTORICOS_MODELO, ("balanco", "passivo_total")),
-        _linha("Patrimonio liquido", _hist_series_preview(ctx, "patrimonio_liquido"), ("balanco", "patrimonio_liquido")),
+        _linha(
+            "Divida de curto prazo",
+            _hist_series_preview(ctx, "divida_curto_prazo"),
+            ("balanco", "divida_curto_prazo"),
+        ),
+        _linha(
+            "Divida de longo prazo",
+            _hist_series_preview(ctx, "divida_longo_prazo"),
+            ("balanco", "divida_longo_prazo"),
+        ),
+        _linha(
+            "Passivo total",
+            [None] * ANOS_HISTORICOS_MODELO,
+            ("balanco", "passivo_total"),
+        ),
+        _linha(
+            "Patrimonio liquido",
+            _hist_series_preview(ctx, "patrimonio_liquido"),
+            ("balanco", "patrimonio_liquido"),
+        ),
     ]
 
     sem_hist = [None] * ANOS_HISTORICOS_MODELO
     dfc = [
         _linha("Lucro liquido", sem_hist, ("dfc", "lucro_liquido")),
-        _linha("(+) D&A", _hist_series_preview(ctx, "depreciacao_amortizacao"), ("dfc", "depreciacao_amortizacao")),
+        _linha(
+            "(+) D&A",
+            _hist_series_preview(ctx, "depreciacao_amortizacao"),
+            ("dfc", "depreciacao_amortizacao"),
+        ),
         _linha("(-) Delta NWC", sem_hist, ("dfc", "delta_nwc")),
         _linha("(-) CAPEX (saida)", sem_hist, ("dfc", "capex_saida_caixa")),
         _linha("(+) Delta divida", sem_hist, ("dfc", "delta_divida")),
@@ -2816,34 +2892,93 @@ def _preview_schedules(ctx: dict[str, Any]) -> list[tuple[str, pd.DataFrame]]:
     colunas = ["Ano 0"] + [f"Ano {ano}" for ano in range(1, HORIZONTE_PROJECAO + 1)]
 
     def _com_ano0(valor_ano0, proj, formatar=_fmt_num_preview) -> list[str]:
+        """Concatena o Ano 0 formatado com a serie projetada."""
         return [formatar(valor_ano0)] + [formatar(valor) for valor in proj]
 
     wk0 = ano0.get("wk", {})
     wk = [
-        ("Contas a receber", _com_ano0(wk0.get("contas_receber"), _serie_anual(projecao, "wk", "contas_receber"))),
-        ("Estoques", _com_ano0(wk0.get("estoques"), _serie_anual(projecao, "wk", "estoques"))),
-        ("Fornecedores (passivo)", _com_ano0(wk0.get("fornecedores"), _serie_anual(projecao, "wk", "fornecedores"))),
+        (
+            "Contas a receber",
+            _com_ano0(
+                wk0.get("contas_receber"),
+                _serie_anual(projecao, "wk", "contas_receber"),
+            ),
+        ),
+        (
+            "Estoques",
+            _com_ano0(wk0.get("estoques"), _serie_anual(projecao, "wk", "estoques")),
+        ),
+        (
+            "Fornecedores (passivo)",
+            _com_ano0(
+                wk0.get("fornecedores"), _serie_anual(projecao, "wk", "fornecedores")
+            ),
+        ),
         ("NWC", _com_ano0(wk0.get("nwc"), _serie_anual(projecao, "wk", "nwc"))),
         ("Delta NWC", _com_ano0(None, _serie_anual(projecao, "wk", "delta_nwc"))),
     ]
 
     ppe0 = ano0.get("ppe", {})
     ppe = [
-        ("CAPEX / Receita", _com_ano0(None, _serie_anual(projecao, "ppe", "capex_receita"), _fmt_pct_preview)),
+        (
+            "CAPEX / Receita",
+            _com_ano0(
+                None, _serie_anual(projecao, "ppe", "capex_receita"), _fmt_pct_preview
+            ),
+        ),
         ("CAPEX", _com_ano0(None, _serie_anual(projecao, "ppe", "capex"))),
-        ("D&A do periodo", _com_ano0(None, _serie_anual(projecao, "ppe", "depreciacao_amortizacao"))),
-        ("PP&E final", _com_ano0(ppe0.get("imobilizado"), _serie_anual(projecao, "ppe", "imobilizado"))),
+        (
+            "D&A do periodo",
+            _com_ano0(None, _serie_anual(projecao, "ppe", "depreciacao_amortizacao")),
+        ),
+        (
+            "PP&E final",
+            _com_ano0(
+                ppe0.get("imobilizado"), _serie_anual(projecao, "ppe", "imobilizado")
+            ),
+        ),
     ]
 
     div0 = ano0.get("divida", {})
     divida = [
-        ("Kd — custo da divida", _com_ano0(None, _serie_anual(projecao, "divida", "custo_divida_kd"), _fmt_pct_preview)),
-        ("Divida de curto prazo", _com_ano0(div0.get("divida_curto_prazo"), _serie_anual(projecao, "divida", "divida_curto_prazo"))),
-        ("Divida de longo prazo", _com_ano0(div0.get("divida_longo_prazo"), _serie_anual(projecao, "divida", "divida_longo_prazo"))),
-        ("Divida bruta", _com_ano0(div0.get("divida_bruta"), _serie_anual(projecao, "divida", "divida_bruta"))),
-        ("Saldo medio da divida", _com_ano0(None, _serie_anual(projecao, "divida", "saldo_medio_divida"))),
+        (
+            "Kd — custo da divida",
+            _com_ano0(
+                None,
+                _serie_anual(projecao, "divida", "custo_divida_kd"),
+                _fmt_pct_preview,
+            ),
+        ),
+        (
+            "Divida de curto prazo",
+            _com_ano0(
+                div0.get("divida_curto_prazo"),
+                _serie_anual(projecao, "divida", "divida_curto_prazo"),
+            ),
+        ),
+        (
+            "Divida de longo prazo",
+            _com_ano0(
+                div0.get("divida_longo_prazo"),
+                _serie_anual(projecao, "divida", "divida_longo_prazo"),
+            ),
+        ),
+        (
+            "Divida bruta",
+            _com_ano0(
+                div0.get("divida_bruta"),
+                _serie_anual(projecao, "divida", "divida_bruta"),
+            ),
+        ),
+        (
+            "Saldo medio da divida",
+            _com_ano0(None, _serie_anual(projecao, "divida", "saldo_medio_divida")),
+        ),
         ("Juros", _com_ano0(None, _serie_anual(projecao, "divida", "juros"))),
-        ("Resultado financeiro", _com_ano0(None, _serie_anual(projecao, "divida", "resultado_financeiro"))),
+        (
+            "Resultado financeiro",
+            _com_ano0(None, _serie_anual(projecao, "divida", "resultado_financeiro")),
+        ),
     ]
     return [
         ("Capital de giro (WK)", _df_series(wk, colunas)),
@@ -2861,11 +2996,15 @@ def _preview_valuation(ctx: dict[str, Any]) -> list[tuple[str, pd.DataFrame]]:
     colunas = [f"Ano {ano}" for ano in range(1, HORIZONTE_PROJECAO + 1)]
 
     def _serie_fmt(bloco: str, campo: str, formatar=_fmt_num_preview) -> list[str]:
+        """Serie anual formatada de um campo da projecao persistida."""
         return [formatar(valor) for valor in _serie_anual(projecao, bloco, campo)]
 
     fcff = [
         ("EBIT", _serie_fmt("dre", "ebit")),
-        ("Aliquota do NOPAT", _serie_fmt("fcff", "aliquota_ir_nopat", _fmt_pct_preview)),
+        (
+            "Aliquota do NOPAT",
+            _serie_fmt("fcff", "aliquota_ir_nopat", _fmt_pct_preview),
+        ),
         ("NOPAT", _serie_fmt("fcff", "nopat")),
         ("(+) D&A", _serie_fmt("fcff", "depreciacao_amortizacao")),
         ("(-) Delta NWC", _serie_fmt("fcff", "delta_nwc")),
@@ -2879,7 +3018,10 @@ def _preview_valuation(ctx: dict[str, Any]) -> list[tuple[str, pd.DataFrame]]:
         ("Rf USD (^TNX)", _fmt_pct_preview(wacc.get("rf_usd"), 2)),
         ("Beta desalavancado", _fmt_num_preview(wacc.get("beta_desalavancado"), 4)),
         ("D/E medio (anos 1-8)", _fmt_num_preview(wacc.get("divida_sobre_equity"), 4)),
-        ("Beta re-alavancado (Hamada)", _fmt_num_preview(wacc.get("beta_realavancado"), 4)),
+        (
+            "Beta re-alavancado (Hamada)",
+            _fmt_num_preview(wacc.get("beta_realavancado"), 4),
+        ),
         ("ERP EUA", _fmt_pct_preview(wacc.get("erp_eua"), 2)),
         ("CRP Brasil", _fmt_pct_preview(wacc.get("crp_brasil"), 2)),
         ("Ke USD", _fmt_pct_preview(wacc.get("ke_usd"), 2)),
@@ -2901,9 +3043,11 @@ def _preview_valuation(ctx: dict[str, Any]) -> list[tuple[str, pd.DataFrame]]:
         ("% do EV na perpetuidade", _fmt_pct_preview(vt.get("pct_ev_perpetuidade"))),
         (
             "Multiplo de saida implicito",
-            _fmt_num_preview(vt.get("multiplo_saida_implicito"), 2) + "x"
-            if isinstance(vt.get("multiplo_saida_implicito"), (int, float))
-            else "n/d",
+            (
+                _fmt_num_preview(vt.get("multiplo_saida_implicito"), 2) + "x"
+                if isinstance(vt.get("multiplo_saida_implicito"), (int, float))
+                else "n/d"
+            ),
         ),
     ]
 
@@ -2913,8 +3057,14 @@ def _preview_valuation(ctx: dict[str, Any]) -> list[tuple[str, pd.DataFrame]]:
         ("(+) VP(Valor Terminal)", _fmt_num_preview(ev.get("vp_vt"))),
         ("= Enterprise Value (EV)", _fmt_num_preview(ev.get("ev"))),
         ("(-) Divida bruta", _fmt_num_preview(ajustes.get("divida_bruta"))),
-        ("(+) Caixa e equivalentes", _fmt_num_preview(ajustes.get("caixa_equivalentes"))),
-        ("(+) Aplicacoes financeiras", _fmt_num_preview(ajustes.get("aplicacoes_financeiras"))),
+        (
+            "(+) Caixa e equivalentes",
+            _fmt_num_preview(ajustes.get("caixa_equivalentes")),
+        ),
+        (
+            "(+) Aplicacoes financeiras",
+            _fmt_num_preview(ajustes.get("aplicacoes_financeiras")),
+        ),
         ("= Equity Value", _fmt_num_preview(ev.get("equity_value"))),
         ("Acoes fully diluted", _fmt_num_preview(ev.get("acoes_fully_diluted"), 0)),
         ("Target Price", _fmt_moeda_preview(ev.get("target_price"))),
@@ -3004,6 +3154,7 @@ def _preview_sensibilidades(
         titulo3 = "Setorial (construcao): margem EBITDA x intensidade de WK"
 
         def _cenario_setor(fator: float, passo_margem: float):
+            """Cenario setorial de construcao: margem x intensidade de WK."""
             return recalcular_cenario(
                 projecao, delta_margem_pp=passo_margem, fator_nwc=fator
             )
@@ -3012,6 +3163,7 @@ def _preview_sensibilidades(
         titulo3 = "Setorial (varejo): margem EBITDA x intensidade de CAPEX"
 
         def _cenario_setor(fator: float, passo_margem: float):
+            """Cenario setorial de varejo: margem x intensidade de CAPEX."""
             return recalcular_cenario(
                 projecao, delta_margem_pp=passo_margem, fator_capex=fator
             )

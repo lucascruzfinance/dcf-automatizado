@@ -202,6 +202,13 @@ def descobrir_empresa_por_ticker(ticker: str) -> EmpresaCvm:
         cadastro_empresa = cadastro[cadastro["CD_CVM"].astype(int) == codigo_cvm]
     elif "CNPJ_Companhia" in encontrados.columns:
         cnpj = encontrado_recente["CNPJ_Companhia"]
+        if "CNPJ_CIA" not in cadastro.columns:
+            raise RuntimeError(
+                "Cadastro CVM sem a coluna CNPJ_CIA (campo pode ter sido "
+                "renomeado pela CVM). Sem ela nao e possivel cruzar o CNPJ "
+                f"do FCA com o cadastro. Colunas recebidas: "
+                f"{list(cadastro.columns)}"
+            )
         cadastro_empresa = cadastro[cadastro["CNPJ_CIA"] == cnpj]
         if cadastro_empresa.empty:
             raise RuntimeError(
