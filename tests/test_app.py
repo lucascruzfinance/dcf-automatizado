@@ -86,3 +86,35 @@ def test_secao_valuation_renderiza_checklist() -> None:
     subtitulos = [str(sub.value) for sub in app.main.subheader]
     assert any("WACC" in sub for sub in subtitulos)
     assert any("Checklist" in sub for sub in subtitulos)
+
+
+def test_excel_preview_renderiza_7_abas() -> None:
+    """Excel Preview mostra as 7 abas do .xlsx com tabelas de valores."""
+    app = _abrir_secao("Excel Preview")
+
+    assert not app.exception
+    rotulos_abas = [str(aba.label) for aba in app.main.tabs]
+    assert rotulos_abas == [
+        "Capa",
+        "Premissas",
+        "Modelo Integrado",
+        "Schedules",
+        "Valuation",
+        "Sensibilidades",
+        "Output",
+    ]
+    # Cada aba do preview traz ao menos uma tabela de valores.
+    assert len(app.main.dataframe) >= 7
+
+
+def test_excel_preview_download_serve_xlsx_valido() -> None:
+    """O arquivo servido pelo botao de download e um .xlsx real (zip PK)."""
+    import zipfile
+
+    app = _abrir_secao("Excel Preview")
+    assert not app.exception
+
+    caminho = RAIZ_PROJETO / "outputs" / "excel" / "DIRR3_dcf.xlsx"
+    assert caminho.exists(), "Excel nao gerado — rode o pipeline (main.py)"
+    # O download_button serve exatamente estes bytes; valida o container zip.
+    assert zipfile.is_zipfile(caminho)
