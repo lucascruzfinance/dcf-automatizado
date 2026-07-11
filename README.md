@@ -222,8 +222,9 @@ O desenvolvimento deste projeto usa um paradigma de vibe coding assistido por IA
 | Ferramenta | Uso |
 |------------|-----|
 | VS Code | Editor principal com suporte a Python, Jupyter e Git integrado |
-| OpenAI Codex CLI | Geração autônoma de código via terminal com acesso ao repositório |
-| Claude Code | Geração dos prompts cirúrgicos entregues ao Codex e revisão final de código |
+| OpenAI Codex CLI | Geração autônoma de código na v1.0 (papel assumido pelo Claude Fable 5 a partir da v2.0) |
+| Claude Fable 5 | IA de implementação a partir da v2.0 — lê os documentos de contexto, escreve/edita código e front-end, roda os testes (ver [`PROMPTS_FABLE.md`](PROMPTS_FABLE.md)) |
+| Claude Code | Geração/curadoria dos prompts cirúrgicos e revisão final de código |
 | GitHub Copilot | Assistência contextual em código dentro do VS Code |
 | Git + GitHub | Controle de versão e publicação do repositório |
 | Power BI Desktop | Ferramenta externa (gratuita, Windows) — painel executivo sobre as tabelas de `outputs/bi/`; não recalcula, apenas apresenta (backlog pós-v1.0) |
@@ -514,12 +515,23 @@ pytest tests/ -v
 
 ## Roadmap
 
-| Versão | Prazo | Escopo |
-|--------|-------|--------|
-| **v1.0** | Agosto 2026 | Pipeline completo validado para **DIRR3 (referência)** e **MGLU3 (prova de universalidade)**. Motor FCFF/WACC de ponta a ponta. Arquitetura de duas trilhas construída (trilha financeira ainda não validada). 8 taxas de crescimento individuais por ano. Football Field, WACC×g, Dashboard, Excel 7 abas com fórmulas nativas. Front-end institucional em Streamlit. **Contrato de export para BI** (tabelas planas star-schema em `outputs/bi/`). |
-| **v1.5** | Out 2026 | **Painel Power BI (`.pbix`)** conectado às tabelas de `outputs/bi/`. Validação da trilha financeira (FCFE/Ke) contra banco real. Expansão para VALE3 (mineração), PETR4 (O&G) e ITUB4 (banco). Sensibilidades setoriais específicas por setor. |
-| **v2.0** | Jan 2027 | **Comparáveis / CCA** automatizado via yfinance para peers do setor (triangula o DCF por múltiplos EV/EBITDA, P/L, P/VP). **Módulo Projetado vs. Realizado** (análise de variância / FP&A: projetado contra o realizado da CVM). Módulo de qualidade de lucro (FCO/EBITDA histórico, accruals). Build-up de receita setorial para construtoras (VGV × VSO × PoC). |
-| **v3.0** | Mid 2027 | **Nota de research em PDF** de 1 página (estilo mesa de análise). Exportação em PDF estilo research report institucional. Módulo de LBO simplificado. Integração com modelos unitários de empreendimento para construtoras. |
+A **v1.0 está concluída** (tag `versao 1.0`): provou a arquitetura com profundidade em duas
+empresas não-financeiras. A partir daqui, o eixo do projeto é a **Universalização** — fazer o
+sistema rodar com **qualquer empresa da B3**, pelo método correto do tipo, com dados e
+comparáveis reais, front-end multi-empresa e exportações profissionais. Esse plano está
+detalhado em **5 prompts progressivos** no arquivo [`PROMPTS_FABLE.md`](PROMPTS_FABLE.md),
+direcionados ao **Claude Fable 5** (a IA de implementação a partir da v2.0).
+
+| Versão | Status | Escopo |
+|--------|--------|--------|
+| **v1.0** | ✅ Concluída | Pipeline completo validado para **DIRR3 (referência)** e **MGLU3 (prova de universalidade)**. Motor FCFF/WACC de ponta a ponta. Arquitetura de duas trilhas construída (trilha financeira ainda não validada). 8 taxas de crescimento individuais por ano. Football Field, WACC×g, Dashboard, Excel 7 abas com fórmulas nativas. Front-end institucional em Streamlit. |
+| **v2.0 — Universalização** | 🎯 Em planejamento | Meta: **rodar qualquer ticker da B3** sem editar código nem o mapeamento à mão. Entregue em 5 ondas progressivas (ver `PROMPTS_FABLE.md`): **(1)** coleta e mapeamento CVM universais (por `CD_CONTA`), classificação automática de tipo/subtipo setorial, relatório de qualidade de dados e coleta em lote; **(2)** motor de valuation completo e correto por tipo — trilha financeira (FCFE/Ke) validada para bancos, bridge EV→Equity completo, dívida amortizando, dividendos e receita financeira reais, cenários Bear/Base/Bull de primeira classe; **(3)** Comparáveis / CCA automáticos e triangulação (Football Field com comps reais); **(4)** front-end multi-empresa com seletor universal de ticker, sensibilidades vivas, tabelas editáveis, comparação entre empresas e Excel Preview funcional; **(5)** Excel dinâmico por tipo, `exportador_bi.py`, Power BI (`.pbix`), nota em PDF, Projetado vs. Realizado e orquestração/automação de dados em lote. |
+| **v3.0** | 🔭 Horizonte | LBO simplificado, modelos unitários de empreendimento para construtoras, build-up de receita setorial (VGV × VSO × PoC), research report institucional multipágina, consenso de analistas e cobertura ampliada de setores especiais. |
+
+> **Dívida técnica herdada da v1.0** (endereçada na v2.0): `exportador_bi.py` e a aba Excel
+> Preview do app ainda não existem; os comps do Football Field são placeholders; a trilha
+> financeira nunca foi validada contra um banco real; o motor v1 simplifica dívida constante,
+> payout 0% e caixa como plug. Os 5 prompts em `PROMPTS_FABLE.md` fecham esses pontos na ordem correta.
 
 ---
 
