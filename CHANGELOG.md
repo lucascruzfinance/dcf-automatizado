@@ -7,12 +7,41 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ---
 
-## [Não lançado]
+## [Não lançado] — v2.0 "Universalização" (em planejamento)
 
-### Em desenvolvimento
-- Semana 0 (01/07–06/07): fundação do repositório e coletor da CVM.
-- ROIC/ROIIC projetado no bloco FCFF, gráfico `roic_roiic.py` e contrato da Etapa 5
-  atualizado para exibir linhas anuais de ROIC/ROIIC no Excel.
+### Planejado (5 ondas progressivas — ver `PROMPTS_FABLE.md`, IA: Claude Fable 5)
+- **Onda 1 — Coleta universal:** mapeamento CVM por `CD_CONTA`, resolvedor de ticker,
+  classificador de tipo/subtipo setorial, `limpeza.py` real com Parquet, relatório de
+  qualidade de dados e coleta em lote. Meta: qualquer empresa da B3 entra no pipeline.
+- **Onda 2 — Motor completo por tipo:** trilha financeira (FCFE/Ke) validada para bancos,
+  bridge EV→Equity completo, dívida amortizando, dividendos e receita financeira reais,
+  cenários Bear/Base/Bull, qualidade de lucro.
+- **Onda 3 — Comparáveis/CCA:** peers automáticos, múltiplos, triangulação, Football Field
+  com comps reais (fim dos placeholders).
+- **Onda 4 — Front-end multi-empresa:** seletor universal de ticker, sensibilidades vivas,
+  tabelas editáveis, comparação entre empresas, aba Excel Preview funcional.
+- **Onda 5 — Exportações e automação:** Excel dinâmico por tipo, `exportador_bi.py`, Power BI
+  (`.pbix`), nota em PDF, Projetado vs. Realizado, orquestração/automação de dados em lote.
+
+---
+
+## [1.0.0] - 2026-07-11 — v1.0 concluída
+
+Pipeline de DCF ponta a ponta validado para **DIRR3** (referência) e **MGLU3** (prova de
+universalidade), ambas não-financeiras.
+
+### Adicionado
+- Coleta CVM/yfinance/BACEN; métricas históricas (trilha não-financeira).
+- Projeção de DRE (8 taxas individuais) + schedules WK/PP&E/Dívida; balanço fecha nos 8 anos.
+- Valuation FCFF/WACC, VT (Gordon), bridge EV→Equity→Target Price, ROIC/ROIIC, checklist.
+- 7+ gráficos Plotly institucionais; front-end Streamlit (6 seções, tema navy).
+- Exportador Excel com 7 abas, fórmulas nativas e convenção de cor WSP.
+- `main.py` ponta a ponta; ~73 testes verdes; `black`/`flake8` limpos.
+
+### Dívida técnica herdada (endereçada na v2.0)
+- `exportador_bi.py` e aba Excel Preview do app ainda inexistentes.
+- Comps do Football Field são placeholders; trilha financeira não validada contra banco real.
+- Motor v1 simplifica: dívida constante, payout 0%, caixa como plug, aplicações constantes.
 
 ---
 

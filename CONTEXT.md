@@ -16,9 +16,18 @@
 
 ---
 
-## 2. Escopo da v1.0 (NÃO EXPANDIR SEM AUTORIZAÇÃO EXPLÍCITA)
+> 🚦 **ATUALIZAÇÃO 11/07/2026 — v1.0 CONCLUÍDA; início do planejamento da v2.0
+> "Universalização".** A v1.0 (DIRR3 + MGLU3, trilha não-financeira, Excel 7 abas,
+> Streamlit, gráficos) está fechada. A partir de agora o projeto persegue a
+> **universalização** — rodar QUALQUER empresa da B3. O plano está em **5 prompts
+> progressivos** no arquivo **[`PROMPTS_FABLE.md`](PROMPTS_FABLE.md)**, direcionados ao
+> **Claude Fable 5** (a IA de implementação a partir da v2.0, que assume o papel antes
+> exercido pelo Codex). A Seção 2 abaixo descreve o escopo HISTÓRICO da v1.0 e permanece
+> como referência; o escopo v2.0 e a próxima tarefa estão na Seção 8 e no `PROMPTS_FABLE.md`.
 
-A v1.0 é **deliberadamente enxuta**. O objetivo é profundidade, não amplitude.
+## 2. Escopo da v1.0 (histórico — CONCLUÍDA em 11/07/2026)
+
+A v1.0 foi **deliberadamente enxuta**. O objetivo era profundidade, não amplitude.
 
 - **DIRR3 (construção civil):** implementação de referência, validada contra o Excel do trainee.
 - **MGLU3 (varejo):** prova de universalidade, segundo setor não-financeiro.
@@ -192,6 +201,30 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 11/07/2026 — Fechamento da v1.0 e planejamento da v2.0 "Universalização"
+
+- **v1.0 marcada como concluída** (commit `versao 1.0`). O pipeline roda ponta a ponta
+  para DIRR3 e MGLU3.
+- **Objetivo redefinido:** universalizar o sistema para QUALQUER empresa da B3 (não só
+  DIRR3/MGLU3), pelo método correto do tipo, com dados e comparáveis reais, front-end
+  multi-empresa e exportações profissionais.
+- **Entregável desta sessão:** `PROMPTS_FABLE.md` — 5 prompts progressivos e extensos,
+  direcionados ao **Claude Fable 5**, cobrindo (1) coleta e mapeamento CVM universais por
+  `CD_CONTA`; (2) motor de valuation completo e correto por tipo (trilha financeira FCFE/Ke
+  validada, bridge completo, dívida/dividendos/caixa reais, cenários); (3) Comparáveis/CCA
+  e triangulação (Football Field com comps reais); (4) front-end multi-empresa de próxima
+  geração; (5) Excel dinâmico por tipo, `exportador_bi.py`, Power BI, PDF e automação de dados.
+- **Dívida técnica da v1.0 catalogada** para a v2.0 endereçar na ordem: `exportador_bi.py`
+  e aba Excel Preview inexistentes; comps do Football Field são placeholders; trilha
+  financeira não validada; simplificações do motor (dívida constante, payout 0%, caixa plug).
+- **Documentos atualizados:** `README.md` (Roadmap reescrito para v2.0 + Claude Fable 5 no
+  stack), este `CONTEXT.md`, `CHANGELOG.md`. O `ROTEIRO.md` permanece como spec técnica da
+  v1.0; a spec da v2.0 vive no `PROMPTS_FABLE.md`.
+- **PRÓXIMA TAREFA:** Prompt 1 do `PROMPTS_FABLE.md` — coleta e mapeamento CVM universais
+  (resolvedor de ticker, classificador de tipo/subtipo, mapeamento por `CD_CONTA`,
+  `limpeza.py` real com Parquet, relatório de qualidade e coleta em lote). Fechar a
+  regressão dourada (DIRR3 + MGLU3 inalterados) antes de avançar para o Prompt 2.
 
 ### Sessão 07/07/2026 — Fechamento da Semana 3 + Semana 4 completa (Ondas 1 e 2)
 
