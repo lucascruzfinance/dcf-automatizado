@@ -1,6 +1,17 @@
 {
   "horizonte_projecao_anos": 8,
   "anos_historicos_coleta": 7,
+  "limpeza": {
+    "padroes_nao_recorrentes": [
+      "nao recorrente",
+      "impairment",
+      "recuperabilidade",
+      "reestrutura",
+      "venda de ativo imobilizado",
+      "baixa de ativos",
+      "operacoes descontinuadas"
+    ]
+  },
   "vida_util_ppe_anos": 10,
   "payout_dividendos": 0,
   "football_field": {

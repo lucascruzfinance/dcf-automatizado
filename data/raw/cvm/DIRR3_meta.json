@@ -1,7 +1,13 @@
 {
   "ticker": "DIRR3",
   "codigo_cvm": 21350,
+  "cnpj": "16.614.075/0001-00",
   "razao_social": "DIRECIONAL ENGENHARIA SA",
   "setor": "Construção Civil, Mat. Constr. e Decoração",
-  "tipo": "nao_financeira"
+  "tipo": "nao_financeira",
+  "subtipo": "construcao_civil",
+  "metodo_valuation": "FCFF",
+  "taxa_desconto": "WACC",
+  "consolidado": true,
+  "score_confiabilidade": 95
 }

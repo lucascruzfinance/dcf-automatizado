@@ -1,4 +1,421 @@
 {
+  "versao": "2.0",
+  "descricao": "Configuracao setorial universal. O bloco subtipos define, para cada subtipo de empresa, o metodo de valuation, a taxa de desconto, tributacao, modo de capital de giro, peers para a Onda 3 (CCA) e o vetor de sensibilidade setorial. O bloco mapa_setor_cvm traduz o SETOR_ATIV do cadastro da CVM para subtipo por palavras-chave normalizadas (primeiro match vence). Setores 'Emp. Adm. Part. - <segmento>' (prefixo_holding_cvm) sao classificados pelo segmento apos o prefixo — a CVM registra operadoras consolidadas como WEG nesse formato — e caem em holding apenas sem segmento reconhecivel (ex.: 'Sem Setor Principal'). Setor nao reconhecido cai em 'outros' com FCFF/WACC (default seguro) e vai para log. Os blocos nao_financeiras/financeiras da v1.0 permanecem para compatibilidade retroativa.",
+  "prefixo_holding_cvm": "emp. adm. part.",
+  "subtipos": {
+    "banco": {
+      "nome": "Bancos",
+      "tipo": "financeira",
+      "metodo_valuation": "FCFE",
+      "taxa_desconto": "Ke",
+      "aliquota_padrao": 0.45,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "nao_aplicavel",
+      "peers": ["ITUB4", "BBDC4", "BBAS3", "SANB11", "BPAC11"],
+      "vetor_sensibilidade_setorial": ["nim", "custo_credito_pdd"],
+      "premissas_default": {
+        "crescimento_receita": 0.06,
+        "payout_dividendos": 0.4
+      }
+    },
+    "seguradora": {
+      "nome": "Seguradoras",
+      "tipo": "financeira",
+      "metodo_valuation": "FCFE",
+      "taxa_desconto": "Ke",
+      "aliquota_padrao": 0.4,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "nao_aplicavel",
+      "peers": ["BBSE3", "PSSA3", "CXSE3", "IRBR3"],
+      "vetor_sensibilidade_setorial": ["sinistralidade", "resultado_financeiro"],
+      "premissas_default": {
+        "crescimento_receita": 0.06,
+        "payout_dividendos": 0.5
+      }
+    },
+    "holding": {
+      "nome": "Holdings e Participacoes",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["ITSA4", "BRAP4", "SIMH3"],
+      "vetor_sensibilidade_setorial": ["desconto_holding", "resultado_investidas"],
+      "premissas_default": {
+        "crescimento_receita": 0.04,
+        "margem_ebitda": 0.3,
+        "capex_receita": -0.02,
+        "payout_dividendos": 0.5
+      }
+    },
+    "utility_energia": {
+      "nome": "Energia Eletrica",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["ELET3", "ENGI11", "EQTL3", "CPLE6", "EGIE3", "TAEE11"],
+      "vetor_sensibilidade_setorial": ["tarifa_regulatoria", "custo_capital"],
+      "premissas_default": {
+        "crescimento_receita": 0.05,
+        "margem_ebitda": 0.35,
+        "capex_receita": -0.12,
+        "payout_dividendos": 0.5
+      }
+    },
+    "saneamento": {
+      "nome": "Saneamento, Agua e Gas",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["SBSP3", "CSMG3", "SAPR11"],
+      "vetor_sensibilidade_setorial": ["tarifa_regulatoria", "intensidade_capex"],
+      "premissas_default": {
+        "crescimento_receita": 0.06,
+        "margem_ebitda": 0.4,
+        "capex_receita": -0.2,
+        "payout_dividendos": 0.4
+      }
+    },
+    "telecom": {
+      "nome": "Telecomunicacoes",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["VIVT3", "TIMS3", "DESK3"],
+      "vetor_sensibilidade_setorial": ["arpu", "intensidade_capex"],
+      "premissas_default": {
+        "crescimento_receita": 0.04,
+        "margem_ebitda": 0.4,
+        "capex_receita": -0.18,
+        "payout_dividendos": 0.6
+      }
+    },
+    "mineracao": {
+      "nome": "Mineracao",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["VALE3", "CMIN3", "USIM5", "GGBR4"],
+      "vetor_sensibilidade_setorial": ["preco_commodity", "custo_caixa_c1"],
+      "premissas_default": {
+        "crescimento_receita": 0.03,
+        "margem_ebitda": 0.4,
+        "capex_receita": -0.1,
+        "payout_dividendos": 0.5
+      }
+    },
+    "oleo_gas": {
+      "nome": "Petroleo e Gas",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["PETR4", "PRIO3", "RECV3", "BRAV3"],
+      "vetor_sensibilidade_setorial": ["preco_brent", "producao"],
+      "premissas_default": {
+        "crescimento_receita": 0.03,
+        "margem_ebitda": 0.45,
+        "capex_receita": -0.15,
+        "payout_dividendos": 0.4
+      }
+    },
+    "construcao_civil": {
+      "nome": "Construcao Civil",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": {
+        "usa_ret": true,
+        "aliquota_ret_receita_bruta": 0.04,
+        "base_ret": "receita_bruta"
+      },
+      "modo_capital_giro": "percentual_receita",
+      "peers": ["DIRR3", "CYRE3", "EZTC3", "MRVE3", "TEND3"],
+      "vetor_sensibilidade_setorial": ["margem_ebitda", "intensidade_nwc"],
+      "premissas_default": {
+        "crescimento_receita": 0.06,
+        "margem_ebitda": 0.2,
+        "capex_receita": -0.01,
+        "payout_dividendos": 0.3
+      }
+    },
+    "varejo": {
+      "nome": "Varejo",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["MGLU3", "LREN3", "RADL3", "PETZ3", "BHIA3"],
+      "vetor_sensibilidade_setorial": ["margem_ebitda", "intensidade_capex"],
+      "premissas_default": {
+        "crescimento_receita": 0.06,
+        "margem_ebitda": 0.08,
+        "capex_receita": -0.03,
+        "payout_dividendos": 0.2
+      }
+    },
+    "industria": {
+      "nome": "Industria e Bens de Capital",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["WEGE3", "RAPT4", "TUPY3", "POMO4", "KEPL3"],
+      "vetor_sensibilidade_setorial": ["margem_ebitda", "crescimento_receita"],
+      "premissas_default": {
+        "crescimento_receita": 0.06,
+        "margem_ebitda": 0.18,
+        "capex_receita": -0.05,
+        "payout_dividendos": 0.4
+      }
+    },
+    "consumo": {
+      "nome": "Consumo (Alimentos, Bebidas e Bens)",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["ABEV3", "BRFS3", "MDIA3", "SMTO3"],
+      "vetor_sensibilidade_setorial": ["margem_ebitda", "custo_insumos"],
+      "premissas_default": {
+        "crescimento_receita": 0.05,
+        "margem_ebitda": 0.18,
+        "capex_receita": -0.04,
+        "payout_dividendos": 0.4
+      }
+    },
+    "saude": {
+      "nome": "Saude e Farmaceutico",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["HAPV3", "FLRY3", "RDOR3", "QUAL3"],
+      "vetor_sensibilidade_setorial": ["ticket_medio", "sinistralidade"],
+      "premissas_default": {
+        "crescimento_receita": 0.08,
+        "margem_ebitda": 0.2,
+        "capex_receita": -0.05,
+        "payout_dividendos": 0.2
+      }
+    },
+    "agro": {
+      "nome": "Agronegocio",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["SLCE3", "AGRO3", "SMTO3", "RAIZ4"],
+      "vetor_sensibilidade_setorial": ["preco_commodity", "produtividade"],
+      "premissas_default": {
+        "crescimento_receita": 0.05,
+        "margem_ebitda": 0.25,
+        "capex_receita": -0.08,
+        "payout_dividendos": 0.3
+      }
+    },
+    "papel_celulose": {
+      "nome": "Papel e Celulose",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["SUZB3", "KLBN11", "RANI3"],
+      "vetor_sensibilidade_setorial": ["preco_celulose", "cambio"],
+      "premissas_default": {
+        "crescimento_receita": 0.04,
+        "margem_ebitda": 0.4,
+        "capex_receita": -0.12,
+        "payout_dividendos": 0.3
+      }
+    },
+    "transporte_logistica": {
+      "nome": "Transporte, Logistica e Mobilidade",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["RAIL3", "RENT3", "MOVI3", "VAMO3", "STBP3"],
+      "vetor_sensibilidade_setorial": ["intensidade_capex", "custo_capital"],
+      "premissas_default": {
+        "crescimento_receita": 0.07,
+        "margem_ebitda": 0.35,
+        "capex_receita": -0.2,
+        "payout_dividendos": 0.25
+      }
+    },
+    "tecnologia": {
+      "nome": "Tecnologia",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": ["TOTS3", "LWSA3", "POSI3", "INTB3"],
+      "vetor_sensibilidade_setorial": ["crescimento_receita", "margem_ebitda"],
+      "premissas_default": {
+        "crescimento_receita": 0.1,
+        "margem_ebitda": 0.2,
+        "capex_receita": -0.05,
+        "payout_dividendos": 0.2
+      }
+    },
+    "outros": {
+      "nome": "Outros (default seguro)",
+      "tipo": "nao_financeira",
+      "metodo_valuation": "FCFF",
+      "taxa_desconto": "WACC",
+      "aliquota_padrao": 0.34,
+      "tributacao": { "usa_ret": false, "base_padrao": "ebt" },
+      "modo_capital_giro": "dias",
+      "peers": [],
+      "vetor_sensibilidade_setorial": ["crescimento_receita", "margem_ebitda"],
+      "premissas_default": {
+        "crescimento_receita": 0.04,
+        "margem_ebitda": 0.15,
+        "capex_receita": -0.04,
+        "payout_dividendos": 0.3
+      }
+    }
+  },
+  "mapa_setor_cvm": [
+    { "contem": ["banco"], "subtipo": "banco" },
+    {
+      "contem": ["seguradora", "seguros", "previdencia", "capitalizacao"],
+      "subtipo": "seguradora"
+    },
+    {
+      "contem": ["intermediacao financeira", "corretora", "credito"],
+      "subtipo": "banco"
+    },
+    {
+      "contem": ["construcao civil", "construcao e engenharia", "incorporacao"],
+      "subtipo": "construcao_civil"
+    },
+    {
+      "contem": ["comercio", "varejo", "atacado", "lojas"],
+      "subtipo": "varejo"
+    },
+    {
+      "contem": ["extracao mineral", "mineracao", "minerais metalicos"],
+      "subtipo": "mineracao"
+    },
+    {
+      "contem": ["petroleo", "gas e biocombustiveis", "combustiveis"],
+      "subtipo": "oleo_gas"
+    },
+    { "contem": ["energia eletrica", "energia"], "subtipo": "utility_energia" },
+    { "contem": ["saneamento", "agua e esgoto"], "subtipo": "saneamento" },
+    { "contem": ["telecomunicacoes", "telefonia"], "subtipo": "telecom" },
+    { "contem": ["papel e celulose", "celulose"], "subtipo": "papel_celulose" },
+    {
+      "contem": [
+        "agricultura",
+        "acucar",
+        "agropecuaria",
+        "graos",
+        "cana"
+      ],
+      "subtipo": "agro"
+    },
+    {
+      "contem": [
+        "transporte",
+        "logistica",
+        "locacao de veiculos",
+        "aluguel de carros",
+        "concessoes rodoviarias",
+        "exploracao de rodovias"
+      ],
+      "subtipo": "transporte_logistica"
+    },
+    {
+      "contem": [
+        "farmaceutico",
+        "medicamentos",
+        "servicos medicos",
+        "saude",
+        "hospitalar"
+      ],
+      "subtipo": "saude"
+    },
+    {
+      "contem": [
+        "alimentos",
+        "bebidas",
+        "fumo",
+        "textil",
+        "vestuario",
+        "calcados",
+        "higiene",
+        "cosmeticos"
+      ],
+      "subtipo": "consumo"
+    },
+    {
+      "contem": [
+        "tecnologia da informacao",
+        "software",
+        "internet",
+        "computacao"
+      ],
+      "subtipo": "tecnologia"
+    },
+    {
+      "contem": ["emp. adm. part.", "administracao de empresas", "participacoes"],
+      "subtipo": "holding"
+    },
+    {
+      "contem": [
+        "metalurgia",
+        "siderurgia",
+        "maquinas",
+        "maqs",
+        "equipamentos",
+        "veiculos e pecas",
+        "veic",
+        "material de transporte",
+        "petroquimicos",
+        "quimica",
+        "embalagens",
+        "eletroeletronicos",
+        "industria"
+      ],
+      "subtipo": "industria"
+    }
+  ],
   "nao_financeiras": {
     "construcao_civil": {
       "nome": "Construcao Civil",

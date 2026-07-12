@@ -125,9 +125,9 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
-- **Data da última atualização:** 07/07/2026
-- **Versão alvo:** v1.0 (prazo: 06/08/2026)
-- **Fase atual:** SEMANA 5 — Prompts 1 e 2 CONCLUÍDOS (`exportador_excel.py` com 7 abas + `main.py` ponta a ponta, ambos validados para DIRR3 e MGLU3). Faltam da Etapa 5: `exportador_bi.py` e a aba Excel Preview funcional no app (Prompt 3).
+- **Data da última atualização:** 12/07/2026
+- **Versão alvo:** v2.0 "Universalização" (5 ondas do `PROMPTS_FABLE.md`; v1.0 concluída em 11/07/2026)
+- **Fase atual:** v2.0 — **Onda 1 (coleta e mapeamento CVM universais) CONCLUÍDA em 12/07/2026** (ver sessão datada abaixo). Próxima: Onda 2 — Prompt 2 do `PROMPTS_FABLE.md` (motor de valuation universal e completo).
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -201,6 +201,103 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 12/07/2026 — v2.0 ONDA 1 CONCLUÍDA: coleta e mapeamento CVM universais
+
+- **Objetivo da onda cumprido:** qualquer ticker da B3 agora entra no pipeline com
+  dados limpos, padronizados e auditáveis, com relatório de qualidade por empresa.
+- **Módulos novos em `src/coleta/`:**
+  - `apoio_cvm.py` — HTTP/ZIP defensivo com cache de ZIPs em disco
+    (`data/raw/cvm/_cache_zips/`; TTL 24h só para o ano corrente, anos encerrados
+    não expiram). Sem ele, o lote rebaixaria o mesmo ZIP dezenas de vezes.
+  - `resolvedor_ticker.py` — ticker→CD_CVM cruzando FCA (`CNPJ_Companhia`) ×
+    cadastro (`CNPJ_CIA`); suporta ON/PN/UNIT; cache `data/raw/cvm/_cadastro_b3.parquet`
+    (validade 7 dias, 1 reconstrução automática se o ticker não estiver no cache);
+    ticker inexistente/deslistado → `TickerNaoEncontradoErro` acionável.
+  - `classificador_empresa.py` — tipo/subtipo a partir do `SETOR_ATIV` via
+    `config/setores.json`; setores `"Emp. Adm. Part. - X"` classificam pelo
+    segmento X (WEGE3 → industria) com fallback holding quando não há segmento
+    reconhecível (ITSA4 "Sem Setor Principal" → holding); desconhecido → `outros`
+    (FCFF/WACC) + `logs/setores_nao_reconhecidos.log`.
+  - `mapeador_contas.py` — cascata universal: CD_CONTA exato (só no bloco do
+    tipo) → nome normalizado (ANTES do prefixo) → prefixo hierárquico → 
+    `logs/contas_cvm_nao_mapeadas.log` sem quebrar. Blocos `*_financeira`
+    para o plano de contas de bancos/seguradoras.
+  - `relatorio_qualidade.py` — `data/raw/cvm/<TICKER>_qualidade.json` com anos
+    coletados, contas-chave, contas não mapeadas, avisos e
+    `score_confiabilidade` 0–100 (fórmula documentada: 40 contas-chave +
+    30 anos + 15 consolidado + 15 linhas mapeadas); grava o score no `_meta.json`.
+  - `coleta_lote.py` — `--tickers`/`--arquivo`; coleta → limpeza → qualidade;
+    falha em um ticker NÃO derruba o lote; tabela-resumo (ticker, tipo,
+    subtipo, anos, score); exit 0 só com lote 100% OK.
+- **`src/processamento/limpeza.py` implementado de fato:** normaliza sinais
+  (idempotente), flags `eh_divida_financeira`/`eh_passivo_operacional` (NIBCL) e
+  `eh_nao_recorrente` (padrões em `config/parametros.json`, sem remover linha),
+  dtypes estáveis e Parquet em `data/processed/<TICKER>_<demonstracao>.parquet`.
+  O `projetor_dre` passou a ler o Ano 0 do Parquet limpo (glob já existente);
+  os schedules seguem lendo o JSON bruto (fallback documentado, muda na Onda 2).
+- **`config/mapeamento_cvm.json` reescrito no esquema v2.0:** `por_codigo`
+  (dre/bp_ativo/bp_passivo/dfc/dva + `dre_financeira`/`bp_*_financeira`),
+  `por_nome_fallback`, bloco `cascata` com `prefixos_nao_expandem`
+  (6.01–6.05) e o catálogo `campos` como fonte única de nomes.
+- **`config/setores.json` estendido (v2.0):** 18 subtipos com
+  `metodo_valuation`, `taxa_desconto`, tributação, `modo_capital_giro`,
+  `peers` (para a Onda 3) e `vetor_sensibilidade_setorial`;
+  `mapa_setor_cvm` por palavras-chave (primeiro match vence);
+  `prefixo_holding_cvm`. Blocos v1 preservados para retrocompatibilidade.
+- **`coletor_cvm.py` universal:** DFP+ITR de DRE, BP (BPA/BPP), DFC (MI/MD) e
+  DVA; prefere CONSOLIDADO com fallback INDIVIDUAL por empresa/ano/arquivo
+  (aviso + `consolidado=false` no meta); o lote abre cada ZIP UMA vez e filtra
+  todas as empresas; `_meta.json` no contrato v2.0 (`tipo`, `subtipo`,
+  `metodo_valuation`, `taxa_desconto`, `consolidado`, `score_confiabilidade`,
+  com score preservado em recoleta sem relatório novo).
+- **DoD executado COM REDE:** `python -m src.coleta.coleta_lote --tickers DIRR3
+  MGLU3 VALE3 WEGE3 ITUB4 BBAS3 RADL3 RENT3` → **8/8 OK**; ITUB4/BBAS3 =
+  `financeira/banco` (FCFE/Ke); 7 anos para todos; scores 79–96; 32 Parquets
+  limpos (8 empresas × dre/bp/dfc/dva).
+- **Regressão dourada:** Ano 0 (31/12/2025), receita (DIRR3 4.343.008; MGLU3
+  38.703.387) e LL (DIRR3 979.692; MGLU3 204.603) **IDÊNTICOS** após recoleta
+  com o mapeador novo; `python -m src.verificar_semana3` → `SEMANA 3 OK`.
+  Diferenças explicadas: Target Price +0,09%/+0,21% e WACC −1bp porque a
+  dívida média/PL médio históricos ficaram ligeiramente diferentes (o
+  mapeamento por código cobre mais linhas/anos que o por-nome da v1); o
+  upside/recomendação (MGLU3 COMPRA→NEUTRO; DIRR3 17,1%→14,9%) mudou porque o
+  `calculador_ev` usa preço AO VIVO do yfinance (12/07: R$ 13,28/5,22 vs
+  08/07: R$ 13,01/4,36) — movimento de mercado, não regressão de código.
+- **Bug real capturado por teste novo:** em `mapear_demonstracao`, conta NÃO
+  mapeada ganhava `valor_padronizado` (o pandas converte None→NaN ao
+  materializar a coluna e `nome is not None` deixava passar); corrigido com
+  `pd.notna(nome)`.
+- **Testes:** 111 passando (38 novos: resolvedor, mapeador, classificador,
+  limpeza, relatório de qualidade, coleta em lote e contrato do `_meta.json`);
+  `black --check` e `flake8` limpos.
+- **Ambiente:** `requirements.txt` instalado TAMBÉM no Python 3.11.9 global do
+  sistema a pedido do humano (pandas 3.0.3 etc.); a `.venv` (Python 3.11.9,
+  pandas 2.x) continua sendo o ambiente de validação oficial do projeto.
+- **Decisões de arquitetura tomadas nesta sessão:**
+  - Mapeamento primário por `CD_CONTA`; o fallback por nome roda ANTES do
+    prefixo (agregados 6.01+ absorveriam linhas de ajuste como D&A); prefixo
+    nunca expande nível 1 nem 6.01–6.05; código exato consulta apenas o bloco
+    do tipo (o 3.01 de banco ≠ `receita_liquida`).
+  - "Anos coletados" = exercícios anuais (31/12) distintos na DRE via DFP,
+    incluindo o PENÚLTIMO comparativo (7 anos = 2019–2025 com DFPs 2020–2025).
+  - Score de qualidade com fórmula fixa 40/30/15/15; avisos são qualitativos
+    e não subtraem pontos.
+  - DVA passa a ser coletada para expor `receita_bruta` (7.01.01) — base do
+    RET real na Onda 2.
+  - Contas-chave de financeiras não exigem EBIT nem dívida (bancos captam via
+    depósitos, não via empréstimos clássicos).
+- **Bugs conhecidos / pendências:**
+  - BBAS3 com consolidado parcial (score 79; individuais usadas em parte dos
+    exercícios) — investigar quais anos antes de validar a trilha FCFE na Onda 2.
+  - `logs/contas_cvm_nao_mapeadas.log` acumula pares únicos para curadoria
+    incremental do mapeamento (planos bancários detalhados em especial).
+  - Pendências v1 permanecem: Kd histórico da MGLU3 alto; RET sobre receita
+    líquida como proxy (a DVA agora traz `receita_bruta` para resolver na Onda 2).
+- **PRÓXIMA TAREFA:** Prompt 2 do `PROMPTS_FABLE.md` — motor de valuation
+  universal e completo (trilha FCFE/Ke validada para ITUB4/BBAS3, schedule de
+  dívida real, payout real, caixa via DFC, bridge EV→Equity completo,
+  qualidade do lucro e cenários Bear/Base/Bull).
 
 ### Sessão 11/07/2026 — Fechamento da v1.0 e planejamento da v2.0 "Universalização"
 
