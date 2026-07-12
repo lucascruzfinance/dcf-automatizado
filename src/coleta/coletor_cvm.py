@@ -34,23 +34,19 @@ from src.coleta.apoio_cvm import (
     obter_zip,
     pasta_cache_zips,
 )
-from src.coleta.classificador_empresa import (
-    carregar_setores,
-    classificar_empresa,
-    detectar_tipo_empresa,  # noqa: F401 - compatibilidade v1
-)
+from src.coleta.classificador_empresa import carregar_setores, classificar_empresa
+
+# Reexports de compatibilidade v1: testes e chamadores antigos importam
+# estes nomes daqui (o noqa precisa ficar na linha do proprio import).
+from src.coleta.classificador_empresa import detectar_tipo_empresa  # noqa: F401
 from src.coleta.mapeador_contas import (
     carregar_json,
     carregar_mapeamento,
     mapear_demonstracao,
-    normalizar_sinal,  # noqa: F401 - compatibilidade v1
-    normalizar_texto,
 )
-from src.coleta.resolvedor_ticker import (
-    TickerNaoEncontradoErro,  # noqa: F401 - reexport para chamadores
-    normalizar_ticker,
-    resolver_ticker,
-)
+from src.coleta.mapeador_contas import normalizar_sinal  # noqa: F401
+from src.coleta.resolvedor_ticker import TickerNaoEncontradoErro  # noqa: F401
+from src.coleta.resolvedor_ticker import normalizar_ticker, resolver_ticker
 
 RAIZ_PROJETO = Path(__file__).resolve().parents[2]
 PASTA_LOGS = RAIZ_PROJETO / "logs"

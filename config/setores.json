@@ -1,6 +1,7 @@
 {
   "versao": "2.0",
-  "descricao": "Configuracao setorial universal. O bloco subtipos define, para cada subtipo de empresa, o metodo de valuation, a taxa de desconto, tributacao, modo de capital de giro, peers para a Onda 3 (CCA) e o vetor de sensibilidade setorial. O bloco mapa_setor_cvm traduz o SETOR_ATIV do cadastro da CVM para subtipo por palavras-chave normalizadas (primeiro match vence). Setor nao reconhecido cai em 'outros' com FCFF/WACC (default seguro) e vai para log. Os blocos nao_financeiras/financeiras da v1.0 permanecem para compatibilidade retroativa.",
+  "descricao": "Configuracao setorial universal. O bloco subtipos define, para cada subtipo de empresa, o metodo de valuation, a taxa de desconto, tributacao, modo de capital de giro, peers para a Onda 3 (CCA) e o vetor de sensibilidade setorial. O bloco mapa_setor_cvm traduz o SETOR_ATIV do cadastro da CVM para subtipo por palavras-chave normalizadas (primeiro match vence). Setores 'Emp. Adm. Part. - <segmento>' (prefixo_holding_cvm) sao classificados pelo segmento apos o prefixo — a CVM registra operadoras consolidadas como WEG nesse formato — e caem em holding apenas sem segmento reconhecivel (ex.: 'Sem Setor Principal'). Setor nao reconhecido cai em 'outros' com FCFF/WACC (default seguro) e vai para log. Os blocos nao_financeiras/financeiras da v1.0 permanecem para compatibilidade retroativa.",
+  "prefixo_holding_cvm": "emp. adm. part.",
   "subtipos": {
     "banco": {
       "nome": "Bancos",
@@ -401,8 +402,10 @@
         "metalurgia",
         "siderurgia",
         "maquinas",
+        "maqs",
         "equipamentos",
         "veiculos e pecas",
+        "veic",
         "material de transporte",
         "petroquimicos",
         "quimica",

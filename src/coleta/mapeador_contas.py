@@ -308,8 +308,10 @@ def mapear_demonstracao(
     dados["nome_padronizado"] = _coluna("nome_padronizado")
     dados["sinal_esperado"] = _coluna("sinal_esperado")
     dados["mapeado_por"] = _coluna("mapeado_por")
+    # pd.notna cobre None E NaN: o pandas converte None em NaN ao
+    # materializar a coluna, e conta nao mapeada NAO pode ganhar valor.
     dados["valor_padronizado"] = [
-        normalizar_sinal(valor, sinal) if nome is not None else None
+        normalizar_sinal(valor, sinal) if pd.notna(nome) else None
         for valor, sinal, nome in zip(
             dados["VL_CONTA"],
             dados["sinal_esperado"],

@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 import pandas as pd
 
@@ -194,12 +194,10 @@ def construir_cadastro_b3(raiz_projeto: Path) -> pd.DataFrame:
             "setor_cvm": cruzado.get(
                 "SETOR_ATIV", pd.Series("", index=cruzado.index)
             ).fillna(""),
-            "situacao": cruzado.get(
-                "SIT", pd.Series("", index=cruzado.index)
-            ).fillna(""),
-            "ano_referencia": pd.to_numeric(
-                cruzado["ANO_REFERENCIA"], errors="coerce"
+            "situacao": cruzado.get("SIT", pd.Series("", index=cruzado.index)).fillna(
+                ""
             ),
+            "ano_referencia": pd.to_numeric(cruzado["ANO_REFERENCIA"], errors="coerce"),
         }
     )
     mapa = mapa[mapa["codigo_cvm"].notna()].copy()

@@ -55,16 +55,37 @@ def _registrar_setor_nao_reconhecido(
         arquivo.write(f"ticker={ticker} | setor_cvm={setor_cvm}\n")
 
 
-def resolver_subtipo(setor_cvm: str, setores: dict[str, Any]) -> str | None:
-    """Resolve o subtipo pelo mapa de palavras-chave (primeiro match vence)."""
-    setor_normalizado = normalizar_texto(setor_cvm)
-    if not setor_normalizado:
-        return None
+def _subtipo_por_regras(
+    setor_normalizado: str,
+    setores: dict[str, Any],
+) -> str | None:
+    """Aplica o mapa de palavras-chave (primeiro match vence)."""
     for regra in setores.get("mapa_setor_cvm", []):
         for termo in regra.get("contem", []):
             if normalizar_texto(termo) in setor_normalizado:
                 return str(regra["subtipo"])
     return None
+
+
+def resolver_subtipo(setor_cvm: str, setores: dict[str, Any]) -> str | None:
+    """Resolve o subtipo pelo mapa de palavras-chave (primeiro match vence).
+
+    Setores 'Emp. Adm. Part. - <segmento>' sao classificados pelo SEGMENTO:
+    a CVM registra operadoras consolidadas (ex.: WEG) nesse formato, e trata-
+    las como holding esconderia o negocio real. Holding e o fallback apenas
+    quando o segmento nao e reconhecivel (ex.: 'Sem Setor Principal').
+    """
+    setor_normalizado = normalizar_texto(setor_cvm)
+    if not setor_normalizado:
+        return None
+
+    prefixo_holding = normalizar_texto(setores.get("prefixo_holding_cvm", ""))
+    if prefixo_holding and prefixo_holding in setor_normalizado:
+        segmento = setor_normalizado.replace(prefixo_holding, " ")
+        subtipo_segmento = _subtipo_por_regras(segmento, setores)
+        return subtipo_segmento or "holding"
+
+    return _subtipo_por_regras(setor_normalizado, setores)
 
 
 def classificar_empresa(
