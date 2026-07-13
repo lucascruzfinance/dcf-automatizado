@@ -332,12 +332,15 @@ dcf-automatizado/
 │   ├── dcf_dashboard.pbix              # Dashboard executivo — consome outputs/bi/
 │   └── tema.json                       # Tema institucional do Power BI
 │
+├── referencias/                        # Modelos de referência (imutáveis; ver referencias/README.md)
+│   └── modelos_excel/
+│       ├── Direcional_DIRR3_referencia.xlsx  # Benchmark v1.0 + ESTRUTURA_DIRECIONAL.md
+│       └── Smartfit_SMFT3_referencia.xlsx    # Benchmark v2.1 + ESTRUTURA_SMARTFIT.md
+│
 ├── tests/
 │   ├── test_coleta.py
 │   ├── test_projecao.py
-│   ├── test_valuation.py
-│   └── fixtures/
-│       └── Direcional_DIRR3_referencia.xlsx  # Benchmark de validação
+│   └── test_valuation.py
 │
 ├── notebooks/
 │   ├── 01_exploracao_cvm.ipynb
