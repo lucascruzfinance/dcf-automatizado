@@ -113,6 +113,15 @@ def criar_base_historica_integrada(raiz: Path, ticker: str = "TEST3") -> None:
         raiz / "data" / "raw" / "cvm" / f"{ticker}_bp.json",
         [
             {
+                # Ativo total REAL do Ano 0: ancora os residuais
+                # outros_ativos/outros_passivos do balanco v2 (PL 1000 +
+                # fornecedores 70 + divida 400 = 1470).
+                **base,
+                "CD_CONTA": "1",
+                "nome_padronizado": "ativo_total",
+                "valor_padronizado": 1470.0,
+            },
+            {
                 **base,
                 "CD_CONTA": "1.01.01",
                 "nome_padronizado": "caixa_equivalentes",

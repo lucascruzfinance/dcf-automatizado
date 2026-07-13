@@ -620,6 +620,150 @@
     "eh_nao_recorrente": {
       "descricao": "Flag de item potencialmente nao-recorrente (sem remocao)",
       "sinal_esperado": "nao_aplicavel"
+    },
+    "ev_ebitda": {
+      "descricao": "Multiplo EV/EBITDA (comparaveis)",
+      "sinal_esperado": "positivo"
+    },
+    "ev_ebit": {
+      "descricao": "Multiplo EV/EBIT (comparaveis)",
+      "sinal_esperado": "positivo"
+    },
+    "ev_sales": {
+      "descricao": "Multiplo EV/Sales (comparaveis)",
+      "sinal_esperado": "positivo"
+    },
+    "p_l": {
+      "descricao": "Multiplo Preco/Lucro (comparaveis)",
+      "sinal_esperado": "positivo"
+    },
+    "p_vp": {
+      "descricao": "Multiplo Preco/Valor Patrimonial (comparaveis)",
+      "sinal_esperado": "positivo"
+    },
+    "peer": {
+      "descricao": "Ticker do peer no peer group de comparaveis",
+      "sinal_esperado": "nao_aplicavel"
+    },
+    "multiplo": {
+      "descricao": "Nome do multiplo na tabela longa de comparaveis",
+      "sinal_esperado": "nao_aplicavel"
+    },
+    "valor_multiplo": {
+      "descricao": "Valor do multiplo na tabela longa de comparaveis",
+      "sinal_esperado": "positivo"
+    },
+    "origem_valor": {
+      "descricao": "Origem da linha de comparaveis: peer, alvo, q1, mediana, q3",
+      "sinal_esperado": "nao_aplicavel"
+    },
+    "preco_implicito": {
+      "descricao": "Preco por acao implicito por multiplo de comparaveis",
+      "sinal_esperado": "positivo"
+    },
+    "divida_abertura": {
+      "descricao": "Divida bruta na abertura do ano projetado",
+      "sinal_esperado": "positivo"
+    },
+    "amortizacao": {
+      "descricao": "Amortizacao de divida do ano (saida de caixa do FCF)",
+      "sinal_esperado": "positivo"
+    },
+    "captacao": {
+      "descricao": "Captacao de divida nova do ano (entrada de caixa do FCF)",
+      "sinal_esperado": "positivo"
+    },
+    "receita_financeira_caixa": {
+      "descricao": "Receita financeira sobre caixa e aplicacoes",
+      "sinal_esperado": "positivo"
+    },
+    "taxa_aplicacao_caixa": {
+      "descricao": "Taxa de aplicacao usada na receita financeira do caixa",
+      "sinal_esperado": "positivo"
+    },
+    "base_juros": {
+      "descricao": "Convencao da base de juros do schedule de divida",
+      "sinal_esperado": "nao_aplicavel"
+    },
+    "caixa_final": {
+      "descricao": "Caixa de fechamento do ano via DFC projetado",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "caixa_minimo": {
+      "descricao": "Caixa minimo operacional exigido pela politica de divida",
+      "sinal_esperado": "positivo"
+    },
+    "politica_divida": {
+      "descricao": "Rotulo da politica de divida aplicada na projecao",
+      "sinal_esperado": "nao_aplicavel"
+    },
+    "politica_caixa": {
+      "descricao": "Rotulo da politica de caixa aplicada na projecao",
+      "sinal_esperado": "nao_aplicavel"
+    },
+    "usar_convencao_meio_periodo": {
+      "descricao": "Flag da convencao de desconto de meio de periodo",
+      "sinal_esperado": "nao_aplicavel"
+    },
+    "fracao_ano_stub": {
+      "descricao": "Fracao do ano corrente decorrida (periodo-stub do desconto)",
+      "sinal_esperado": "positivo"
+    },
+    "margem_resultado_bruto": {
+      "descricao": "Margem do resultado bruto de intermediacao (bancos)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "despesas_operacionais_receita": {
+      "descricao": "Despesas operacionais liquidas sobre receitas (bancos)",
+      "sinal_esperado": "negativo"
+    },
+    "rwa": {
+      "descricao": "Ativos ponderados pelo risco (proxy fator x ativo total)",
+      "sinal_esperado": "positivo"
+    },
+    "capital_regulatorio_minimo": {
+      "descricao": "Capital regulatorio minimo (indice alvo x RWA)",
+      "sinal_esperado": "positivo"
+    },
+    "capital_regulatorio": {
+      "descricao": "Capital regulatorio retido projetado (nao liberavel)",
+      "sinal_esperado": "positivo"
+    },
+    "delta_capital_regulatorio": {
+      "descricao": "Variacao do capital regulatorio retido (reduz o FCFE)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "indice_capital_alvo": {
+      "descricao": "Indice de capital alvo (Basileia) usado na projecao",
+      "sinal_esperado": "positivo"
+    },
+    "fator_rwa_ativos": {
+      "descricao": "Fator RWA/Ativos usado como proxy de ponderacao de risco",
+      "sinal_esperado": "positivo"
+    },
+    "roe_projetado": {
+      "descricao": "ROE projetado sobre o capital do inicio do ano (bancos)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "payout_implicito": {
+      "descricao": "Payout implicito FCFE/LL da trilha financeira",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "roe": {
+      "descricao": "Retorno sobre o patrimonio liquido medio (historico)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "roa": {
+      "descricao": "Retorno sobre o ativo total medio (historico)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "nim_aproximada": {
+      "descricao": "NIM aproximada: resultado bruto / ativo total medio",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "indice_eficiencia": {
+      "descricao": "Indice de eficiencia bancaria (despesas/receitas core)",
+      "sinal_esperado": "positivo"
     }
   }
 }

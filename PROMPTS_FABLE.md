@@ -17,6 +17,12 @@
 > **Regra de precedência:** se um prompt conflitar com o `ROTEIRO.md`/`CONTEXT.md`, o
 > pedido explícito do humano na sessão vence, mas o Fable deve avisar sobre o conflito
 > antes de executar.
+>
+> **Protocolo de decisões autônomas (instrução permanente de Lucas, 12/07/2026):** quando
+> o Fable encontrar erro, ambiguidade, conflito ou escolha que caberia ao humano, ele NÃO
+> para para perguntar: escolhe sozinho a melhor opção disponível, executa e registra em
+> **`Humano_revisar.md`** (data, situação, escolha, alternativas, justificativa). O humano
+> revisa esse arquivo e pode reverter qualquer decisão registrada.
 
 ---
 

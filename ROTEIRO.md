@@ -8,6 +8,13 @@
 >
 > Regra de precedência: se este roteiro conflitar com um pedido pontual do usuário na
 > sessão, o pedido do usuário vence, mas avise sobre o conflito antes de executar.
+>
+> **Protocolo de decisões autônomas (instrução permanente de Lucas, 12/07/2026):**
+> sempre que a IA precisar de uma escolha que caberia ao humano (erro, ambiguidade,
+> conflito entre documentos, opção de design), ela NÃO deve parar para perguntar:
+> deve escolher sozinha a melhor opção disponível, executar, e REGISTRAR a decisão
+> em **`Humano_revisar.md`** (data, situação, escolha, alternativas, justificativa).
+> O humano revisa esse arquivo periodicamente e pode reverter qualquer decisão.
 
 ---
 

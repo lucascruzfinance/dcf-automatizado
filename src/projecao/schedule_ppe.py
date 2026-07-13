@@ -152,12 +152,19 @@ def calcular_depreciacao_amortizacao(
     capex: float,
     taxa_depreciacao: float,
 ) -> float:
-    """Calcula D&A sem permitir depreciacao abaixo de zero."""
-    base_disponivel = max(imobilizado_anterior + capex, 0.0)
+    """Calcula D&A sem permitir depreciacao abaixo de zero.
 
-    # Formula: D&A_t = min(taxa x PP&E_(t-1), PP&E_(t-1) + CAPEX_t).
-    # O max protege o caso de CAPEX negativo maior que o PP&E anterior: o ativo
-    # para de depreciar em zero e o saldo projetado nunca fica negativo.
+    O CAPEX chega ASSINADO (negativo = saida de caixa, convencao do
+    projeto); como INVESTIMENTO no ativo vale a magnitude. Correcao da
+    v2.0: na v1 o capex assinado era somado ao PP&E, encolhendo o ativo, e
+    o caixa-plug absorvia a inconsistencia silenciosamente.
+    """
+    investimento = abs(capex)
+    base_disponivel = max(imobilizado_anterior + investimento, 0.0)
+
+    # Formula: D&A_t = min(taxa x PP&E_(t-1), PP&E_(t-1) + |CAPEX_t|).
+    # O min impede depreciar mais do que existe de base; o max final impede
+    # D&A negativa.
     depreciacao = min(taxa_depreciacao * imobilizado_anterior, base_disponivel)
     return max(depreciacao, 0.0)
 
@@ -191,8 +198,10 @@ def projetar_linhas_ppe(
             taxa_depreciacao=taxa_depreciacao,
         )
 
-        # Formula: PP&E_t = PP&E_(t-1) + CAPEX_t - D&A_t.
-        imobilizado = max(imobilizado_anterior + capex - depreciacao, 0.0)
+        # Formula: PP&E_t = PP&E_(t-1) + |CAPEX_t| - D&A_t. O capex e
+        # persistido assinado (convencao de caixa), mas o ativo cresce pela
+        # magnitude do investimento (correcao v2.0 do plug da v1).
+        imobilizado = max(imobilizado_anterior + abs(capex) - depreciacao, 0.0)
 
         linhas[chave_ano] = {
             "ano_projecao": chave_ano,

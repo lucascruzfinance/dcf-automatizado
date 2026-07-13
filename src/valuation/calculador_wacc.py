@@ -371,6 +371,68 @@ def calcular_wacc(
     return resultado
 
 
+def calcular_ke(
+    ticker: str,
+    raiz_projeto: Path | None = None,
+    rf_usd: float | None = None,
+) -> dict[str, Any]:
+    """Calcula APENAS o Ke em BRL para a trilha financeira (FCFE).
+
+    Bancos/seguradoras nao usam WACC: a divida e insumo operacional, nao
+    estrutura de capital. O beta entra ALAVANCADO (de mercado/peers) sem a
+    re-alavancagem de Hamada — decisao documentada da Onda 2. Persiste o
+    bloco ``ke`` na projecao integrada.
+    """
+    raiz = resolver_raiz(raiz_projeto)
+    ticker_normalizado = normalizar_ticker(ticker)
+    premissas = carregar_premissas_wacc(ticker_normalizado, raiz)
+
+    rf = obter_rf_usd(rf_usd)
+    if rf <= 0:
+        raise ValueError(f"Rf em USD precisa ser positivo, recebido {rf}.")
+
+    beta = ler_premissa_numerica(premissas, ("beta", "beta_alavancado"))
+    erp_eua = ler_premissa_numerica(premissas, ("erp_eua", "erp"))
+    crp_brasil = ler_premissa_numerica(premissas, ("crp_brasil", "crp"))
+    ipca = ler_premissa_numerica(
+        premissas,
+        ("ipca_longo_prazo", "ipca"),
+        padrao=IPCA_LONGO_PRAZO_PADRAO,
+    )
+    cpi_eua = ler_premissa_numerica(
+        premissas,
+        ("cpi_eua_longo_prazo", "cpi_eua"),
+        padrao=CPI_EUA_LONGO_PRAZO_PADRAO,
+    )
+
+    # CAPM em USD com premio de risco Brasil (beta ja alavancado).
+    ke_usd = rf + beta * (erp_eua + crp_brasil)
+    # Diferencial de inflacao: converte o custo de equity para BRL nominal.
+    ke_brl = ((1 + ke_usd) * (1 + ipca)) / (1 + cpi_eua) - 1
+    if ke_brl <= 0:
+        raise ValueError(f"Ke BRL nao positivo ({ke_brl:.4%}): reveja premissas.")
+
+    resultado = {
+        "ticker": ticker_normalizado,
+        "metodo": "capm_brl_financeira_beta_alavancado",
+        "rf_usd": rf,
+        "beta_alavancado": beta,
+        "erp_eua": erp_eua,
+        "crp_brasil": crp_brasil,
+        "ke_usd": ke_usd,
+        "ipca": ipca,
+        "cpi_eua": cpi_eua,
+        "ke_brl": ke_brl,
+    }
+
+    caminho = raiz / "data" / "processed" / f"{ticker_normalizado}_projecao.json"
+    conteudo = carregar_json(caminho) if caminho.exists() else {}
+    conteudo["ke"] = resultado
+    salvar_json(caminho, conteudo)
+    resultado["caminho_saida"] = caminho
+    return resultado
+
+
 def imprimir_decomposicao_wacc(resultado: dict[str, Any]) -> None:
     """Imprime a decomposicao completa do WACC para validacao visual."""
     print("\n" + "=" * 72)

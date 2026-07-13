@@ -53,6 +53,43 @@ TAXA_REINVESTIMENTO_PADRAO = 0.0
 logger = logging.getLogger(__name__)
 
 
+def carregar_convencao_desconto(raiz_projeto: Path) -> dict[str, float | bool]:
+    """Le a convencao de desconto de config/parametros.json (bloco desconto).
+
+    - ``usar_convencao_meio_periodo``: desconta fluxos em t - 0,5 (fluxo
+      chega ao longo do ano, nao no fim). Default False (convencao padrao).
+    - ``fracao_ano_stub``: fracao do ano corrente ja decorrida na data-base;
+      aproxima o periodo-stub multiplicando os VPs por (1+taxa)^fracao
+      (fluxos chegam mais cedo). Default 0.0 (desligado).
+    """
+    try:
+        parametros = carregar_json(raiz_projeto / "config" / "parametros.json")
+    except RuntimeError:
+        # Fixtures/raizes sem config usam a convencao padrao (fim de periodo).
+        parametros = {}
+    desconto = parametros.get("desconto", {})
+    usar_meio = bool(desconto.get("usar_convencao_meio_periodo", False))
+    fracao_stub = desconto.get("fracao_ano_stub", 0.0)
+    if isinstance(fracao_stub, bool) or not isinstance(fracao_stub, (int, float)):
+        fracao_stub = 0.0
+    return {
+        "usar_convencao_meio_periodo": usar_meio,
+        "fracao_ano_stub": max(0.0, min(float(fracao_stub), 1.0)),
+    }
+
+
+def expoente_desconto(ano: float, convencao: dict[str, float | bool]) -> float:
+    """Expoente de desconto do ano sob a convencao configurada.
+
+    Formula: t (fim de periodo) ou t - 0,5 (meio de periodo), menos a
+    fracao do ano-stub ja decorrida.
+    """
+    expoente = float(ano)
+    if convencao.get("usar_convencao_meio_periodo"):
+        expoente -= 0.5
+    return expoente - float(convencao.get("fracao_ano_stub", 0.0))
+
+
 def carregar_premissas_vt(ticker: str, raiz_projeto: Path) -> dict[str, Any]:
     """Carrega o arquivo de premissas do ticker."""
     caminho = raiz_projeto / "data" / "premissas" / f"{ticker}_premissas.json"
@@ -72,15 +109,21 @@ def carregar_projecao_vt(
     return caminho, conteudo
 
 
-def calcular_soma_vp_fcff(conteudo: dict[str, Any], wacc: float) -> float:
+def calcular_soma_vp_fcff(
+    conteudo: dict[str, Any],
+    wacc: float,
+    convencao: dict[str, float | bool] | None = None,
+) -> float:
     """Soma os FCFF dos anos 1-8 descontados ao WACC (calculo interno)."""
     fcff = conteudo["fcff"]
+    convencao = convencao or {}
     soma = 0.0
     for ano in range(1, HORIZONTE_PROJECAO + 1):
         chave_ano = f"ano{ano}"
         fluxo = obter_float_obrigatorio(fcff[chave_ano], "fcff", chave_ano)
-        # Formula: VP(FCFF_t) = FCFF_t / (1 + WACC)^t.
-        soma += fluxo / (1 + wacc) ** ano
+        # Formula: VP(FCFF_t) = FCFF_t / (1 + WACC)^t, com t ajustado pela
+        # convencao de meio-periodo e pelo periodo-stub quando ativos.
+        soma += fluxo / (1 + wacc) ** expoente_desconto(ano, convencao)
     return soma
 
 
@@ -147,8 +190,13 @@ def calcular_valor_terminal(
     # Formula: VT_bruto = base x (1 + g) / (WACC - g).
     vt_bruto = base * (1 + g) / (wacc - g)
 
-    # Formula: VP(VT) = VT_bruto / (1 + WACC)^8.
-    vp_vt = vt_bruto / (1 + wacc) ** HORIZONTE_PROJECAO
+    # Formula: VP(VT) = VT_bruto / (1 + WACC)^t8, com t8 ajustado pela
+    # convencao de desconto (meio-periodo / periodo-stub) da config.
+    convencao = carregar_convencao_desconto(raiz)
+    vp_vt = vt_bruto / (1 + wacc) ** expoente_desconto(
+        HORIZONTE_PROJECAO,
+        convencao,
+    )
 
     # Sanity check: multiplo de saida implicito EV/EBITDA na perpetuidade.
     if ebitda_ano8 == 0:
@@ -156,7 +204,7 @@ def calcular_valor_terminal(
     else:
         multiplo_saida = vt_bruto / ebitda_ano8
 
-    soma_vp_fcff = calcular_soma_vp_fcff(conteudo, wacc)
+    soma_vp_fcff = calcular_soma_vp_fcff(conteudo, wacc, convencao)
     ev_total = soma_vp_fcff + vp_vt
     if ev_total == 0:
         pct_ev_perpetuidade = float("nan")
@@ -167,6 +215,8 @@ def calcular_valor_terminal(
         "ticker": ticker_normalizado,
         "g": g,
         "wacc": wacc,
+        "usar_convencao_meio_periodo": convencao["usar_convencao_meio_periodo"],
+        "fracao_ano_stub": convencao["fracao_ano_stub"],
         "fcff_ano8": fcff_ano8,
         "nopat_ano8": nopat_ano8,
         "ebitda_ano8": ebitda_ano8,

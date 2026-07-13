@@ -28,6 +28,10 @@ try:
         salvar_json,
     )
     from src.projecao.schedule_divida import obter_float_obrigatorio
+    from src.valuation.calculador_vt import (
+        carregar_convencao_desconto,
+        expoente_desconto,
+    )
 except ModuleNotFoundError as erro:
     if erro.name != "src":
         raise
@@ -41,6 +45,10 @@ except ModuleNotFoundError as erro:
         salvar_json,
     )
     from src.projecao.schedule_divida import obter_float_obrigatorio
+    from src.valuation.calculador_vt import (
+        carregar_convencao_desconto,
+        expoente_desconto,
+    )
 
 LIMITE_COMPRA = 0.20
 LIMITE_VENDA = -0.05
@@ -104,15 +112,21 @@ def obter_valor_opcional(
     )
 
 
-def calcular_soma_vp_fcff(conteudo: dict[str, Any], wacc: float) -> float:
+def calcular_soma_vp_fcff(
+    conteudo: dict[str, Any],
+    wacc: float,
+    convencao: dict[str, float | bool] | None = None,
+) -> float:
     """Soma os FCFF dos anos 1-8 descontados ao WACC."""
     fcff = conteudo["fcff"]
+    convencao = convencao or {}
     soma = 0.0
     for ano in range(1, HORIZONTE_PROJECAO + 1):
         chave_ano = f"ano{ano}"
         fluxo = obter_float_obrigatorio(fcff[chave_ano], "fcff", chave_ano)
-        # Formula: VP(FCFF_t) = FCFF_t / (1 + WACC)^t.
-        soma += fluxo / (1 + wacc) ** ano
+        # Formula: VP(FCFF_t) = FCFF_t / (1 + WACC)^t, com t ajustado pela
+        # mesma convencao de desconto usada no valor terminal.
+        soma += fluxo / (1 + wacc) ** expoente_desconto(ano, convencao)
     return soma
 
 
@@ -133,7 +147,17 @@ def montar_ajustes_bridge(
     divida_longo = obter_valor_opcional(
         divida_ano0, ("divida_longo_prazo", "divida_lp")
     )
-    leasing_ifrs16 = obter_valor_opcional(premissas, ("leasing_ifrs16",), padrao=0.0)
+    # Leasing IFRS16: premissa manda; sem premissa, usa o passivo de
+    # arrendamento REAL do BP do Ano 0 (persistido pelo schedule v2).
+    leasing_ifrs16 = obter_valor_opcional(
+        premissas,
+        ("leasing_ifrs16",),
+        padrao=obter_valor_opcional(
+            balanco_ano0,
+            ("passivo_arrendamento",),
+            padrao=0.0,
+        ),
+    )
     caixa = obter_valor_opcional(balanco_ano0, ("caixa_equivalentes", "caixa"))
     aplicacoes = obter_valor_opcional(
         balanco_ano0, ("aplicacoes_financeiras",), padrao=0.0
@@ -320,7 +344,8 @@ def calcular_ev(
     vp_vt = obter_float_obrigatorio(
         conteudo["valor_terminal"], "vp_vt", "valor_terminal"
     )
-    soma_vp_fcff = calcular_soma_vp_fcff(conteudo, wacc)
+    convencao = carregar_convencao_desconto(raiz)
+    soma_vp_fcff = calcular_soma_vp_fcff(conteudo, wacc, convencao)
     ev = soma_vp_fcff + vp_vt
 
     ajustes = montar_ajustes_bridge(conteudo, premissas)

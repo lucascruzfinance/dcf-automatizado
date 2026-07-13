@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from src.metricas.metricas_historicas import (
     calcular_cagr,
     calcular_metricas_historicas,
@@ -144,15 +146,64 @@ def test_persistencia_do_json(tmp_path: Path) -> None:
     assert persistido["trilha"] == "nao_financeira"
 
 
-def test_trilha_financeira_devolve_esqueleto(tmp_path: Path) -> None:
-    """Empresa financeira devolve esqueleto sem metricas (validacao v1.5)."""
+def test_trilha_financeira_calcula_roe_e_avisa_basileia(tmp_path: Path) -> None:
+    """Financeira usa a trilha bancaria real (Onda 2) com aviso de Basileia."""
     pasta = tmp_path / "data" / "raw" / "cvm"
     salvar_json(
         pasta / "BANK3_meta.json",
         {"ticker": "BANK3", "tipo": "financeira", "setor": "bancos"},
     )
+    base = {"ORDEM_EXERC": "ULTIMO", "ano_arquivo": 2025}
+    dre = []
+    bp = []
+    for ano, receita, lucro, pl, ativo in (
+        (2024, 1000.0, 150.0, 900.0, 10000.0),
+        (2025, 1100.0, 180.0, 1000.0, 11000.0),
+    ):
+        exercicio = {**base, "DT_FIM_EXERC": f"{ano}-12-31"}
+        dre.append(
+            {
+                **exercicio,
+                "CD_CONTA": "3.01",
+                "nome_padronizado": "receitas_intermediacao_financeira",
+                "valor_padronizado": receita,
+            }
+        )
+        dre.append(
+            {
+                **exercicio,
+                "CD_CONTA": "3.09",
+                "nome_padronizado": "lucro_liquido",
+                "valor_padronizado": lucro,
+            }
+        )
+        bp.append(
+            {
+                **exercicio,
+                "CD_CONTA": "2.03",
+                "nome_padronizado": "patrimonio_liquido",
+                "valor_padronizado": pl,
+            }
+        )
+        bp.append(
+            {
+                **exercicio,
+                "CD_CONTA": "1",
+                "nome_padronizado": "ativo_total",
+                "valor_padronizado": ativo,
+            }
+        )
+    salvar_json(pasta / "BANK3_dre.json", dre)
+    salvar_json(pasta / "BANK3_bp.json", bp)
 
     resultado = calcular_metricas_historicas("BANK3", raiz_projeto=tmp_path)
 
-    assert resultado["trilha"] == "financeira_nao_validada"
-    assert resultado["metricas_por_ano"] == {}
+    assert resultado["trilha"] == "financeira"
+    metricas_2025 = resultado["metricas_por_ano"]["2025"]
+    # Formula: ROE = LL / PL medio = 180 / 950.
+    assert metricas_2025["roe"] == pytest.approx(180.0 / 950.0)
+    # Formula: ROA = LL / Ativo medio = 180 / 10500.
+    assert metricas_2025["roa"] == pytest.approx(180.0 / 10500.0)
+    assert metricas_2025["margem_liquida_receitas"] == pytest.approx(180.0 / 1100.0)
+    # Basileia/NPL nao existem na DFP: viram aviso de premissa do analista.
+    assert any("Basileia" in aviso for aviso in resultado["avisos"])

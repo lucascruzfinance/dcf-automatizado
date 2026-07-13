@@ -1,10 +1,15 @@
-"""Front-end institucional do DCF Automatizado (Streamlit).
+"""Front-end institucional do DCF Automatizado (Streamlit) — v2.0 Onda 4.
 
-Sidebar com 6 secoes: Overview, Historico, Premissas, Valuation, Analise e
-Excel Preview. O app e um CONSUMIDOR do motor Python: le os resultados
-persistidos em ``data/processed/`` e, quando o analista salva premissas novas,
-reexecuta o pipeline oficial (DRE -> WK -> PP&E -> Divida -> FCFF -> WACC ->
-VT -> EV -> Checklist). Nenhum calculo de valuation e reimplementado aqui.
+Estacao de trabalho de analista MULTI-EMPRESA: qualquer ticker da B3 entra
+pela sidebar (o app dispara o pipeline universal com feedback de progresso),
+e as secoes apresentam os JSONs persistidos pelo motor — Overview com
+cenarios, Historico por tipo (metricas bancarias para financeiras),
+Premissas editaveis em tabela, Valuation por metodo (FCFF/WACC ou FCFE/Ke),
+Comparaveis com triangulacao, Analise com tornado e sensibilidades vivas,
+Comparar (2-5 empresas + watchlist) e Excel Preview.
+
+Regra dura: o app NUNCA recalcula valuation — edita premissas e dispara o
+motor Python (fonte unica de verdade).
 """
 
 from __future__ import annotations
@@ -30,23 +35,27 @@ from src.exportacao.exportador_excel import (  # noqa: E402
 from src.metricas.metricas_historicas import (  # noqa: E402
     calcular_metricas_historicas,
 )
+from src.pipeline import (  # noqa: E402
+    rodar_motor_valuation,
+    rodar_pipeline_universal,
+)
 from src.projecao.projetor_dre import (  # noqa: E402
     HORIZONTE_PROJECAO,
     carregar_json,
-    projetar_dre,
     salvar_json,
 )
-from src.projecao.schedule_divida import projetar_divida  # noqa: E402
-from src.projecao.schedule_ppe import projetar_ppe  # noqa: E402
-from src.projecao.schedule_wk import projetar_wk  # noqa: E402
-from src.valuation.calculador_ev import calcular_ev  # noqa: E402
-from src.valuation.calculador_fcff import calcular_fcff  # noqa: E402
-from src.valuation.calculador_vt import calcular_valor_terminal  # noqa: E402
-from src.valuation.calculador_wacc import calcular_wacc  # noqa: E402
-from src.valuation.checklist import executar_checklist  # noqa: E402
+from src.valuation.comparaveis import (  # noqa: E402
+    ROTULOS_MULTIPLOS,
+    carregar_comparaveis,
+    gerar_comparaveis,
+)
 from src.visualizacao.apoio_cenarios import (  # noqa: E402
-    carregar_mercado,
     carregar_metricas,
+    recalcular_cenario,
+)
+from src.visualizacao.comparacao_empresas import (  # noqa: E402
+    gerar_comparacao_empresas,
+    montar_painel_comparacao,
 )
 from src.visualizacao.dashboard_final import gerar_dashboard_final  # noqa: E402
 from src.visualizacao.football_field import gerar_football_field  # noqa: E402
@@ -63,6 +72,10 @@ from src.visualizacao.sensibilidade_setor import (  # noqa: E402
 from src.visualizacao.sensibilidade_wacc_g import (  # noqa: E402
     gerar_sensibilidade_wacc_g,
 )
+from src.visualizacao.tabela_comparaveis import (  # noqa: E402
+    gerar_tabela_comparaveis,
+)
+from src.visualizacao.tornado import gerar_tornado  # noqa: E402
 from src.visualizacao.waterfall_ev import gerar_waterfall_ev  # noqa: E402
 from src.visualizacao.tema_institucional import (  # noqa: E402
     COR_TEXTO_SECUNDARIO,
@@ -72,21 +85,29 @@ from src.visualizacao.tema_institucional import (  # noqa: E402
     formatar_percentual_br,
 )
 
-TICKERS_V1 = ("DIRR3", "MGLU3")
+TICKERS_REFERENCIA = ("DIRR3", "MGLU3")
 SECOES = (
     "Overview",
     "Historico",
     "Premissas",
     "Valuation",
+    "Comparaveis",
     "Analise",
+    "Comparar",
     "Excel Preview",
 )
 LIMITE_ALERTA_MARGEM_PP = 0.05
+CAMINHO_WATCHLIST = RAIZ_PROJETO / "data" / "watchlist.json"
 
-CAMPOS_VETORES = (
-    ("crescimento_receita", "Crescimento da receita", -0.5, 1.0),
-    ("margem_ebitda", "Margem EBITDA", -0.5, 0.8),
-    ("capex_receita", "CAPEX / Receita (negativo = saida)", -0.5, 0.0),
+VETORES_NAO_FINANCEIRA = (
+    ("crescimento_receita", "Crescimento da receita"),
+    ("margem_ebitda", "Margem EBITDA"),
+    ("capex_receita", "CAPEX / Receita (negativo = saida)"),
+)
+VETORES_FINANCEIRA = (
+    ("crescimento_receita", "Crescimento das receitas de intermediacao"),
+    ("margem_resultado_bruto", "Margem do resultado bruto"),
+    ("despesas_operacionais_receita", "Despesas operacionais / receitas"),
 )
 
 
@@ -100,46 +121,116 @@ def caminho_projecao(ticker: str) -> Path:
     return RAIZ_PROJETO / "data" / "processed" / f"{ticker}_projecao.json"
 
 
+def listar_empresas_analisadas() -> list[str]:
+    """Tickers com projecao persistida em data/processed/."""
+    pasta = RAIZ_PROJETO / "data" / "processed"
+    if not pasta.exists():
+        return []
+    return sorted(
+        caminho.name.replace("_projecao.json", "")
+        for caminho in pasta.glob("*_projecao.json")
+    )
+
+
+@st.cache_data(show_spinner=False)
+def _carregar_projecao_cacheada(ticker: str, mtime: float) -> dict[str, Any]:
+    """Le a projecao persistida com cache invalidado por mtime."""
+    return carregar_json(caminho_projecao(ticker))
+
+
 def carregar_projecao_app(ticker: str) -> dict[str, Any] | None:
     """Carrega a projecao persistida; None quando o pipeline nao rodou."""
     caminho = caminho_projecao(ticker)
     if not caminho.exists():
         return None
-    conteudo = carregar_json(caminho)
+    conteudo = _carregar_projecao_cacheada(ticker, caminho.stat().st_mtime)
     if not isinstance(conteudo.get("ev_equity"), dict):
         return None
     return conteudo
 
 
+def carregar_meta(ticker: str) -> dict[str, Any]:
+    """Metadados da coleta (tipo, subtipo, score)."""
+    caminho = RAIZ_PROJETO / "data" / "raw" / "cvm" / f"{ticker}_meta.json"
+    if not caminho.exists():
+        return {}
+    return carregar_json(caminho)
+
+
+def empresa_financeira(ticker: str, conteudo: dict[str, Any] | None) -> bool:
+    """Detecta a trilha financeira pelo meta ou pela projecao."""
+    meta = carregar_meta(ticker)
+    if str(meta.get("tipo")) == "financeira":
+        return True
+    return bool(conteudo and str(conteudo.get("tipo")) == "financeira")
+
+
 def obter_metricas(ticker: str) -> dict[str, Any]:
     """Metricas historicas persistidas; calcula na primeira execucao."""
     metricas = carregar_metricas(ticker, RAIZ_PROJETO)
-    if not metricas.get("metricas_por_ano") or "roiic_media_3a" not in metricas.get(
-        "agregados", {}
-    ):
-        metricas = calcular_metricas_historicas(ticker, RAIZ_PROJETO)
+    if not metricas.get("metricas_por_ano"):
+        try:
+            metricas = calcular_metricas_historicas(ticker, RAIZ_PROJETO)
+        except RuntimeError:
+            return metricas or {}
     return metricas
 
 
-def rodar_pipeline(ticker: str) -> None:
-    """Reexecuta o pipeline oficial do motor na ordem obrigatoria.
+def carregar_watchlist() -> dict[str, Any]:
+    """Watchlist persistida em data/watchlist.json."""
+    if not CAMINHO_WATCHLIST.exists():
+        return {"tickers": {}}
+    return carregar_json(CAMINHO_WATCHLIST)
 
-    Injeta Rf e preco atual a partir dos dados de mercado ja coletados para
-    nao depender de rede dentro do app.
-    """
-    mercado = carregar_mercado(ticker, RAIZ_PROJETO)
-    rf_usd = mercado.get("rf_usd_tbond10y")
-    preco_atual = mercado.get("preco_atual")
 
-    projetar_dre(ticker, RAIZ_PROJETO)
-    projetar_wk(ticker, RAIZ_PROJETO)
-    projetar_ppe(ticker, RAIZ_PROJETO)
-    projetar_divida(ticker, RAIZ_PROJETO)
-    calcular_fcff(ticker, RAIZ_PROJETO)
-    calcular_wacc(ticker, RAIZ_PROJETO, rf_usd=rf_usd)
-    calcular_valor_terminal(ticker, RAIZ_PROJETO)
-    calcular_ev(ticker, RAIZ_PROJETO, preco_atual=preco_atual)
-    executar_checklist(ticker, RAIZ_PROJETO)
+def atualizar_watchlist(ticker: str, remover: bool = False) -> None:
+    """Adiciona/remove o ticker na watchlist com o ultimo resultado."""
+    watchlist = carregar_watchlist()
+    if remover:
+        watchlist["tickers"].pop(ticker, None)
+    else:
+        conteudo = carregar_projecao_app(ticker) or {}
+        ev_equity = conteudo.get("ev_equity", {})
+        watchlist["tickers"][ticker] = {
+            "target_price": ev_equity.get("target_price"),
+            "recomendacao": ev_equity.get("recomendacao"),
+            "upside": ev_equity.get("upside"),
+            "atualizado_em": datetime.now().isoformat(timespec="seconds"),
+        }
+    salvar_json(CAMINHO_WATCHLIST, watchlist)
+
+
+def executar_pipeline_com_status(ticker: str, forcar: bool) -> None:
+    """Roda o pipeline universal exibindo o progresso por etapa."""
+    with st.status(
+        f"Analisando {ticker} — pipeline universal...", expanded=True
+    ) as status:
+        try:
+            resumo = rodar_pipeline_universal(
+                ticker,
+                RAIZ_PROJETO,
+                forcar_recoleta=forcar,
+                callback_status=lambda mensagem: st.write(mensagem),
+            )
+        except Exception as erro:  # noqa: BLE001 - erro vai para a UI
+            status.update(label=f"Falha ao analisar {ticker}", state="error")
+            st.error(
+                f"O pipeline falhou para {ticker}: {erro}. Verifique o "
+                "ticker (ex.: PETR4, WEGE3) e os logs em logs/."
+            )
+            return
+        for aviso in resumo.get("avisos", []):
+            st.warning(aviso)
+        status.update(
+            label=(
+                f"{ticker} analisado em {resumo['duracao_total_s']}s "
+                f"(score {resumo.get('score_confiabilidade', 'n/d')})"
+            ),
+            state="complete",
+        )
+    st.session_state["ticker"] = ticker
+    _carregar_projecao_cacheada.clear()
+    st.rerun()
 
 
 URL_FONTES_INSTITUCIONAIS = (
@@ -160,21 +251,40 @@ def aplicar_estilo_institucional() -> None:
             font-family: 'IBM Plex Mono', monospace;
         }}
         [data-testid="stSidebar"] {{ border-right: 1px solid #1E3350; }}
+        div[data-testid="stDataFrame"] * {{
+            font-variant-numeric: tabular-nums;
+        }}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
 
-def painel_decisao(conteudo: dict[str, Any]) -> None:
-    """Faixa de decisao: Target, Upside e Recomendacao em destaque."""
+def painel_decisao(
+    conteudo: dict[str, Any],
+    cenario: dict[str, Any] | None = None,
+) -> None:
+    """Faixa de decisao: Target, Upside e Recomendacao (cenario opcional)."""
     ev_equity = conteudo["ev_equity"]
-    target = float(ev_equity["target_price"])
-    preco = float(ev_equity["preco_atual"])
-    upside = float(ev_equity["upside"])
-    recomendacao = str(ev_equity.get("recomendacao", "n/d"))
-    wacc = float(conteudo["wacc"]["wacc"])
-    g = float(conteudo["valor_terminal"]["g"])
+    financeira = str(conteudo.get("tipo")) == "financeira"
+    fonte = cenario if cenario else ev_equity
+    target = float(fonte["target_price"])
+    upside = float(fonte.get("upside") or 0.0)
+    recomendacao = str(fonte.get("recomendacao", "n/d"))
+    preco = float(ev_equity.get("preco_atual") or 0.0)
+
+    if financeira:
+        taxa = float(conteudo.get("ke", {}).get("ke_brl") or 0.0)
+        rotulo_taxa = "Ke"
+    else:
+        taxa = float(conteudo.get("wacc", {}).get("wacc") or 0.0)
+        rotulo_taxa = "WACC"
+    g = float(conteudo.get("valor_terminal", {}).get("g") or 0.0)
+    if cenario:
+        if cenario.get("taxa_desconto") is not None:
+            taxa = float(cenario["taxa_desconto"])
+        if cenario.get("g") is not None:
+            g = float(cenario["g"])
 
     colunas = st.columns(5)
     colunas[0].metric("Target Price", formatar_moeda_brl(target))
@@ -192,28 +302,123 @@ def painel_decisao(conteudo: dict[str, Any]) -> None:
         f"font-weight:600;color:{cor}'>{recomendacao}</div>",
         unsafe_allow_html=True,
     )
-    colunas[3].metric("WACC", formatar_percentual_br(wacc, 2))
+    colunas[3].metric(rotulo_taxa, formatar_percentual_br(taxa, 2))
     colunas[4].metric("g (perpetuidade)", formatar_percentual_br(g, 2))
 
 
+def _aviso_premissas_automaticas(ticker: str) -> None:
+    """Alerta quando as premissas ainda sao o ponto de partida automatico."""
+    caminho = caminho_premissas(ticker)
+    if not caminho.exists():
+        return
+    premissas = carregar_json(caminho)
+    if premissas.get("premissas_automaticas"):
+        st.warning(
+            "PREMISSAS AUTOMATICAS DE PARTIDA em uso (ancoras historicas + "
+            "defaults do subtipo). A tese e do analista: revise na secao "
+            "Premissas e salve para assumir a autoria."
+        )
+
+
 def secao_overview(ticker: str, conteudo: dict[str, Any]) -> None:
-    """Overview executivo com o dashboard final embutido."""
-    painel_decisao(conteudo)
+    """Capa viva: KPIs de decisao, cenarios e qualidade dos dados."""
+    cenarios = conteudo.get("cenarios", {})
+    cenario_ativo = None
+    if cenarios:
+        rotulos = {"Bear": "bear", "Base": "base", "Bull": "bull"}
+        escolha = st.radio(
+            "Cenario (motor de cenarios — pipeline completo por cenario)",
+            list(rotulos),
+            index=1,
+            horizontal=True,
+        )
+        cenario_ativo = cenarios.get(rotulos[escolha])
+        if escolha != "Base" and cenario_ativo:
+            st.caption(f"Cenario {escolha}: ajustes {cenario_ativo.get('ajustes', {})}")
+    painel_decisao(conteudo, cenario_ativo if cenario_ativo else None)
+
+    meta = carregar_meta(ticker)
     checklist = conteudo.get("checklist", {})
     aprovado = checklist.get("aprovado") is True
-    vt = conteudo.get("valor_terminal", {})
-    pct = vt.get("pct_ev_perpetuidade")
+    valor_terminal = conteudo.get("valor_terminal", {})
+    pct = valor_terminal.get("pct_ev_perpetuidade")
     st.caption(
-        f"Checklist: {'APROVADO' if aprovado else 'REPROVADO'} | "
-        f"perpetuidade = "
-        f"{formatar_percentual_br(float(pct)) if pct is not None else 'n/d'} do EV"
+        f"{meta.get('razao_social', ticker)} | "
+        f"{meta.get('tipo', 'n/d')}/{meta.get('subtipo', 'n/d')} | "
+        f"metodo {meta.get('metodo_valuation', 'n/d')} | "
+        f"score de dados {meta.get('score_confiabilidade', 'n/d')}/100 | "
+        f"checklist {'APROVADO' if aprovado else 'REPROVADO'} | perpetuidade "
+        f"{formatar_percentual_br(float(pct)) if pct is not None else 'n/d'}"
+        " do EV"
     )
+    _aviso_premissas_automaticas(ticker)
+
+    if str(conteudo.get("tipo")) == "financeira":
+        fcfe = conteudo.get("fcfe", {})
+        if fcfe:
+            quadro = pd.DataFrame(fcfe).T
+            st.subheader("FCFE projetado (LL - ΔCapital regulatorio)")
+            st.dataframe(
+                quadro[
+                    ["lucro_liquido", "delta_capital_regulatorio", "fcfe"]
+                ].style.format("{:,.0f}"),
+                width="stretch",
+            )
+        resultado_football = gerar_football_field(ticker, RAIZ_PROJETO)
+        st.plotly_chart(resultado_football["figura"], width="stretch")
+        return
+
     resultado = gerar_dashboard_final(ticker, RAIZ_PROJETO)
     st.plotly_chart(resultado["figura"], width="stretch")
 
 
-def secao_historico(ticker: str) -> None:
-    """Metricas historicas anuais e grade historico vs projetado."""
+def _historico_financeira(ticker: str) -> None:
+    """Metricas bancarias historicas (ROE, ROA, NIM, eficiencia)."""
+    metricas = obter_metricas(ticker)
+    por_ano = metricas.get("metricas_por_ano", {})
+    if not por_ano:
+        st.warning("Sem metricas historicas bancarias para este ticker.")
+        return
+    quadro = pd.DataFrame(por_ano).T.sort_index()
+    colunas_pct = [
+        "crescimento_receitas_yoy",
+        "roe",
+        "roa",
+        "margem_resultado_bruto",
+        "despesas_operacionais_receita",
+        "margem_liquida_receitas",
+        "nim_aproximada",
+        "indice_eficiencia",
+        "aliquota_efetiva",
+    ]
+    formato = {coluna: "{:.1%}" for coluna in colunas_pct if coluna in quadro}
+    for coluna in ("receitas_intermediacao_financeira", "lucro_liquido"):
+        if coluna in quadro:
+            formato[coluna] = "{:,.0f}"
+    st.subheader("Metricas bancarias anuais (exercicios CVM)")
+    st.dataframe(quadro.style.format(formato, na_rep="n/d"), width="stretch")
+
+    agregados = metricas.get("agregados", {})
+    colunas = st.columns(4)
+    ancoras = (
+        ("ROE medio 3a", agregados.get("roe_media_3a")),
+        ("ROA medio 3a", agregados.get("roa_media_3a")),
+        ("NIM aprox. 3a", agregados.get("nim_aproximada_media_3a")),
+        ("Eficiencia 3a", agregados.get("indice_eficiencia_media_3a")),
+    )
+    for coluna, (rotulo, valor) in zip(colunas, ancoras):
+        texto = formatar_percentual_br(float(valor)) if valor is not None else "n/d"
+        coluna.metric(rotulo, texto)
+    for aviso in metricas.get("avisos", []):
+        st.caption(f"AVISO: {aviso}")
+
+
+def secao_historico(ticker: str, financeira: bool) -> None:
+    """Metricas historicas por tipo de empresa."""
+    if financeira:
+        _historico_financeira(ticker)
+        return
+
     metricas = obter_metricas(ticker)
     por_ano = metricas.get("metricas_por_ano", {})
     if not por_ano:
@@ -233,11 +438,14 @@ def secao_historico(ticker: str) -> None:
         "roic",
         "roiic",
     ]
-    formato: dict[str, Any] = {coluna: "{:.1%}" for coluna in colunas_pct}
+    formato: dict[str, Any] = {c: "{:.1%}" for c in colunas_pct if c in quadro}
     for coluna in ("dso", "dio", "dpo", "ccc"):
-        formato[coluna] = "{:,.0f}"
-    formato["divida_liquida_ebitda"] = "{:,.2f}x"
-    formato["cobertura_juros"] = "{:,.2f}x"
+        if coluna in quadro:
+            formato[coluna] = "{:,.0f}"
+    if "divida_liquida_ebitda" in quadro:
+        formato["divida_liquida_ebitda"] = "{:,.2f}x"
+    if "cobertura_juros" in quadro:
+        formato["cobertura_juros"] = "{:,.2f}x"
     st.subheader("Metricas anuais (exercicios CVM)")
     st.dataframe(quadro.style.format(formato, na_rep="n/d"), width="stretch")
 
@@ -263,124 +471,91 @@ def secao_historico(ticker: str) -> None:
     st.plotly_chart(resultado["figura"], width="stretch")
 
 
-def _entrada_vetor_anual(
+def _editor_vetores(
     premissas: dict[str, Any],
-    campo_base: str,
-    rotulo: str,
-    minimo: float,
-    maximo: float,
+    vetores: tuple[tuple[str, str], ...],
 ) -> dict[str, float]:
-    """Renderiza os 8 campos individuais de um vetor anual de premissas."""
-    valores: dict[str, float] = {}
-    colunas = st.columns(4)
-    for ano in range(1, HORIZONTE_PROJECAO + 1):
-        campo = f"{campo_base}_ano{ano}"
-        padrao = float(premissas.get(campo, 0.0))
-        with colunas[(ano - 1) % 4]:
-            valores[campo] = st.number_input(
-                f"Ano {ano}",
-                min_value=minimo,
-                max_value=maximo,
-                value=padrao,
-                step=0.005,
-                format="%.3f",
-                key=f"{campo_base}_{ano}",
-                help=f"{rotulo} do ano {ano} (decimal: 0,10 = 10%)",
-            )
-    return valores
+    """Tabela EDITAVEL dos vetores anuais (8 valores individuais por linha).
 
-
-def _historico_do_vetor(campo_base: str, agregados: dict[str, Any]) -> str:
-    """Texto de historico exibido ao lado de cada vetor de premissas."""
-    if campo_base == "crescimento_receita":
-        cagr3 = agregados.get("cagr_receita_3a")
-        cagr5 = agregados.get("cagr_receita_5a")
-        partes = []
-        if cagr3 is not None:
-            partes.append(f"CAGR 3a {formatar_percentual_br(float(cagr3))}")
-        if cagr5 is not None:
-            partes.append(f"CAGR 5a {formatar_percentual_br(float(cagr5))}")
-        return " | ".join(partes) if partes else "sem historico"
-    if campo_base == "margem_ebitda":
-        media = agregados.get("margem_ebitda_media_3a")
-        maxima = agregados.get("margem_ebitda_maxima")
-        partes = []
-        if media is not None:
-            partes.append(f"media 3a {formatar_percentual_br(float(media))}")
-        if maxima is not None:
-            partes.append(f"maxima {formatar_percentual_br(float(maxima))}")
-        return " | ".join(partes) if partes else "sem historico"
-    media_capex = agregados.get("capex_receita_media_3a")
-    if media_capex is not None:
-        return f"media 3a {formatar_percentual_br(float(media_capex))} da receita"
-    return "sem historico"
-
-
-def secao_premissas(ticker: str, conteudo: dict[str, Any] | None) -> None:
-    """Editor de premissas com historico ao lado e validacao em tempo real."""
-    caminho = caminho_premissas(ticker)
-    premissas = carregar_json(caminho)
-    metricas = obter_metricas(ticker)
-    agregados = metricas.get("agregados", {})
-
-    st.caption(
-        "Os 8 valores anuais sao individuais por regra do projeto — nunca "
-        "uma taxa unica replicada. Historico da CVM exibido ao lado de "
-        "cada bloco como ancora."
+    st.data_editor nativo no lugar do streamlit-aggrid (decisao D-005 do
+    Humano_revisar.md: testavel via AppTest e alinhado ao tema). Editar uma
+    celula NAO recalcula em JS — o botao Salvar dispara o motor Python.
+    """
+    linhas = {}
+    for campo_base, rotulo in vetores:
+        linhas[rotulo] = [
+            float(premissas.get(f"{campo_base}_ano{ano}", 0.0) or 0.0)
+            for ano in range(1, HORIZONTE_PROJECAO + 1)
+        ]
+    quadro = pd.DataFrame(
+        linhas,
+        index=[f"Ano {ano}" for ano in range(1, HORIZONTE_PROJECAO + 1)],
+    ).T
+    editado = st.data_editor(
+        quadro,
+        width="stretch",
+        column_config={
+            coluna: st.column_config.NumberColumn(format="%.4f")
+            for coluna in quadro.columns
+        },
     )
 
+    novos: dict[str, float] = {}
+    for campo_base, rotulo in vetores:
+        for indice, ano in enumerate(range(1, HORIZONTE_PROJECAO + 1)):
+            novos[f"{campo_base}_ano{ano}"] = float(editado.loc[rotulo].iloc[indice])
+    return novos
+
+
+def _salvar_e_recalcular(ticker: str, novas: dict[str, Any]) -> None:
+    """Persiste premissas revisadas e reexecuta o motor oficial."""
+    novas = dict(novas)
+    # Ao salvar, o analista assume a autoria da tese.
+    novas["premissas_automaticas"] = False
+    salvar_json(caminho_premissas(ticker), novas)
+    with st.spinner("Rodando o motor de valuation..."):
+        rodar_motor_valuation(ticker, RAIZ_PROJETO)
+    _carregar_projecao_cacheada.clear()
+    st.success("Premissas salvas e valuation recalculado pelo motor.")
+    st.rerun()
+
+
+def _premissas_nao_financeira(
+    ticker: str,
+    premissas: dict[str, Any],
+    conteudo: dict[str, Any] | None,
+) -> None:
+    """Editor de premissas da trilha FCFF/WACC."""
+    metricas = obter_metricas(ticker)
+    agregados = metricas.get("agregados", {})
+    st.caption(
+        "Vetores anuais EDITAVEIS na tabela (8 valores individuais por "
+        "regra do projeto). Ancoras historicas: CAGR 3a "
+        f"{formatar_percentual_br(float(agregados.get('cagr_receita_3a') or 0))}"
+        " | margem EBITDA 3a "
+        + formatar_percentual_br(float(agregados.get("margem_ebitda_media_3a") or 0))
+        + " | CAPEX/receita 3a "
+        + formatar_percentual_br(float(agregados.get("capex_receita_media_3a") or 0))
+    )
     novas: dict[str, Any] = dict(premissas)
-    for campo_base, rotulo, minimo, maximo in CAMPOS_VETORES:
-        with st.expander(f"{rotulo} — 8 anos individuais", expanded=False):
-            st.caption(f"Historico: {_historico_do_vetor(campo_base, agregados)}")
-            novas.update(
-                _entrada_vetor_anual(premissas, campo_base, rotulo, minimo, maximo)
-            )
+    novas.update(_editor_vetores(premissas, VETORES_NAO_FINANCEIRA))
 
     st.subheader("Capital de giro e custo de capital")
     coluna_esquerda, coluna_direita = st.columns(2)
     with coluna_esquerda:
-        dso_hist = agregados.get("dso_media_3a")
-        dio_hist = agregados.get("dio_media_3a")
-        dpo_hist = agregados.get("dpo_media_3a")
-        novas["dso"] = st.slider(
-            (
-                f"DSO em dias (hist. 3a: {dso_hist:,.0f})"
-                if dso_hist is not None
-                else "DSO em dias"
-            ),
-            0,
-            400,
-            int(premissas.get("dso", 30)),
-        )
-        novas["dio"] = st.slider(
-            (
-                f"DIO em dias (hist. 3a: {dio_hist:,.0f})"
-                if dio_hist is not None
-                else "DIO em dias"
-            ),
-            0,
-            500,
-            int(premissas.get("dio", 30)),
-        )
-        novas["dpo"] = st.slider(
-            (
-                f"DPO em dias (hist. 3a: {dpo_hist:,.0f})"
-                if dpo_hist is not None
-                else "DPO em dias"
-            ),
-            0,
-            400,
-            int(premissas.get("dpo", 30)),
+        novas["dso"] = st.slider("DSO em dias", 0, 400, int(premissas.get("dso", 30)))
+        novas["dio"] = st.slider("DIO em dias", 0, 500, int(premissas.get("dio", 30)))
+        novas["dpo"] = st.slider("DPO em dias", 0, 400, int(premissas.get("dpo", 30)))
+        novas["payout_dividendos"] = st.slider(
+            "Payout de dividendos",
+            0.0,
+            1.0,
+            float(premissas.get("payout_dividendos", 0.0) or 0.0),
+            step=0.05,
         )
     with coluna_direita:
-        beta_hist = agregados.get("beta_desalavancado")
         novas["beta"] = st.slider(
-            (
-                f"Beta desalavancado (hist.: {beta_hist:.2f})"
-                if beta_hist is not None
-                else "Beta desalavancado"
-            ),
+            "Beta desalavancado",
             0.2,
             3.0,
             float(premissas.get("beta", 1.0)),
@@ -443,17 +618,190 @@ def secao_premissas(ticker: str, conteudo: dict[str, Any] | None) -> None:
         type="primary",
         disabled=bloqueado,
     ):
-        salvar_json(caminho, novas)
-        with st.spinner("Rodando o pipeline do motor..."):
-            rodar_pipeline(ticker)
-        st.success("Premissas salvas e valuation recalculado.")
-        st.rerun()
+        _salvar_e_recalcular(ticker, novas)
 
 
-def secao_valuation(ticker: str, conteudo: dict[str, Any]) -> None:
-    """Decomposicao do WACC, valor terminal, bridge e checklist."""
+def _premissas_financeira(
+    ticker: str,
+    premissas: dict[str, Any],
+    conteudo: dict[str, Any] | None,
+) -> None:
+    """Editor de premissas da trilha FCFE/Ke (bancos)."""
+    st.caption(
+        "Trilha financeira: receitas de intermediacao, margem do resultado "
+        "bruto e despesas operacionais projetam a DRE bancaria; o capital "
+        "regulatorio retido define o FCFE."
+    )
+    novas: dict[str, Any] = dict(premissas)
+    novas.update(_editor_vetores(premissas, VETORES_FINANCEIRA))
+
+    coluna_esquerda, coluna_direita = st.columns(2)
+    with coluna_esquerda:
+        novas["indice_capital_alvo"] = st.slider(
+            "Indice de capital alvo (Basileia)",
+            0.08,
+            0.20,
+            float(premissas.get("indice_capital_alvo", 0.115)),
+            step=0.005,
+            format="%.3f",
+        )
+        novas["fator_rwa_ativos"] = st.slider(
+            "Fator RWA / Ativos",
+            0.3,
+            1.0,
+            float(premissas.get("fator_rwa_ativos", 0.75)),
+            step=0.05,
+        )
+        novas["aliquota_ir_financeira"] = st.slider(
+            "Aliquota IR/CSLL financeira",
+            0.20,
+            0.50,
+            float(premissas.get("aliquota_ir_financeira", 0.45)),
+            step=0.01,
+        )
+    with coluna_direita:
+        novas["beta"] = st.slider(
+            "Beta (alavancado, de mercado/peers)",
+            0.2,
+            3.0,
+            float(premissas.get("beta", 1.0)),
+            step=0.05,
+        )
+        novas["crescimento_perpetuidade_g"] = st.slider(
+            "g — crescimento na perpetuidade (decimal)",
+            0.0,
+            0.25,
+            float(premissas.get("crescimento_perpetuidade_g", 0.03)),
+            step=0.0025,
+            format="%.4f",
+        )
+
+    ke_atual = None
+    if conteudo is not None and isinstance(conteudo.get("ke"), dict):
+        ke_atual = conteudo["ke"].get("ke_brl")
+    g_novo = float(novas["crescimento_perpetuidade_g"])
+    bloqueado = False
+    if ke_atual is not None and g_novo >= float(ke_atual):
+        st.error(
+            f"BLOQUEADO: g ({formatar_percentual_br(g_novo, 2)}) >= Ke "
+            f"({formatar_percentual_br(float(ke_atual), 2)}). A perpetuidade "
+            "explode — reduza o g antes de salvar."
+        )
+        bloqueado = True
+    if novas["indice_capital_alvo"] < 0.105:
+        st.warning("Indice de capital abaixo de Basileia (10,5%) — checklist F1.")
+
+    if st.button(
+        "Salvar premissas e recalcular valuation",
+        type="primary",
+        disabled=bloqueado,
+    ):
+        _salvar_e_recalcular(ticker, novas)
+
+
+def secao_premissas(
+    ticker: str,
+    conteudo: dict[str, Any] | None,
+    financeira: bool,
+) -> None:
+    """Editor de premissas por trilha, com validacao em tempo real."""
+    caminho = caminho_premissas(ticker)
+    if not caminho.exists():
+        st.warning(
+            "Sem premissas para este ticker — rode o pipeline pela sidebar "
+            "(as premissas de partida sao geradas automaticamente)."
+        )
+        return
+    premissas = carregar_json(caminho)
+    _aviso_premissas_automaticas(ticker)
+    if financeira:
+        _premissas_financeira(ticker, premissas, conteudo)
+    else:
+        _premissas_nao_financeira(ticker, premissas, conteudo)
+
+
+def _valuation_financeira(ticker: str, conteudo: dict[str, Any]) -> None:
+    """Decomposicao do Ke, FCFE e checklist da trilha financeira."""
     painel_decisao(conteudo)
+    st.subheader("Decomposicao do Ke (CAPM Brasil, beta alavancado)")
+    ke = conteudo.get("ke", {})
+    linhas_ke = (
+        ("Rf USD (^TNX)", "rf_usd"),
+        ("Beta alavancado (mercado/peers)", "beta_alavancado"),
+        ("ERP EUA", "erp_eua"),
+        ("CRP Brasil", "crp_brasil"),
+        ("Ke USD", "ke_usd"),
+        ("IPCA longo prazo", "ipca"),
+        ("CPI EUA longo prazo", "cpi_eua"),
+        ("Ke BRL", "ke_brl"),
+    )
+    tabela = []
+    for rotulo, campo in linhas_ke:
+        valor = ke.get(campo)
+        texto = (
+            formatar_percentual_br(float(valor), 2)
+            if isinstance(valor, (int, float)) and campo != "beta_alavancado"
+            else (f"{float(valor):.4f}x" if isinstance(valor, (int, float)) else "n/d")
+        )
+        tabela.append({"Componente": rotulo, "Valor": texto})
+    st.dataframe(pd.DataFrame(tabela), hide_index=True, width="stretch")
 
+    valor_terminal = conteudo.get("valor_terminal", {})
+    colunas = st.columns(4)
+    colunas[0].metric("Base do VT", str(valor_terminal.get("base_vt", "n/d")))
+    colunas[1].metric(
+        "VP(VT)",
+        formatar_moeda_brl(float(valor_terminal.get("vp_vt", 0.0)), 0),
+    )
+    pct = valor_terminal.get("pct_ev_perpetuidade")
+    colunas[2].metric(
+        "% Equity na perpetuidade",
+        formatar_percentual_br(float(pct)) if pct is not None else "n/d",
+    )
+    colunas[3].metric(
+        "Capital regulatorio alvo",
+        formatar_percentual_br(
+            float(
+                conteudo.get("capital_regulatorio", {})
+                .get("ano1", {})
+                .get("indice_capital_alvo", 0.0)
+            ),
+            1,
+        ),
+    )
+
+    resultado_football = gerar_football_field(ticker, RAIZ_PROJETO)
+    st.plotly_chart(resultado_football["figura"], width="stretch")
+    _tabela_checklist(conteudo)
+
+
+def _tabela_checklist(conteudo: dict[str, Any]) -> None:
+    """Tabela do checklist persistido com status final."""
+    st.subheader("Checklist de consistencia")
+    checklist = conteudo.get("checklist", {})
+    itens = checklist.get("itens", [])
+    if not itens:
+        st.info("Checklist ainda nao executado para este ticker.")
+        return
+    quadro = pd.DataFrame(itens)[["id", "descricao", "status", "valor", "limite"]]
+    st.dataframe(quadro, hide_index=True, width="stretch")
+    if checklist.get("aprovado") is True:
+        st.success("Checklist APROVADO (nenhum item em ERRO).")
+    else:
+        st.error("Checklist REPROVADO — verifique os itens em ERRO.")
+
+
+def secao_valuation(
+    ticker: str,
+    conteudo: dict[str, Any],
+    financeira: bool,
+) -> None:
+    """Decomposicao do custo de capital, VT, bridge e checklist."""
+    if financeira:
+        _valuation_financeira(ticker, conteudo)
+        return
+
+    painel_decisao(conteudo)
     st.subheader("Decomposicao do WACC")
     wacc = conteudo["wacc"]
     linhas_wacc = (
@@ -484,28 +832,21 @@ def secao_valuation(ticker: str, conteudo: dict[str, Any]) -> None:
         else:
             texto = f"{float(valor):.4f}x"
         tabela_wacc.append({"Componente": rotulo, "Valor": texto})
-    st.dataframe(
-        pd.DataFrame(tabela_wacc),
-        hide_index=True,
-        width="stretch",
-    )
+    st.dataframe(pd.DataFrame(tabela_wacc), hide_index=True, width="stretch")
 
     st.subheader("Valor terminal e ponte para o equity")
-    vt = conteudo["valor_terminal"]
+    valor_terminal = conteudo["valor_terminal"]
     colunas = st.columns(4)
-    colunas[0].metric(
-        "Base do VT",
-        str(vt.get("base_vt", "n/d")),
-    )
+    colunas[0].metric("Base do VT", str(valor_terminal.get("base_vt", "n/d")))
     colunas[1].metric(
         "VP(VT)",
-        formatar_moeda_brl(float(vt.get("vp_vt", 0.0)), 0),
+        formatar_moeda_brl(float(valor_terminal.get("vp_vt", 0.0)), 0),
     )
     colunas[2].metric(
         "% EV na perpetuidade",
-        formatar_percentual_br(float(vt.get("pct_ev_perpetuidade", 0.0))),
+        formatar_percentual_br(float(valor_terminal.get("pct_ev_perpetuidade", 0.0))),
     )
-    multiplo = vt.get("multiplo_saida_implicito")
+    multiplo = valor_terminal.get("multiplo_saida_implicito")
     colunas[3].metric(
         "Multiplo de saida implicito",
         f"{float(multiplo):.2f}x" if multiplo is not None else "n/d",
@@ -516,24 +857,156 @@ def secao_valuation(ticker: str, conteudo: dict[str, Any]) -> None:
 
     resultado_football = gerar_football_field(ticker, RAIZ_PROJETO)
     st.plotly_chart(resultado_football["figura"], width="stretch")
+    _tabela_checklist(conteudo)
 
-    st.subheader("Checklist de consistencia")
-    checklist = conteudo.get("checklist", {})
-    itens = checklist.get("itens", [])
-    if itens:
-        quadro = pd.DataFrame(itens)[["id", "descricao", "status", "valor", "limite"]]
-        st.dataframe(quadro, hide_index=True, width="stretch")
-        aprovado = checklist.get("aprovado") is True
-        if aprovado:
-            st.success("Checklist APROVADO (nenhum item em ERRO).")
-        else:
-            st.error("Checklist REPROVADO — verifique os itens em ERRO.")
+
+def secao_comparaveis(ticker: str, conteudo: dict[str, Any] | None) -> None:
+    """Comparaveis reais (CCA) e triangulacao DCF vs multiplos."""
+    comparaveis = carregar_comparaveis(ticker, RAIZ_PROJETO)
+    if st.button("Atualizar comparaveis (coleta peers via yfinance)"):
+        with st.spinner("Coletando multiplos dos peers..."):
+            try:
+                gerar_comparaveis(ticker, RAIZ_PROJETO)
+                st.rerun()
+            except RuntimeError as erro:
+                st.error(f"Falha nos comparaveis: {erro}")
+    if not comparaveis:
+        st.info(
+            "Comparaveis ainda nao gerados para este ticker — use o botao "
+            "acima (exige rede)."
+        )
+        return
+
+    triangulacao = comparaveis.get("triangulacao", {})
+    faixa = triangulacao.get("faixa_multiplos")
+    colunas = st.columns(3)
+    target = triangulacao.get("target_dcf")
+    colunas[0].metric(
+        "DCF (base)",
+        formatar_moeda_brl(float(target)) if target else "n/d",
+    )
+    colunas[1].metric(
+        "Faixa por multiplos (Q1-Q3)",
+        (
+            # dois "$" na mesma string viram math inline no markdown do
+            # st.metric — escapar para exibir "R$" literal nas duas pontas
+            (
+                f"{formatar_moeda_brl(float(faixa['minimo']))} - "
+                f"{formatar_moeda_brl(float(faixa['maximo']))}"
+            ).replace("$", "\\$")
+            if faixa
+            else "n/d"
+        ),
+    )
+    preco = triangulacao.get("preco_atual")
+    colunas[2].metric(
+        "Preco atual",
+        formatar_moeda_brl(float(preco)) if preco else "n/d",
+    )
+    veredito = str(triangulacao.get("veredito", ""))
+    if "DENTRO" in veredito:
+        st.success(f"Triangulacao: {veredito}")
+    elif "ACIMA" in veredito or "ABAIXO" in veredito:
+        st.warning(f"Triangulacao: {veredito}")
     else:
-        st.info("Checklist ainda nao executado para este ticker.")
+        st.info(f"Triangulacao: {veredito}")
+
+    resultado_tabela = gerar_tabela_comparaveis(ticker, RAIZ_PROJETO)
+    st.plotly_chart(resultado_tabela["figura"], width="stretch")
+
+    precos_implicitos = comparaveis.get("precos_implicitos", {})
+    if precos_implicitos:
+        quadro = pd.DataFrame(precos_implicitos).T
+        quadro.index = [ROTULOS_MULTIPLOS.get(nome, nome) for nome in quadro.index]
+        st.subheader("Preco implicito por multiplo (Q1 / mediana / Q3)")
+        st.dataframe(quadro.style.format("R$ {:,.2f}"), width="stretch")
+
+    avisos = comparaveis.get("avisos", [])
+    if avisos or comparaveis.get("peers_excluidos"):
+        with st.expander("Avisos e peers excluidos"):
+            for aviso in avisos:
+                st.write(f"- {aviso}")
+            for excluido in comparaveis.get("peers_excluidos", []):
+                st.write(f"- {excluido['peer']}: {excluido['motivo']}")
 
 
-def secao_analise(ticker: str) -> None:
-    """Sensibilidades WACC x g, crescimento x margem e setorial."""
+def _sensibilidade_viva(conteudo: dict[str, Any]) -> None:
+    """Sliders vivos: recalculo instantaneo do Target sob choques."""
+    st.subheader("Sensibilidade viva (derivada do caso base do motor)")
+    colunas = st.columns(4)
+    delta_wacc = colunas[0].slider("Δ WACC (pp)", -3.0, 3.0, 0.0, 0.25) / 100
+    delta_g = colunas[1].slider("Δ g (pp)", -1.5, 1.5, 0.0, 0.25) / 100
+    delta_crescimento = (
+        colunas[2].slider("Δ crescimento (pp/ano)", -5.0, 5.0, 0.0, 0.5) / 100
+    )
+    delta_margem = colunas[3].slider("Δ margem (pp)", -5.0, 5.0, 0.0, 0.5) / 100
+
+    cenario = recalcular_cenario(
+        conteudo,
+        delta_wacc=delta_wacc,
+        delta_g=delta_g,
+        delta_crescimento_pp=delta_crescimento,
+        delta_margem_pp=delta_margem,
+    )
+    base = float(conteudo["ev_equity"]["target_price"])
+    if cenario is None:
+        st.error("Combinacao bloqueada: g >= WACC no cenario simulado.")
+        return
+    target = float(cenario["target_price"])
+    colunas = st.columns(3)
+    colunas[0].metric(
+        "Target simulado",
+        formatar_moeda_brl(target),
+        delta=formatar_percentual_br(target / base - 1),
+    )
+    upside = cenario.get("upside")
+    colunas[1].metric(
+        "Upside simulado",
+        formatar_percentual_br(float(upside)) if upside is not None else "n/d",
+    )
+    colunas[2].metric(
+        "WACC | g simulados",
+        f"{formatar_percentual_br(float(cenario['wacc']), 2)} | "
+        f"{formatar_percentual_br(float(cenario['g']), 2)}",
+    )
+
+
+def secao_analise(
+    ticker: str,
+    conteudo: dict[str, Any],
+    financeira: bool,
+) -> None:
+    """Tornado, sensibilidades vivas e heatmaps institucionais."""
+    if financeira:
+        cenarios = conteudo.get("cenarios", {})
+        if cenarios:
+            st.subheader("Cenarios do motor (pipeline completo por cenario)")
+            quadro = pd.DataFrame(cenarios).T[
+                ["target_price", "upside", "taxa_desconto", "g"]
+            ]
+            st.dataframe(
+                quadro.style.format(
+                    {
+                        "target_price": "R$ {:,.2f}",
+                        "upside": "{:.1%}",
+                        "taxa_desconto": "{:.2%}",
+                        "g": "{:.2%}",
+                    }
+                ),
+                width="stretch",
+            )
+        st.info(
+            "Sensibilidades FCFF (WACC x g, receita x margem) nao se aplicam "
+            "a trilha financeira; as sensibilidades bancarias (Ke x g, "
+            "capital x crescimento) chegam na Onda 5."
+        )
+        return
+
+    resultado_tornado = gerar_tornado(ticker, RAIZ_PROJETO)
+    st.plotly_chart(resultado_tornado["figura"], width="stretch")
+
+    _sensibilidade_viva(conteudo)
+
     resultado_roic = gerar_roic_roiic(ticker, RAIZ_PROJETO)
     st.plotly_chart(resultado_roic["figura"], width="stretch")
 
@@ -545,6 +1018,78 @@ def secao_analise(ticker: str) -> None:
 
     resultado_setor = gerar_sensibilidade_setor(ticker, RAIZ_PROJETO)
     st.plotly_chart(resultado_setor["figura"], width="stretch")
+
+
+def secao_comparar(ticker: str) -> None:
+    """Comparacao lado a lado de 2-5 empresas + watchlist persistida."""
+    analisadas = [
+        analisada
+        for analisada in listar_empresas_analisadas()
+        if carregar_projecao_app(analisada) is not None
+    ]
+    if len(analisadas) < 2:
+        st.info("Analise ao menos 2 empresas (sidebar) para compara-las aqui.")
+        return
+
+    padrao = [t for t in (ticker, *TICKERS_REFERENCIA, "VALE3") if t in analisadas]
+    padrao = list(dict.fromkeys(padrao))[:4]
+    escolhidas = st.multiselect(
+        "Empresas (2 a 5)",
+        options=analisadas,
+        default=padrao if len(padrao) >= 2 else analisadas[:2],
+        max_selections=5,
+    )
+    if len(escolhidas) < 2:
+        st.warning("Escolha ao menos 2 empresas.")
+        return
+
+    linhas = montar_painel_comparacao(escolhidas, RAIZ_PROJETO)
+    quadro = pd.DataFrame(linhas).set_index("ticker")
+    formato = {
+        "target_price": "R$ {:,.2f}",
+        "preco_atual": "R$ {:,.2f}",
+        "upside": "{:.1%}",
+        "taxa_desconto": "{:.2%}",
+        "g": "{:.2%}",
+        "roic_ano1": "{:.1%}",
+        "spread_roic_taxa": "{:.1%}",
+        "ev_ebitda_mediana_peers": "{:,.1f}x",
+        "p_l_mediana_peers": "{:,.1f}x",
+        "p_vp_mediana_peers": "{:,.1f}x",
+    }
+    st.subheader("Painel comparativo (motor + comparaveis persistidos)")
+    st.dataframe(
+        quadro.style.format(formato, na_rep="n/d"),
+        width="stretch",
+    )
+
+    resultado = gerar_comparacao_empresas(escolhidas, RAIZ_PROJETO)
+    st.plotly_chart(resultado["figura"], width="stretch")
+
+    st.subheader("Watchlist (data/watchlist.json)")
+    watchlist = carregar_watchlist()
+    colunas = st.columns(2)
+    with colunas[0]:
+        if st.button(f"Adicionar {ticker} a watchlist"):
+            atualizar_watchlist(ticker)
+            st.rerun()
+    with colunas[1]:
+        if ticker in watchlist.get("tickers", {}) and st.button(
+            f"Remover {ticker} da watchlist"
+        ):
+            atualizar_watchlist(ticker, remover=True)
+            st.rerun()
+    if watchlist.get("tickers"):
+        quadro_watch = pd.DataFrame(watchlist["tickers"]).T
+        st.dataframe(
+            quadro_watch.style.format(
+                {"target_price": "R$ {:,.2f}", "upside": "{:.1%}"},
+                na_rep="n/d",
+            ),
+            width="stretch",
+        )
+    else:
+        st.caption("Watchlist vazia.")
 
 
 @st.cache_data(show_spinner="Montando o preview das 7 abas...")
@@ -564,17 +1109,17 @@ def _versao_dados(ticker: str) -> tuple[float, float]:
     )
 
 
-def secao_excel_preview(ticker: str) -> None:
-    """Renderiza as 7 abas do Excel dentro do app + download do .xlsx.
+def secao_excel_preview(ticker: str, financeira: bool) -> None:
+    """Renderiza as 7 abas do Excel dentro do app + download do .xlsx."""
+    if financeira:
+        st.info(
+            "O exportador Excel de 7 abas cobre a trilha nao-financeira; o "
+            "modelo bancario (FCFE/Ke) chega na Onda 5. Use as secoes "
+            "Overview/Valuation para os resultados do banco."
+        )
+        return
 
-    O preview consome ``montar_preview_por_aba`` do exportador — o MESMO
-    ``montar_contexto`` que alimenta o .xlsx —, entao as tabelas exibidas
-    aqui nunca divergem do arquivo baixado. O preview mostra VALORES ja
-    formatados; as formulas nativas, os graficos embutidos e a convencao
-    de cores vivem no .xlsx real.
-    """
     caminho_xlsx = caminho_excel(ticker, RAIZ_PROJETO)
-
     st.caption(
         "Preview fiel das 7 abas geradas pelo exportador. O download "
         "entrega o .xlsx real, com formulas nativas, graficos embutidos, "
@@ -621,53 +1166,108 @@ def secao_excel_preview(ticker: str) -> None:
                 st.dataframe(quadro, hide_index=True, width="stretch")
 
 
+def montar_sidebar() -> tuple[str, str]:
+    """Sidebar: seletor universal de empresa, secoes e acoes do pipeline."""
+    with st.sidebar:
+        st.title("DCF Automatizado")
+        st.caption("Valuation por DCF para QUALQUER acao da B3 — v2.0")
+
+        analisadas = listar_empresas_analisadas()
+        padrao = st.session_state.get(
+            "ticker",
+            "DIRR3" if "DIRR3" in analisadas else (analisadas[0] if analisadas else ""),
+        )
+        if analisadas:
+            indice = analisadas.index(padrao) if padrao in analisadas else 0
+            ticker = st.selectbox("Empresa analisada", analisadas, index=indice)
+        else:
+            ticker = padrao
+        st.session_state["ticker"] = ticker
+
+        st.caption("Empresas de referencia:")
+        colunas_ref = st.columns(len(TICKERS_REFERENCIA))
+        for coluna, referencia in zip(colunas_ref, TICKERS_REFERENCIA):
+            if coluna.button(referencia, width="stretch"):
+                st.session_state["ticker"] = referencia
+                st.rerun()
+
+        novo = st.text_input(
+            "Analisar novo ticker (qualquer empresa da B3)",
+            placeholder="Ex.: WEGE3, RADL3, PETR4, ITUB4",
+        )
+        if st.button("Analisar", type="primary", width="stretch"):
+            candidato = novo.strip().upper().replace(".SA", "")
+            if candidato:
+                executar_pipeline_com_status(candidato, forcar=False)
+            else:
+                st.warning("Informe um ticker para analisar.")
+
+        secao = st.radio("Secao", SECOES)
+        st.divider()
+        if st.button("Recalcular motor (premissas atuais)"):
+            with st.spinner("Executando o motor de calculo..."):
+                rodar_motor_valuation(ticker, RAIZ_PROJETO)
+            _carregar_projecao_cacheada.clear()
+            st.success("Motor recalculado.")
+            st.rerun()
+        if st.button("Recoletar tudo e reanalisar"):
+            executar_pipeline_com_status(ticker, forcar=True)
+        st.caption(
+            "O motor Python e a fonte unica de verdade; este app apenas "
+            "apresenta os resultados persistidos."
+        )
+    return ticker, secao
+
+
 def main() -> None:
-    """Monta o app institucional com sidebar de 6 secoes."""
+    """Monta a estacao de trabalho multi-empresa."""
     st.set_page_config(
         page_title="DCF Automatizado",
         page_icon=":chart_with_upwards_trend:",
         layout="wide",
     )
     aplicar_estilo_institucional()
+    ticker, secao = montar_sidebar()
 
-    with st.sidebar:
-        st.title("DCF Automatizado")
-        st.caption("Valuation por DCF para acoes da B3 — v1.0")
-        ticker = st.selectbox("Empresa", TICKERS_V1)
-        secao = st.radio("Secao", SECOES)
-        st.divider()
-        if st.button("Rodar pipeline completo"):
-            with st.spinner("Executando o motor de calculo..."):
-                rodar_pipeline(ticker)
-            st.success("Pipeline concluido.")
-            st.rerun()
-        st.caption(
-            "O motor Python e a fonte unica de verdade; este app apenas "
-            "apresenta os resultados persistidos."
+    if not ticker:
+        st.info(
+            "Nenhuma empresa analisada ainda. Informe um ticker na sidebar "
+            "e clique em Analisar."
         )
+        return
 
     conteudo = carregar_projecao_app(ticker)
+    financeira = empresa_financeira(ticker, conteudo)
 
     st.header(f"{ticker} — {secao}")
-    if conteudo is None and secao not in ("Premissas", "Historico"):
+    if conteudo is None and secao not in ("Premissas", "Historico", "Comparaveis"):
+        meta = carregar_meta(ticker)
+        score = meta.get("score_confiabilidade")
         st.warning(
-            "Pipeline ainda nao executado para este ticker. Use o botao "
-            "'Rodar pipeline completo' na sidebar."
+            f"Sem valuation persistido para {ticker} "
+            f"(score de dados: {score if score is not None else 'n/d'}/100). "
+            "Use 'Recoletar tudo e reanalisar' na sidebar; se a empresa nao "
+            "tiver dados suficientes na CVM, o relatorio de qualidade "
+            "explica o motivo."
         )
         return
 
     if secao == "Overview":
         secao_overview(ticker, conteudo)
     elif secao == "Historico":
-        secao_historico(ticker)
+        secao_historico(ticker, financeira)
     elif secao == "Premissas":
-        secao_premissas(ticker, conteudo)
+        secao_premissas(ticker, conteudo, financeira)
     elif secao == "Valuation":
-        secao_valuation(ticker, conteudo)
+        secao_valuation(ticker, conteudo, financeira)
+    elif secao == "Comparaveis":
+        secao_comparaveis(ticker, conteudo)
     elif secao == "Analise":
-        secao_analise(ticker)
+        secao_analise(ticker, conteudo, financeira)
+    elif secao == "Comparar":
+        secao_comparar(ticker)
     else:
-        secao_excel_preview(ticker)
+        secao_excel_preview(ticker, financeira)
 
 
 if __name__ == "__main__":

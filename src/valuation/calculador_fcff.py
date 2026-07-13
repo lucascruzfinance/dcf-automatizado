@@ -76,7 +76,15 @@ def carregar_premissas(ticker: str, raiz_projeto: Path) -> dict[str, Any]:
 
 
 def obter_aliquota_nopat(ticker: str, raiz_projeto: Path) -> float:
-    """Define aliquota do NOPAT, evitando dupla tributacao em construtoras RET."""
+    """Define aliquota do NOPAT, evitando dupla tributacao em construtoras RET.
+
+    Aliquota MARGINAL (34% IR/CSLL) por decisao documentada: a aliquota
+    efetiva historica (que embute impostos diferidos, JCP e beneficios
+    fiscais) fica exposta nas metricas historicas como ancora; o analista
+    pode sobrescreve-la nas premissas quando a diferenca for estrutural.
+    Construtoras RET usam 0% aqui porque o IR ja foi cobrado sobre a
+    receita bruta na DRE (evita dupla tributacao no NOPAT).
+    """
     premissas = carregar_premissas(ticker, raiz_projeto)
     metadados = carregar_metadados(ticker, raiz_projeto)
     if empresa_usa_ret(premissas, metadados):
