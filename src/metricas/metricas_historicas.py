@@ -430,14 +430,175 @@ def calcular_beta_desalavancado(
     }
 
 
+def montar_series_financeiras(
+    ticker: str,
+    raiz: Path,
+) -> dict[str, dict[int, float]]:
+    """Series anuais do plano de contas bancario mapeado na Onda 1."""
+    dre = _quadro_bruto(ticker, raiz, "dre")
+    bp = _quadro_bruto(ticker, raiz, "bp")
+    return {
+        "receitas_intermediacao_financeira": serie_anual_por_ano(
+            dre, "receitas_intermediacao_financeira"
+        ),
+        "despesas_intermediacao_financeira": serie_anual_por_ano(
+            dre, "despesas_intermediacao_financeira"
+        ),
+        "resultado_bruto_intermediacao_financeira": serie_anual_por_ano(
+            dre, "resultado_bruto_intermediacao_financeira"
+        ),
+        "despesas_receitas_operacionais_financeira": serie_anual_por_ano(
+            dre, "despesas_receitas_operacionais_financeira"
+        ),
+        "ebt": serie_anual_por_ano(dre, "ebt"),
+        "ir_csll": serie_anual_por_ano(dre, "ir_csll"),
+        "lucro_liquido": serie_anual_por_ano(dre, "lucro_liquido"),
+        "pdd": serie_anual_por_ano(dre, "pdd"),
+        "receitas_servicos_financeira": serie_anual_por_ano(
+            dre, "receitas_servicos_financeira"
+        ),
+        "patrimonio_liquido": serie_anual_por_ano(bp, "patrimonio_liquido"),
+        "ativo_total": serie_anual_por_ano(bp, "ativo_total"),
+        "operacoes_credito": serie_anual_por_ano(bp, "operacoes_credito"),
+        "depositos": serie_anual_por_ano(bp, "depositos"),
+    }
+
+
+def calcular_metricas_financeiras_por_ano(
+    series: dict[str, dict[int, float]],
+) -> dict[str, dict[str, float | None]]:
+    """Metricas anuais da trilha financeira sustentadas pela DFP.
+
+    ROE/ROA usam medias de PL/Ativo (t e t-1). NIM aproximada = resultado
+    bruto de intermediacao / ativo total medio (proxy documentada: a DFP
+    nao expoe ativos rentaveis medios). Indice de eficiencia = despesas
+    operacionais / (resultado bruto + receitas de servicos) quando as
+    linhas estao mapeadas.
+    """
+    receitas = series["receitas_intermediacao_financeira"]
+    anos = sorted(set(receitas) | set(series["lucro_liquido"]))
+    metricas: dict[str, dict[str, float | None]] = {}
+
+    for indice, ano in enumerate(anos):
+        ano_anterior = anos[indice - 1] if indice > 0 else None
+        receita = receitas.get(ano)
+        receita_anterior = receitas.get(ano_anterior) if ano_anterior else None
+        lucro = series["lucro_liquido"].get(ano)
+        ebt = series["ebt"].get(ano)
+        ir = series["ir_csll"].get(ano)
+        resultado_bruto = series["resultado_bruto_intermediacao_financeira"].get(ano)
+        despesas_op = series["despesas_receitas_operacionais_financeira"].get(ano)
+        servicos = series["receitas_servicos_financeira"].get(ano)
+        pdd = series["pdd"].get(ano)
+        pl = series["patrimonio_liquido"].get(ano)
+        pl_anterior = (
+            series["patrimonio_liquido"].get(ano_anterior) if ano_anterior else None
+        )
+        ativo = series["ativo_total"].get(ano)
+        ativo_anterior = (
+            series["ativo_total"].get(ano_anterior) if ano_anterior else None
+        )
+        carteira = series["operacoes_credito"].get(ano)
+        carteira_anterior = (
+            series["operacoes_credito"].get(ano_anterior) if ano_anterior else None
+        )
+
+        pl_medio = None
+        if pl is not None and pl_anterior is not None:
+            pl_medio = (pl + pl_anterior) / 2
+        ativo_medio = None
+        if ativo is not None and ativo_anterior is not None:
+            ativo_medio = (ativo + ativo_anterior) / 2
+
+        # Formula: eficiencia = |despesas operacionais| / (resultado bruto
+        # de intermediacao + receitas de servicos).
+        eficiencia = None
+        base_eficiencia = None
+        if resultado_bruto is not None:
+            base_eficiencia = resultado_bruto + (servicos or 0.0)
+        if despesas_op is not None and base_eficiencia not in (None, 0):
+            eficiencia = abs(despesas_op) / base_eficiencia
+
+        crescimento_receitas = None
+        if receita is not None and receita_anterior not in (None, 0):
+            crescimento_receitas = receita / receita_anterior - 1.0
+        crescimento_carteira = None
+        if carteira is not None and carteira_anterior not in (None, 0):
+            crescimento_carteira = carteira / carteira_anterior - 1.0
+
+        metricas[str(ano)] = {
+            "receitas_intermediacao_financeira": receita,
+            "crescimento_receitas_yoy": crescimento_receitas,
+            "lucro_liquido": lucro,
+            # Formula: ROE = LL / PL medio; ROA = LL / Ativo medio.
+            "roe": _razao(lucro, pl_medio),
+            "roa": _razao(lucro, ativo_medio),
+            "margem_resultado_bruto": _razao(resultado_bruto, receita),
+            "despesas_operacionais_receita": _razao(despesas_op, receita),
+            "nim_aproximada": _razao(resultado_bruto, ativo_medio),
+            "indice_eficiencia": eficiencia,
+            "margem_liquida_receitas": _razao(lucro, receita),
+            "pdd_receitas": _razao(
+                abs(pdd) if pdd is not None else None,
+                receita,
+            ),
+            "crescimento_carteira_yoy": crescimento_carteira,
+            "aliquota_efetiva": _aliquota_efetiva(ir, ebt),
+            "patrimonio_liquido": pl,
+            "ativo_total": ativo,
+        }
+    return metricas
+
+
+def calcular_agregados_financeiros(
+    ticker: str,
+    raiz: Path,
+    series: dict[str, dict[int, float]],
+    metricas: dict[str, dict[str, float | None]],
+) -> dict[str, float | None]:
+    """Agregados-ancora da trilha financeira (medias 3a, CAGR e beta)."""
+    agregados: dict[str, float | None] = {}
+    for janela in JANELAS_CAGR:
+        agregados[f"cagr_receitas_{janela}a"] = calcular_cagr(
+            series["receitas_intermediacao_financeira"],
+            janela,
+        )
+    for campo in (
+        "roe",
+        "roa",
+        "margem_resultado_bruto",
+        "despesas_operacionais_receita",
+        "margem_liquida_receitas",
+        "nim_aproximada",
+        "indice_eficiencia",
+        "crescimento_receitas_yoy",
+        "aliquota_efetiva",
+    ):
+        agregados[f"{campo}_media_3a"] = _media_metrica(metricas, campo, 3)
+        agregados[f"{campo}_mediana_3a"] = _mediana_metrica(metricas, campo, 3)
+
+    # Bancos usam o beta ALAVANCADO de mercado direto (a divida e insumo
+    # operacional; Hamada nao se aplica) — decisao documentada.
+    caminho = raiz / "data" / "raw" / "mercado" / f"{ticker}_mercado.json"
+    beta_mercado = None
+    if caminho.exists():
+        dados = carregar_json(caminho)
+        bruto = dados.get("beta_calculado")
+        if isinstance(bruto, (int, float)) and not isinstance(bruto, bool):
+            beta_mercado = float(bruto)
+    agregados["beta_mercado"] = beta_mercado
+    return agregados
+
+
 def calcular_metricas_historicas(
     ticker: str,
     raiz_projeto: Path | None = None,
 ) -> dict[str, Any]:
     """Calcula e persiste as metricas historicas do ticker.
 
-    Trilha nao-financeira validada; para financeiras devolve apenas o
-    esqueleto com aviso (validacao completa na v1.5).
+    Trilha nao-financeira validada desde a v1; trilha financeira (ROE, ROA,
+    NIM aproximada, eficiencia) implementada na Onda 2 da v2.0 com o plano
+    de contas bancario mapeado por CD_CONTA.
     """
     raiz = resolver_raiz(raiz_projeto)
     ticker_normalizado = normalizar_ticker(ticker)
@@ -451,10 +612,20 @@ def calcular_metricas_historicas(
     }
 
     if tipo not in {"nao_financeira", "naofinanceira"}:
-        # Esqueleto da trilha financeira (ROE/NIM/Basileia) fica para a v1.5.
-        resultado["trilha"] = "financeira_nao_validada"
-        resultado["metricas_por_ano"] = {}
-        resultado["agregados"] = {}
+        series_fin = montar_series_financeiras(ticker_normalizado, raiz)
+        metricas_fin = calcular_metricas_financeiras_por_ano(series_fin)
+        resultado["trilha"] = "financeira"
+        resultado["metricas_por_ano"] = metricas_fin
+        resultado["agregados"] = calcular_agregados_financeiros(
+            ticker_normalizado,
+            raiz,
+            series_fin,
+            metricas_fin,
+        )
+        resultado["avisos"] = [
+            "Basileia, NPL e coverage nao constam na DFP padrao da CVM; "
+            "trate-os como premissa do analista (indice_capital_alvo)."
+        ]
     else:
         series = montar_series_anuais(ticker_normalizado, raiz)
         metricas = calcular_metricas_por_ano(series)

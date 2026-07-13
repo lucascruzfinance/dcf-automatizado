@@ -159,8 +159,12 @@ def test_projetar_ppe_falha_sem_premissa_individual(tmp_path: Path) -> None:
         projetar_ppe("TEST3", raiz_projeto=tmp_path)
 
 
-def test_projetar_ppe_nao_deixa_imobilizado_negativo(tmp_path: Path) -> None:
-    """Valida que o ativo para de depreciar quando o saldo chega a zero."""
+def test_capex_assinado_investe_pela_magnitude(tmp_path: Path) -> None:
+    """CAPEX negativo (convencao de caixa) AUMENTA o PP&E pela magnitude.
+
+    Correcao da Onda 2: na v1 o capex assinado encolhia o ativo e o
+    caixa-plug escondia a inconsistencia no balanco.
+    """
     criar_ambiente_ppe(tmp_path)
     criar_premissas_ppe(tmp_path, capex_ano1=-1.0, capex_ano2=0.0)
     criar_base_historica_ppe(tmp_path, imobilizado=100.0)
@@ -168,8 +172,12 @@ def test_projetar_ppe_nao_deixa_imobilizado_negativo(tmp_path: Path) -> None:
     resultado = projetar_ppe("TEST3", raiz_projeto=tmp_path)
     ppe = resultado["ppe"]
 
+    # O capex persiste ASSINADO (saida de caixa)...
     assert ppe["ano1"]["capex"] == pytest.approx(-1000.0)
-    assert ppe["ano1"]["depreciacao_amortizacao"] == pytest.approx(0.0)
-    assert ppe["ano1"]["imobilizado"] == pytest.approx(0.0)
-    assert ppe["ano2"]["depreciacao_amortizacao"] == pytest.approx(0.0)
-    assert ppe["ano2"]["imobilizado"] == pytest.approx(0.0)
+    # ...mas o ativo cresce pela magnitude: 100 + 1000 - D&A (vida util da
+    # fixture = 5 anos -> taxa 20%: D&A = 20% x 100 = 20).
+    assert ppe["ano1"]["depreciacao_amortizacao"] == pytest.approx(20.0)
+    assert ppe["ano1"]["imobilizado"] == pytest.approx(1080.0)
+    # Sem capex no ano 2, deprecia sobre o saldo anterior (20% x 1080).
+    assert ppe["ano2"]["depreciacao_amortizacao"] == pytest.approx(216.0)
+    assert ppe["ano2"]["imobilizado"] == pytest.approx(864.0)

@@ -14,6 +14,34 @@
   },
   "vida_util_ppe_anos": 10,
   "payout_dividendos": 0,
+  "politica_divida": {
+    "prazo_amortizacao_lp_anos": 5,
+    "caixa_minimo_pct_receita": 0.02,
+    "taxa_aplicacao_caixa_fallback": 0.10
+  },
+  "desconto": {
+    "usar_convencao_meio_periodo": false,
+    "fracao_ano_stub": 0.0
+  },
+  "trilha_financeira": {
+    "indice_capital_alvo_padrao": 0.115,
+    "fator_rwa_ativos_padrao": 0.75,
+    "aliquota_ir_financeira_padrao": 0.45
+  },
+  "cenarios": {
+    "bear": {
+      "fator_crescimento": 0.8,
+      "delta_margem_pp": -0.02,
+      "delta_wacc_pp": 0.01,
+      "delta_g_pp": -0.005
+    },
+    "bull": {
+      "fator_crescimento": 1.2,
+      "delta_margem_pp": 0.02,
+      "delta_wacc_pp": -0.01,
+      "delta_g_pp": 0.005
+    }
+  },
   "football_field": {
     "cenario_bear": {
       "fator_crescimento": 0.8,

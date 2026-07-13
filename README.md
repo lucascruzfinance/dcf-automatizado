@@ -5,6 +5,15 @@
 
 ---
 
+> **🤖 Protocolo de decisões da IA (instrução permanente, 12/07/2026):** quando a IA de
+> implementação (Claude Fable 5) encontra um erro, ambiguidade ou escolha que caberia ao
+> humano, ela decide sozinha pela melhor opção disponível, executa, e registra a decisão em
+> **[`Humano_revisar.md`](Humano_revisar.md)** — data, situação, escolha tomada, alternativas
+> e justificativa. O humano revisita o arquivo e aprova ou pede reversão. Nenhuma decisão
+> registrada lá é definitiva até a revisão humana.
+
+---
+
 ## 🧭 Índice
 
 1. [Sobre o Projeto](#sobre-o-projeto)

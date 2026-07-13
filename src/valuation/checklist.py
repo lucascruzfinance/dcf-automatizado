@@ -71,6 +71,19 @@ BLOCOS_OBRIGATORIOS = (
 )
 BLOCOS_ANUAIS = ("fcff", "balanco", "dre", "ppe", "divida")
 
+# Trilha financeira (FCFE/Ke): blocos proprios, sem balanco/ppe/divida.
+BLOCOS_OBRIGATORIOS_FINANCEIRA = (
+    "dre",
+    "fcfe",
+    "ke",
+    "capital_regulatorio",
+    "valor_terminal",
+    "ev_equity",
+)
+BLOCOS_ANUAIS_FINANCEIRA = ("dre", "fcfe", "capital_regulatorio")
+LIMITE_INDICE_CAPITAL = 0.105
+LIMITE_PAYOUT_IMPLICITO = (0.0, 1.0)
+
 
 def carregar_premissas_checklist(
     ticker: str,
@@ -86,16 +99,20 @@ def carregar_premissas_checklist(
 def carregar_projecao_checklist(
     ticker: str,
     raiz_projeto: Path,
+    financeira: bool = False,
 ) -> tuple[Path, dict[str, Any]]:
-    """Carrega a projecao integrada e valida os blocos consumidos."""
+    """Carrega a projecao integrada e valida os blocos do TIPO da empresa."""
     caminho = raiz_projeto / "data" / "processed" / f"{ticker}_projecao.json"
     conteudo = carregar_json(caminho)
 
-    for bloco in BLOCOS_OBRIGATORIOS:
+    obrigatorios = BLOCOS_OBRIGATORIOS_FINANCEIRA if financeira else BLOCOS_OBRIGATORIOS
+    anuais = BLOCOS_ANUAIS_FINANCEIRA if financeira else BLOCOS_ANUAIS
+
+    for bloco in obrigatorios:
         if not isinstance(conteudo.get(bloco), dict):
             raise RuntimeError(f"Bloco obrigatorio ausente em {caminho}: {bloco}")
 
-    for bloco in BLOCOS_ANUAIS:
+    for bloco in anuais:
         for ano in range(1, HORIZONTE_PROJECAO + 1):
             chave_ano = f"ano{ano}"
             if not isinstance(conteudo[bloco].get(chave_ano), dict):
@@ -394,6 +411,68 @@ def verificar_nf5(conteudo: dict[str, Any]) -> dict[str, float | str]:
     return criar_item("NF5", descricao, status, razao, limite)
 
 
+def verificar_f1(conteudo: dict[str, Any]) -> dict[str, float | str]:
+    """F1: indice de capital alvo precisa respeitar Basileia (>= 10,5%)."""
+    descricao = "indice de capital alvo acima de Basileia"
+    limite = ">= 10,50%"
+    capital = conteudo.get("capital_regulatorio", {}).get("ano1", {})
+    indice = _numero_opcional(capital, "indice_capital_alvo")
+    if indice is None:
+        return _item_campo_invalido("F1", descricao, "indice_capital_alvo", limite)
+    status = STATUS_ERRO if indice < LIMITE_INDICE_CAPITAL else STATUS_OK
+    return criar_item("F1", descricao, status, indice, limite)
+
+
+def verificar_f2(conteudo: dict[str, Any]) -> dict[str, float | str]:
+    """F2: ROE projetado medio deve superar o Ke (criacao de valor)."""
+    descricao = "ROE projetado medio acima do Ke"
+    limite = "ROE medio > Ke"
+    ke = _numero_opcional(conteudo.get("ke", {}), "ke_brl")
+    if ke is None:
+        return _item_campo_invalido("F2", descricao, "ke_brl", limite)
+
+    roes = []
+    capital = conteudo.get("capital_regulatorio", {})
+    for ano in range(1, HORIZONTE_PROJECAO + 1):
+        roe = _numero_opcional(capital.get(f"ano{ano}", {}), "roe_projetado")
+        if roe is not None:
+            roes.append(roe)
+    if not roes:
+        return _item_campo_invalido("F2", descricao, "roe_projetado", limite)
+
+    roe_medio = sum(roes) / len(roes)
+    status = STATUS_ALERTA if roe_medio <= ke else STATUS_OK
+    return criar_item(
+        "F2",
+        descricao,
+        status,
+        _formatar_percentuais(ROE=roe_medio, Ke=ke),
+        limite,
+    )
+
+
+def verificar_f3(conteudo: dict[str, Any]) -> dict[str, float | str]:
+    """F3: payout implicito (FCFE/LL) medio precisa ficar entre 0 e 100%."""
+    descricao = "payout implicito medio em 0-100%"
+    limite = "0 <= FCFE/LL <= 1"
+    payouts = []
+    fcfe = conteudo.get("fcfe", {})
+    for ano in range(1, HORIZONTE_PROJECAO + 1):
+        payout = _numero_opcional(fcfe.get(f"ano{ano}", {}), "payout_implicito")
+        if payout is not None:
+            payouts.append(payout)
+    if not payouts:
+        return criar_item("F3", descricao, STATUS_ALERTA, "n/d (LL <= 0)", limite)
+
+    payout_medio = sum(payouts) / len(payouts)
+    fora = (
+        payout_medio < LIMITE_PAYOUT_IMPLICITO[0]
+        or payout_medio > LIMITE_PAYOUT_IMPLICITO[1]
+    )
+    status = STATUS_ALERTA if fora else STATUS_OK
+    return criar_item("F3", descricao, status, payout_medio, limite)
+
+
 def _empresa_nao_financeira(
     conteudo: dict[str, Any],
     premissas: dict[str, Any],
@@ -404,6 +483,18 @@ def _empresa_nao_financeira(
         tipo = normalizar_texto(fonte.get("tipo"))
         tipo = tipo.replace("-", "_").replace(" ", "_")
         if tipo in {"nao_financeira", "naofinanceira"}:
+            return True
+    return False
+
+
+def _empresa_financeira(
+    conteudo: dict[str, Any],
+    premissas: dict[str, Any],
+    metadados: dict[str, Any],
+) -> bool:
+    """Detecta trilha financeira EXPLICITA (sem tipo declarado nao entra)."""
+    for fonte in (premissas, metadados, conteudo):
+        if normalizar_texto(fonte.get("tipo")) == "financeira":
             return True
     return False
 
@@ -435,6 +526,15 @@ def montar_itens_checklist(
                 verificar_nf5(conteudo),
             ]
         )
+    elif _empresa_financeira(conteudo, premissas, metadados):
+        # Trilha financeira (Onda 2): Basileia, ROE vs Ke e payout implicito.
+        itens.extend(
+            [
+                verificar_f1(conteudo),
+                verificar_f2(conteudo),
+                verificar_f3(conteudo),
+            ]
+        )
 
     return itens
 
@@ -446,9 +546,14 @@ def executar_checklist(
     """Executa o checklist de consistencia e persiste no JSON de projecao."""
     raiz = resolver_raiz(raiz_projeto)
     ticker_normalizado = normalizar_ticker(ticker)
-    caminho, conteudo = carregar_projecao_checklist(ticker_normalizado, raiz)
     metadados = carregar_metadados(ticker_normalizado, raiz)
     premissas = carregar_premissas_checklist(ticker_normalizado, raiz)
+    financeira = _empresa_financeira({}, premissas, metadados)
+    caminho, conteudo = carregar_projecao_checklist(
+        ticker_normalizado,
+        raiz,
+        financeira=financeira,
+    )
 
     itens = montar_itens_checklist(conteudo, premissas, metadados)
     aprovado = not any(item["status"] == STATUS_ERRO for item in itens)

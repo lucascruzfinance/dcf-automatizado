@@ -127,7 +127,12 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 - **Data da última atualização:** 12/07/2026
 - **Versão alvo:** v2.0 "Universalização" (5 ondas do `PROMPTS_FABLE.md`; v1.0 concluída em 11/07/2026)
-- **Fase atual:** v2.0 — **Onda 1 (coleta e mapeamento CVM universais) CONCLUÍDA em 12/07/2026** (ver sessão datada abaixo). Próxima: Onda 2 — Prompt 2 do `PROMPTS_FABLE.md` (motor de valuation universal e completo).
+- **Fase atual:** v2.0 — **ONDAS 1, 2, 3 e 4 CONCLUÍDAS em 12/07/2026** (ver
+  sessões datadas abaixo). Qualquer ticker da B3 roda coleta → motor correto
+  por tipo (FCFF/WACC ou FCFE/Ke) → comparáveis reais → app multi-empresa.
+  Próxima: **Onda 5 — Prompt 5** (Excel dinâmico por tipo, exportador BI
+  completo, Power BI, PDF e automação/orquestração de dados). Decisões
+  autônomas pendentes de revisão humana: **`Humano_revisar.md`** (D-001+).
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -201,6 +206,172 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 12/07/2026 (4ª) — v2.0 ONDA 4 CONCLUÍDA: front-end multi-empresa
+
+- **`src/pipeline.py` (orquestrador universal):** coleta CVM (com reuso de
+  cache) → limpeza Parquet → qualidade → mercado → métricas → premissas
+  automáticas (não sobrescreve as do analista) → motor pelo MÉTODO do tipo →
+  qualidade do lucro → comparáveis → cenários; etapas opcionais não derrubam
+  (viram avisos); `rodar_motor_valuation` reusado pelo app ao salvar
+  premissas (Rf/preço injetados dos JSONs persistidos, sem rede).
+- **`app.py` reescrito (estação de trabalho multi-empresa, 8 seções):**
+  - Sidebar universal: selectbox das empresas analisadas + busca de ticker
+    novo que dispara o pipeline com `st.status` (progresso por etapa),
+    atalhos DIRR3/MGLU3, "Recalcular motor" e "Recoletar tudo"; cache de
+    leitura invalidado por mtime.
+  - Overview: capa viva com seletor de cenário Bear/Base/Bull (bloco
+    `cenarios` do motor), score de qualidade, método, aviso de premissas
+    automáticas; financeiras mostram FCFE projetado + football field.
+  - Historico por tipo: métricas bancárias (ROE/ROA/NIM/eficiência) para
+    financeiras; trilha clássica para não-financeiras.
+  - Premissas EDITÁVEIS EM TABELA (`st.data_editor`, vetores 8 anos ×
+    3 linhas por trilha — decisão D-005: nativo/testável no lugar do
+    aggrid) + sliders escalares; validação em tempo real (g ≥ WACC/Ke
+    bloqueia; margem > máx histórica +5pp alerta; Basileia < 10,5% alerta);
+    salvar remove a flag `premissas_automaticas` e dispara o motor.
+  - Valuation por método: decomposição do WACC (não-fin) ou do Ke (fin),
+    VT, waterfall/bridge, football field e checklist.
+  - Comparaveis (nova): triangulação DCF vs faixa Q1–Q3 vs preço com
+    veredito, tabela de peers, preços implícitos e avisos; botão de
+    atualização via yfinance.
+  - Analise: **tornado chart** novo (choques padronizados ordenados por
+    amplitude) + **sensibilidade viva** (sliders ΔWACC/Δg/Δcrescimento/
+    Δmargem recalculam Target na hora via derivação do caso base — zero
+    JS) + heatmaps v1; financeiras veem os cenários do motor.
+  - Comparar (nova): multiselect 2–5 empresas, painel comparativo (target,
+    upside, taxa, g, ROIC−WACC, medianas de peers) + barras agrupadas
+    institucionais (`comparacao_empresas.py`) + **watchlist persistida** em
+    `data/watchlist.json`.
+  - Excel Preview: mantido para não-financeiras (download + 7 abas);
+    financeiras recebem aviso (modelo bancário na Onda 5).
+- **DoD:** ticker novo roda pipeline e renderiza (WEGE3 R$ 13,08 e RADL3
+  R$ 1,08 em ~14s cada — VENDA por premissas automáticas genéricas em ações
+  de múltiplo alto; a triangulação existe para expor isso e o analista
+  revisa); slider recalcula ao vivo; Comparar mostra 3+ empresas (7
+  analisadas no repo: DIRR3, MGLU3, VALE3, WEGE3, RADL3, ITUB4, BBAS3);
+  Excel Preview renderiza e baixa. `tests/test_app.py` ampliado (9 jornadas
+  AppTest, incl. triangulação, comparação e seletor de cenários).
+- **Validação final:** 135 testes verdes; `black`/`flake8` limpos;
+  `python -m src.verificar_semana3` → `SEMANA 3 OK`.
+- **Pendências:** premissas automáticas produzem extremos a revisar
+  (BBAS3 +98%; WEGE3/RADL3 VENDA); RENT3 coletada sem valuation (rodar
+  pipeline quando quiser); Excel bancário e sensibilidades bancárias na
+  Onda 5; validação visual humana do app (screenshots para o README na
+  Onda 5).
+- **PRÓXIMA TAREFA:** Prompt 5 do `PROMPTS_FABLE.md` (Onda 5).
+
+### Sessão 12/07/2026 (3ª) — v2.0 ONDA 3 CONCLUÍDA: comparáveis reais e triangulação
+
+- **`src/valuation/comparaveis.py`:** peers do subtipo (config/setores.json,
+  zero hard-code), múltiplos via yfinance (EV/EBITDA, P/L, P/VP, EV/Sales e
+  EV/EBIT best-effort), mediana/Q1/Q3 com descarte de múltiplo ≤ 0 (aviso) e
+  peer sem dado (log `logs/comparaveis_peers.log`), preço implícito por
+  múltiplo com denominadores da CVM (Ano 0 oficial; EV-múltiplos passam por
+  dívida líquida), alvo EXCLUÍDO da mediana do próprio peer group, bloco
+  `triangulacao` com veredito textual. Persiste
+  `data/processed/<TICKER>_comparaveis.json`. Financeiras usam só P/L e P/VP.
+- **Football Field sem placeholders:** barras de comps = Q1–Q3 reais com
+  marcador na mediana; barras OPCIONAIS por disponibilidade (ticker sem DCF
+  renderiza field parcial); DCF Bear/Base/Bull preferem o bloco `cenarios`
+  do motor (fallback na derivação rápida). `tabela_comparaveis.py` nova
+  (peer a peer, alvo destacado, linhas Q1/MEDIANA/Q3, tema institucional).
+- **`exportador_bi.py` criado (semente da Onda 5):** `fato_comparaveis.csv`
+  long/tidy em `outputs/bi/<TICKER>/` (utf-8-sig p/ Power BI).
+- **DoD executado COM REDE (5 empresas):** DIRR3 (4 peers válidos), MGLU3
+  (4; PETZ3 deslistada caiu no log e o lote seguiu — robustez demonstrada),
+  VALE3 (3), ITUB4 (4) e BBAS3 (4) com Football Field + tabela + BI reais.
+  **VALE3 rodou o DCF universal completo do zero** (mercado → métricas →
+  premissas automáticas → motor v2 → cenários): Target R$ 110,50 vs
+  R$ 74,18 (+49%, COMPRA, checklist aprovado, Bear/Base/Bull
+  83,54/110,50/152,54) — a triangulação alerta "DCF ACIMA da faixa dos
+  múltiplos", coerente com premissas automáticas agressivas (revisão
+  humana). Medianas: DIRR3 EV/EBITDA 8,4x; ITUB4 P/L 11,4x, P/VP 1,0x.
+- **Testes:** 132 passando (novos: test_comparaveis com mediana/quartis/
+  descartes/triangulação; test_football_field com comps do JSON, field
+  parcial e cenários do motor); `black`/`flake8` limpos. Campos de múltiplos
+  registrados no mapeamento.
+- **Pendência menor:** peer cujo yfinance devolve info parcial (sem raise)
+  entra com múltiplos nulos em vez de ir para `peers_excluidos` (o efeito
+  nas medianas é o mesmo: excluído por múltiplo); refinar na Onda 5.
+- **PRÓXIMA TAREFA:** Onda 4 — front-end multi-empresa.
+
+### Sessão 12/07/2026 (2ª) — v2.0 ONDA 2 CONCLUÍDA: motor de valuation universal
+
+- **Ordem do humano:** executar a Onda 2 ANTES das Ondas 3–4 (que haviam sido
+  solicitadas primeiro); decisões e desvios registrados em `Humano_revisar.md`
+  (D-014 a D-022).
+- **Motor não-financeiro completo (`schedule_divida.py` reescrito):**
+  amortização por perfil (CP do Ano 0 no ano 1; LP linear em
+  `prazo_amortizacao_lp_anos`; captações novas viram tranches com carência de
+  1 ano), captação automática para o caixa mínimo (`caixa_minimo_pct_receita`),
+  receita financeira sobre caixa (premissa > Selic coletada > fallback),
+  payout real (premissa > default do subtipo > global) com
+  `PL_t = PL_(t-1) + LL − dividendos`, caixa = resultado do DFC
+  (FCO/FCI/FCF explícitos) e fechamento do balanço como VERIFICAÇÃO
+  (residuais `outros_ativos`/`outros_passivos` do BP REAL do Ano 0; alerta +
+  NF1 em desvio, sem plug). Juros/receita financeira por convenção de saldo
+  inicial (sem circularidade — D-015).
+- **BUG REAL da v1 corrigido (D-014):** o PP&E somava capex ASSINADO
+  (negativo) — o ativo encolhia a cada investimento e o plug escondia. Agora
+  PP&E cresce por |capex|; o vazamento de 2×|capex|/ano que apareceu no
+  balanço-verificação foi o que revelou o bug.
+- **Bridge EV→Equity completo:** minoritários (2.03.09), coligadas (1.02.02)
+  e leasing IFRS16 (passivo_arrendamento) lidos do BP real do Ano 0 e
+  persistidos em `ano0.balanco`; premissa `leasing_ifrs16` sobrepõe quando
+  informada. RET da DIRR3 sobre Receita BRUTA real (razão RB/RL da DVA
+  7.01.01; proxy pela líquida só com aviso).
+- **Trilha financeira FCFE/Ke validada (ITUB4 e BBAS3):**
+  `metricas_historicas` com trilha bancária real (ROE/ROA/NIM
+  aproximada/eficiência/margem líquida; Basileia/NPL viram aviso de premissa
+  — não existem na DFP); `projetor_financeiro.py` (DRE bancária por
+  receitas de intermediação × margem do resultado bruto × despesas
+  operacionais, com alíquota financeira; capital regulatório retido com RWA
+  proxy e capital nunca liberado — D-018); `calcular_ke` (CAPM Brasil com
+  beta ALAVANCADO, sem Hamada); `calculador_fcfe.py` (FCFE = LL − ΔCapital;
+  VT Gordon com payout sustentável quando FCFE₈ ≤ 0; equity DIRETO sem
+  bridge); checklist financeiro F1–F3 ativo (Basileia ≥ 10,5%, ROE médio vs
+  Ke, payout implícito 0–100%) e checklist agora type-aware.
+  **Resultados:** ITUB4 Target R$ 54,33 vs R$ 44,30 (+22,6%, COMPRA);
+  BBAS3 R$ 40,77 vs R$ 20,58 (+98%, premissas automáticas agressivas —
+  ordem de grandeza correta; revisão humana pendente). Calibração bancária
+  pela margem líquida histórica + clamp de alíquota [20%,50%] (D-017 — a
+  alíquota efetiva do BBAS3 saía 74,5% por artefato da DFP).
+- **`gerador_premissas.py` (antecipado da Onda 4):** premissas AUTOMÁTICAS
+  de partida para as duas trilhas (âncoras históricas + defaults do subtipo,
+  interpolação linear com 8 valores individuais, flag
+  `premissas_automaticas: true` até revisão do analista).
+- **`qualidade_lucro.py`:** FCO/EBITDA por ano (DIRR3 0,04x — WK de
+  construtora consome o caixa; MGLU3 4,74x), accruals LL−FCO, itens
+  não-recorrentes do Parquet da limpeza (MGLU3: R$ −456M flagados) e
+  EBITDA/NOPAT normalizados do Ano 0.
+- **`motor_cenarios.py`:** Bear/Base/Bull rodando o PIPELINE COMPLETO com
+  premissas ajustadas por config (`cenarios`), Δ de taxa aplicado ao bloco
+  persistido (D-019), preço/Rf congelados do mercado coletado, premissas do
+  analista sempre restauradas. Persistidos para DIRR3 (12,50/17,04/23,51),
+  MGLU3 (0,92/8,10/19,03), ITUB4 (42,95/54,33/70,51) e BBAS3
+  (30,15/40,77/57,14) — monotônicos. Football Field passa a preferir o bloco
+  `cenarios` (fallback na derivação rápida).
+- **Mid-year/stub (2.5):** config `desconto` (default DESLIGADO — golden
+  preservada), aplicada em VT/EV/FCFE; alíquota do NOPAT segue marginal com
+  justificativa documentada (D-021).
+- **Regressão dourada EXPLICADA (D-022):** DIRR3 15,25→17,04; MGLU3
+  5,97→8,10 (preço congelado 08/07). Drivers: correção do PP&E (tax shield),
+  dívida amortizando (WACC DIRR3 →~14,9%), bridge completo, RET sobre bruta,
+  payout/receita financeira (FCFE/caixa). `python -m src.verificar_semana3`
+  → `SEMANA 3 OK`; balanço fecha com dif < 1e-6.
+- **Testes:** 123 passando (novos: test_calculador_fcfe,
+  test_projetor_financeiro, test_bridge_completo, test_motor_cenarios;
+  test_schedule_divida reescrito p/ v2; test_schedule_ppe e
+  test_metricas_historicas atualizados); `black`/`flake8` limpos.
+- **Campos novos registrados** em `config/mapeamento_cvm.json` (dívida v2,
+  capital regulatório, trilha bancária, convenção de desconto).
+- **Bugs conhecidos / pendências:** premissas automáticas de bancos são
+  ponto de PARTIDA (BBAS3 +98% upside exige revisão humana);
+  `apoio_cenarios` continua fim-de-período (diverge do motor apenas se o
+  humano ligar mid-year — D-021); Excel exporter ainda espelha o schedule
+  v1 por campos de compatibilidade (revisão na Onda 5).
+- **PRÓXIMA TAREFA:** Ondas 3 e 4 (já solicitadas pelo humano).
 
 ### Sessão 12/07/2026 — v2.0 ONDA 1 CONCLUÍDA: coleta e mapeamento CVM universais
 
@@ -556,7 +727,14 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 ## 9. Divisão de Trabalho Humano vs. IA
 
-- **Humano (Lucas):** ativa venv, preenche premissas com julgamento real, valida números contra fontes públicas, descreve bugs, commita no GitHub, atualiza este CONTEXT.md.
+> **Protocolo de decisões autônomas (instrução permanente de Lucas, 12/07/2026):**
+> quando a IA precisar de uma escolha que caberia ao humano (erro, ambiguidade,
+> conflito, opção de design), ela decide sozinha pela melhor opção, executa e
+> registra em **`Humano_revisar.md`** (data, situação, escolha, alternativas,
+> justificativa) para revisão humana posterior. Nada registrado lá é definitivo
+> até o humano aprovar.
+
+- **Humano (Lucas):** ativa venv, preenche premissas com julgamento real, valida números contra fontes públicas, descreve bugs, commita no GitHub, atualiza este CONTEXT.md, **revisa periodicamente o `Humano_revisar.md`**.
 - **Codex:** cria/edita todos os arquivos Python, corrige bugs descritos, roda testes, gera gráficos, exporta Excel.
 - **DeepSeek:** reservado apenas para validação de fórmula matemática (caso de borda).
 - **Claude Code:** lê `CONTEXT.md` + `ROTEIRO.md`, gera os prompts cirúrgicos que o

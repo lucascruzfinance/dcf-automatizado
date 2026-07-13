@@ -107,6 +107,36 @@ def test_excel_preview_renderiza_7_abas() -> None:
     assert len(app.main.dataframe) >= 7
 
 
+def test_secao_comparaveis_renderiza_triangulacao() -> None:
+    """Comparaveis mostra DCF vs faixa por multiplos com veredito textual."""
+    app = _abrir_secao("Comparaveis")
+
+    assert not app.exception
+    rotulos = [str(metrica.label) for metrica in app.main.metric]
+    assert "DCF (base)" in rotulos
+    assert any("multiplos" in rotulo for rotulo in rotulos)
+
+
+def test_secao_comparar_mostra_3_ou_mais_empresas() -> None:
+    """Comparar renderiza o painel lado a lado com 3+ empresas analisadas."""
+    app = _abrir_secao("Comparar")
+
+    assert not app.exception
+    multiselect = app.main.multiselect[0]
+    assert len(multiselect.value) >= 3
+    # Painel comparativo + watchlist geram tabelas nativas.
+    assert len(app.main.dataframe) >= 1
+
+
+def test_overview_tem_seletor_de_cenarios() -> None:
+    """Overview expoe o radio Bear/Base/Bull do motor de cenarios."""
+    app = _abrir_secao("Overview")
+
+    assert not app.exception
+    radios_main = [list(radio.options) for radio in app.main.radio]
+    assert ["Bear", "Base", "Bull"] in radios_main
+
+
 def test_excel_preview_download_serve_xlsx_valido() -> None:
     """O arquivo servido pelo botao de download e um .xlsx real (zip PK)."""
     import zipfile

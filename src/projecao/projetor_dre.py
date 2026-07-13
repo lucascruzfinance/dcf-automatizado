@@ -256,20 +256,67 @@ def carregar_receita_ano0(ticker: str, raiz_projeto: Path) -> dict[str, Any]:
     return carregar_receita_ano0_de_json(ticker, raiz_projeto)
 
 
-def calcular_ir_csll(ebt: float, receita_liquida: float, usa_ret: bool) -> float:
-    """Calcula IR/CSLL mantendo despesas tributarias com sinal negativo."""
+def calcular_ir_csll(
+    ebt: float,
+    receita_liquida: float,
+    usa_ret: bool,
+    razao_receita_bruta: float | None = None,
+) -> float:
+    """Calcula IR/CSLL mantendo despesas tributarias com sinal negativo.
+
+    Aliquota efetiva vs. marginal: o motor usa a MARGINAL (34% IR/CSLL) por
+    conservadorismo; a aliquota efetiva historica (que embute diferidos e
+    beneficios) fica disponivel nas metricas para o analista ajustar.
+    """
     if usa_ret:
-        # Formula: IR/CSLL RET = -4% x receita bruta.
-        # Simplificacao: a CVM 3.01 traz receita liquida; usamos essa receita como
-        # proxy ate existir uma linha historica confiavel de receita bruta.
-        return -(receita_liquida * ALIQUOTA_RET_RECEITA)
+        # Formula: IR/CSLL RET = -4% x receita BRUTA.
+        # Quando a DVA (7.01.01) fornece a razao RB/RL do Ano 0, a base e
+        # RL_t x razao; sem DVA, a receita liquida segue como proxy avisado.
+        razao = razao_receita_bruta if razao_receita_bruta is not None else 1.0
+        return -(receita_liquida * razao * ALIQUOTA_RET_RECEITA)
 
     if ebt <= 0:
-        # Formula: IR/CSLL geral = 0 quando EBT <= 0.
+        # Formula: IR/CSLL geral = 0 quando EBT <= 0 (sem credito automatico).
         return 0.0
 
-    # Formula: IR/CSLL geral = -34% x EBT positivo.
+    # Formula: IR/CSLL geral = -34% x EBT positivo (aliquota marginal).
     return -(ebt * ALIQUOTA_IR_CSLL_GERAL)
+
+
+def carregar_razao_receita_bruta(
+    ticker: str,
+    raiz_projeto: Path,
+) -> tuple[float | None, str]:
+    """Razao Receita Bruta / Receita Liquida do Ano 0 via DVA (7.01.01).
+
+    Devolve ``(razao, fonte)``; sem DVA ou sem linha de receita bruta, a
+    razao e None e a fonte explica o fallback (proxy pela receita liquida).
+    """
+    caminho_dva = raiz_projeto / "data" / "raw" / "cvm" / f"{ticker}_dva.json"
+    if not caminho_dva.exists():
+        return None, "proxy_receita_liquida (DVA nao coletada)"
+    registros = carregar_json(caminho_dva)
+    if not registros:
+        return None, "proxy_receita_liquida (DVA vazia)"
+    dva = pd.DataFrame(registros)
+    try:
+        linha_bruta = selecionar_ultimo_exercicio(dva, "receita_bruta")
+    except RuntimeError:
+        return None, "proxy_receita_liquida (DVA sem linha 7.01.01)"
+
+    caminho_dre = raiz_projeto / "data" / "raw" / "cvm" / f"{ticker}_dre.json"
+    dre = pd.DataFrame(carregar_json(caminho_dre))
+    try:
+        linha_liquida = selecionar_ultimo_exercicio(dre, "receita_liquida")
+    except RuntimeError:
+        return None, "proxy_receita_liquida (DRE sem receita liquida)"
+
+    receita_bruta = float(linha_bruta["valor_padronizado"])
+    receita_liquida = float(linha_liquida["valor_padronizado"])
+    if receita_liquida <= 0 or receita_bruta <= 0:
+        return None, "proxy_receita_liquida (bases nao positivas)"
+    # Formula: razao RB/RL do Ano 0, aplicada as receitas projetadas.
+    return receita_bruta / receita_liquida, "dva_7_01_01"
 
 
 def projetar_linhas_dre(
@@ -277,6 +324,7 @@ def projetar_linhas_dre(
     taxas_crescimento: dict[int, float],
     margens_ebitda: dict[int, float],
     usa_ret: bool,
+    razao_receita_bruta: float | None = None,
 ) -> dict[str, dict[str, float | str]]:
     """Projeta as linhas da DRE para ano1..ano8."""
     linhas = {}
@@ -303,7 +351,12 @@ def projetar_linhas_dre(
         resultado_financeiro = 0.0
         ebt = ebit + resultado_financeiro
 
-        ir_csll = calcular_ir_csll(ebt, receita_liquida, usa_ret)
+        ir_csll = calcular_ir_csll(
+            ebt,
+            receita_liquida,
+            usa_ret,
+            razao_receita_bruta=razao_receita_bruta,
+        )
 
         # Formula: Lucro liquido = EBT - IR. Como IR/CSLL e despesa negativa
         # no padrao de sinais do projeto, somamos o campo ir_csll.
@@ -322,6 +375,9 @@ def projetar_linhas_dre(
             "ir_csll": ir_csll,
             "lucro_liquido": lucro_liquido,
         }
+        if razao_receita_bruta is not None:
+            # Formula: Receita Bruta_t = RL_t x razao RB/RL do Ano 0 (DVA).
+            linhas[chave_ano]["receita_bruta"] = receita_liquida * razao_receita_bruta
         receita_anterior = receita_liquida
 
     return linhas
@@ -334,6 +390,7 @@ def atualizar_projecao(
     metadados: dict[str, Any],
     ano0: dict[str, Any],
     dre: dict[str, dict[str, float | str]],
+    politicas_ret: dict[str, Any] | None = None,
 ) -> Path:
     """Grava ou atualiza a estrutura unica de projecao do ticker."""
     caminho = raiz_projeto / "data" / "processed" / f"{ticker}_projecao.json"
@@ -347,6 +404,12 @@ def atualizar_projecao(
     conteudo["setor"] = premissas.get("setor") or metadados.get("setor")
     conteudo["ano0"] = ano0
     conteudo["dre"] = dre
+    if politicas_ret is not None:
+        politicas = conteudo.get("politicas_projecao")
+        if not isinstance(politicas, dict):
+            politicas = {}
+        politicas["ret"] = politicas_ret
+        conteudo["politicas_projecao"] = politicas
     salvar_json(caminho, conteudo)
     return caminho
 
@@ -366,11 +429,32 @@ def projetar_dre(
     metadados = carregar_metadados(ticker_normalizado, raiz)
     ano0 = carregar_receita_ano0(ticker_normalizado, raiz)
     usa_ret = empresa_usa_ret(premissas, metadados)
+
+    razao_receita_bruta: float | None = None
+    politicas_ret: dict[str, Any] | None = None
+    if usa_ret:
+        razao_receita_bruta, fonte_razao = carregar_razao_receita_bruta(
+            ticker_normalizado,
+            raiz,
+        )
+        politicas_ret = {
+            "usa_ret": True,
+            "razao_receita_bruta": razao_receita_bruta,
+            "fonte_base_ret": fonte_razao,
+        }
+        if razao_receita_bruta is None:
+            # Campo CVM ausente vai para aviso explicito, nunca quebra.
+            print(
+                f"    AVISO RET: {fonte_razao} — usando receita liquida "
+                "como base do RET."
+            )
+
     dre = projetar_linhas_dre(
         receita_ano0=ano0["receita_liquida"],
         taxas_crescimento=taxas_crescimento,
         margens_ebitda=margens_ebitda,
         usa_ret=usa_ret,
+        razao_receita_bruta=razao_receita_bruta,
     )
     caminho_saida = atualizar_projecao(
         ticker=ticker_normalizado,
@@ -379,10 +463,12 @@ def projetar_dre(
         metadados=metadados,
         ano0=ano0,
         dre=dre,
+        politicas_ret=politicas_ret,
     )
     return {
         "ticker": ticker_normalizado,
         "usa_ret": usa_ret,
+        "razao_receita_bruta": razao_receita_bruta,
         "ano0": ano0,
         "dre": dre,
         "caminho_saida": caminho_saida,
