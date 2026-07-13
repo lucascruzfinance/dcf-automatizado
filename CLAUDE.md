@@ -2,7 +2,9 @@
 
 Sistema de valuation por DCF para ações da B3. Estado atual e próxima tarefa:
 `CONTEXT.md` (fonte única de verdade do estado). Especificação v1.0: `ROTEIRO.md`.
-Plano v2.0 "Universalização" (5 ondas): `PROMPTS_FABLE.md`.
+Plano vigente — v2.1 "Padrão Smartfit" (semanas 8–10, prompts progressivos):
+`PROMPTS_FABLE.md`. Modelos Excel de referência (imutáveis) e seus mapas
+estruturais: `referencias/modelos_excel/`.
 
 ## Protocolo de decisões autônomas (instrução permanente de Lucas, 12/07/2026)
 

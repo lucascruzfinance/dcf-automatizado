@@ -12,7 +12,7 @@
 - **Nome:** DCF Automatizado — Sistema de Valuation para Ações da B3
 - **Autor:** Lucas Cruz — Ciências da Computação, Insper (2026)
 - **Objetivo:** Automatizar o trabalho mecânico de um valuation por DCF (coleta, cálculo, visualização, exportação) preservando o trabalho intelectual (premissas) nas mãos do analista.
-- **Benchmark de qualidade:** o modelo Excel da Direcional (DIRR3) do trainee InFinance, em `tests/fixtures/Direcional_DIRR3_referencia.xlsx`.
+- **Benchmarks de qualidade:** os modelos Excel de referência em `referencias/modelos_excel/` — Direcional (DIRR3, benchmark da v1.0) e Smartfit (SMFT3, benchmark da v2.1 "Padrão Smartfit", enviado pelo mentor em 13/07/2026). Mapas estruturais: `ESTRUTURA_DIRECIONAL.md` e `ESTRUTURA_SMARTFIT.md` na mesma pasta.
 
 ---
 
@@ -144,7 +144,7 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - Coletor CVM validado localmente para DIRR3 e MGLU3: gera `_meta.json`, DRE, BP e DFC em JSON para as duas empresas.
   - DIRR3 e MGLU3 foram detectadas como `nao_financeira`.
   - Ambiente Python 3.11.9 com `.venv` criado; `pip check`, `black`, `flake8` e `pytest` executados com sucesso.
-  - Excel de referência da Direcional movido para `tests/fixtures/Direcional_DIRR3_referencia.xlsx`.
+  - Excels de referência (Direcional e Smartfit) em `referencias/modelos_excel/` com mapas estruturais (movidos em 13/07/2026; antes o da Direcional vivia em `tests/fixtures/`).
   - `src/projecao/projetor_dre.py` criado: lê 8 premissas individuais de crescimento de receita e 8 de margem EBITDA, usa Ano 0 diretamente de `data/raw/cvm/` quando não há Parquet em `data/processed/`, projeta DRE de `ano1` a `ano8` e grava `data/processed/<TICKER>_projecao.json`.
   - `src/projecao/schedule_wk.py` criado: lê DSO/DIO/DPO de `data/premissas/<TICKER>_premissas.json`, usa a receita projetada em `data/processed/<TICKER>_projecao.json`, calcula contas a receber, estoques, fornecedores, NWC e ΔNWC de `ano1` a `ano8`, e grava o schedule em `wk` no JSON de projeção.
   - `src/projecao/schedule_ppe.py` criado: lê obrigatoriamente `capex_receita_ano1..8`, usa a receita projetada, carrega o imobilizado histórico de `data/raw/cvm/<TICKER>_bp.json`, calcula CAPEX, D&A e PP&E de `ano1` a `ano8`, grava o bloco `ppe` em `data/processed/<TICKER>_projecao.json` e devolve a D&A para a DRE projetada.
