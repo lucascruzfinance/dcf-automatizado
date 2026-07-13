@@ -280,6 +280,11 @@ def painel_decisao(
         taxa = float(conteudo.get("wacc", {}).get("wacc") or 0.0)
         rotulo_taxa = "WACC"
     g = float(conteudo.get("valor_terminal", {}).get("g") or 0.0)
+    if cenario:
+        if cenario.get("taxa_desconto") is not None:
+            taxa = float(cenario["taxa_desconto"])
+        if cenario.get("g") is not None:
+            g = float(cenario["g"])
 
     colunas = st.columns(5)
     colunas[0].metric("Target Price", formatar_moeda_brl(target))
@@ -883,10 +888,12 @@ def secao_comparaveis(ticker: str, conteudo: dict[str, Any] | None) -> None:
     colunas[1].metric(
         "Faixa por multiplos (Q1-Q3)",
         (
+            # dois "$" na mesma string viram math inline no markdown do
+            # st.metric — escapar para exibir "R$" literal nas duas pontas
             (
                 f"{formatar_moeda_brl(float(faixa['minimo']))} - "
                 f"{formatar_moeda_brl(float(faixa['maximo']))}"
-            )
+            ).replace("$", "\\$")
             if faixa
             else "n/d"
         ),

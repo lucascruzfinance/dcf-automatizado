@@ -15,6 +15,52 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 
 ---
 
+## 13/07/2026 — Validação completa das Ondas 3–4 (suíte + auditoria + figuras + app no navegador)
+
+### D-025 ⏳ — Painel de decisão passa a mostrar a taxa e o g do CENÁRIO ativo
+
+- **Situação:** na validação visual do app, o Overview com cenário Bear/Bull
+  ativo mostrava Target/upside/recomendação do cenário, mas WACC (ou Ke) e g
+  do caso BASE — mesmo com o bloco `cenarios` persistindo `taxa_desconto` e
+  `g` próprios por cenário (ex.: DIRR3 Bull = 13,90%/1,5% vs base
+  14,97%/1,0%). Os cinco KPIs da mesma linha contavam histórias mistas.
+- **Escolha:** `painel_decisao` (app.py) usa `taxa_desconto`/`g` do cenário
+  ativo quando presentes, com fallback no caso base. Validado no navegador:
+  Bull mostra 13,90%/1,50%. A figura "Dashboard Executivo" logo abaixo
+  permanece SEMPRE no caso base — ela é a arte persistida do motor e está
+  rotulada como tal ("fonte unica: motor de calculo").
+- **Alternativas consideradas:** manter tudo no base com os deltas apenas no
+  caption (estado anterior — KPI inconsistente com o Target exibido);
+  regenerar a figura executiva por cenário (recálculo/arte no front-end,
+  contra o contrato "o app apenas apresenta o persistido").
+
+### D-026 ⏳ — Escape de `$` no metric da faixa de múltiplos (bug visual real)
+
+- **Situação:** o metric "Faixa por multiplos (Q1-Q3)" concatena DUAS moedas
+  na mesma string ("R$ 10,72 - R$ 19,65"). O `st.metric` renderiza o valor
+  como markdown, e um PAR de `$` vira delimitador de math inline: a tela
+  mostrava "R 10,72 - R 19,65" com o trecho central em fonte de código
+  (confirmado no DOM: `<code class="language-math">`). Único ponto do app
+  com duas moedas numa string (auditado por grep).
+- **Escolha:** escapar `$` → `\$` apenas nesse metric, com comentário no
+  código explicando a restrição. Validado no navegador: "R$ 10,72 - R$
+  19,65" literal, zero elementos math.
+- **Alternativas consideradas:** mudar `formatar_moeda_brl` globalmente
+  (vazaria `\$` literal em Plotly/Excel, que não passam por markdown);
+  trocar o formato da faixa para evitar o segundo `R$` (perde o padrão
+  visual das demais moedas do app).
+
+**Observações sem decisão nova (não são erros novos):** (1) preço atual
+divergente entre seções — 13,01 no painel (ev_equity, mercado congelado de
+08/07) vs 13,28 nos comparáveis (coletado em 12/07) — é a consequência já
+registrada em D-011/D-022; a Onda 5 (orquestração/automação de dados)
+sincroniza as datas de mercado. (2) A validação rodou o pipeline completo de
+RENT3 pelo próprio app (21,1s, score 96, VENDA −46,6% por premissas
+automáticas conservadoras — padrão já registrado em D-024); os artefatos de
+dados de RENT3 ficaram no working tree.
+
+---
+
 ## 12/07/2026 — Onda 2 (Prompt 2, executada ANTES das Ondas 3–4 por ordem do humano)
 
 ### D-014 ⏳ — Correção do sinal do CAPEX no PP&E (bug real da v1)

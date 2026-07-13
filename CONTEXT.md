@@ -125,14 +125,17 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
-- **Data da última atualização:** 12/07/2026
+- **Data da última atualização:** 13/07/2026
 - **Versão alvo:** v2.0 "Universalização" (5 ondas do `PROMPTS_FABLE.md`; v1.0 concluída em 11/07/2026)
-- **Fase atual:** v2.0 — **ONDAS 1, 2, 3 e 4 CONCLUÍDAS em 12/07/2026** (ver
-  sessões datadas abaixo). Qualquer ticker da B3 roda coleta → motor correto
-  por tipo (FCFF/WACC ou FCFE/Ke) → comparáveis reais → app multi-empresa.
-  Próxima: **Onda 5 — Prompt 5** (Excel dinâmico por tipo, exportador BI
-  completo, Power BI, PDF e automação/orquestração de dados). Decisões
-  autônomas pendentes de revisão humana: **`Humano_revisar.md`** (D-001+).
+- **Fase atual:** v2.0 — **ONDAS 1, 2, 3 e 4 CONCLUÍDAS em 12/07/2026 e
+  VALIDADAS em 13/07/2026** (suíte 135 verde, auditoria da cadeia de dados,
+  figuras conferidas contra os JSONs e app real validado no navegador seção a
+  seção; 2 bugs visuais corrigidos — D-025/D-026). Qualquer ticker da B3 roda
+  coleta → motor correto por tipo (FCFF/WACC ou FCFE/Ke) → comparáveis reais
+  → app multi-empresa. Próxima: **Onda 5 — Prompt 5** (Excel dinâmico por
+  tipo, exportador BI completo, Power BI, PDF e automação/orquestração de
+  dados). Decisões autônomas pendentes de revisão humana:
+  **`Humano_revisar.md`** (D-001+).
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -206,6 +209,55 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 13/07/2026 — VALIDAÇÃO COMPLETA das Ondas 3–4 (4 frentes) + 2 correções visuais
+
+- **Frente 1 — suíte automatizada:** `pytest tests -q` reexecutado do zero →
+  **135 verdes** (117s); `black --check --workers 1` (82 arquivos) e `flake8`
+  limpos, incluindo as edições desta sessão; `tests/test_app.py` reexecutado
+  após as correções → 9/9 verdes.
+- **Frentes 2–3 (sessão anterior, mesma validação):** auditoria programática
+  da cadeia CVM → Parquet → motor → gráficos → BI → watchlist e conferência
+  dos dados DENTRO das figuras Plotly contra os JSONs persistidos — 100%.
+- **Frente 4 — validação visual REAL no navegador (porta 8601):**
+  - **8/8 seções renderizando para DIRR3** com números idênticos aos JSONs:
+    Overview (17,04/13,01/+31%/COMPRA/WACC 14,97%), Historico (âncoras CAGR
+    26,2%, margem 23,4%), Premissas (tabela editável + 7 sliders com valores
+    persistidos), Valuation (VP(VT) 4.399.075 = 44,8% do EV; waterfall soma
+    ao EV; football field "comps reais de 4 peers"; checklist APROVADO),
+    Comparaveis (mediana EV/EBITDA 8,4x correta SEM o alvo; n/d gracioso;
+    veredito DENTRO da faixa), Analise, Comparar, Excel Preview.
+  - **Interações vivas:** cenário Bull → 23,51/+80,7% (valores exatos do
+    bloco `cenarios`); slider Δ WACC +0,25pp → Target 16,65 IGUAL ao
+    `recalcular_cenario` chamado direto; heatmaps WACC×g (35 células) e
+    Crescimento×Margem (25 células) conferidos 100% contra o motor;
+    watchlist add→persistiu JSON com valores do `ev_equity`→remove→vazia;
+    Excel Preview com 7 abas = abas reais do `.xlsx` no disco (631 KB).
+  - **Multi-empresa/multi-tipo:** ITUB4 renderiza a trilha financeira
+    correta (rótulo Ke 15,90%, tabela FCFE, football field com P/L e P/VP,
+    54,33/+22,6% idêntico ao persistido; Excel Preview com aviso "modelo
+    bancário na Onda 5"). **Busca de ticker novo validada de ponta a ponta:
+    RENT3 rodou o pipeline completo PELO APP em 21,1s (score 96)** e
+    renderizou Overview (Localiza, FCFF, WACC 11,72%, Target 21,95 vs 41,10
+    = VENDA −46,6% por premissas automáticas conservadoras — padrão D-024).
+- **Bugs visuais achados e CORRIGIDOS (só `app.py`; motor intocado):**
+  - **D-025:** painel de decisão mostrava WACC/g do caso BASE com cenário
+    Bear/Bull ativo, embora `cenarios.*.taxa_desconto/g` estejam persistidos
+    → painel agora reflete a taxa/g do cenário ativo (Bull exibe
+    13,90%/1,50%). Dashboard Executivo permanece caso base (arte do motor).
+  - **D-026:** metric "Faixa por multiplos (Q1-Q3)" com dois `R$` na mesma
+    string → o markdown do `st.metric` tratava o par de `$` como math inline
+    e engolia os símbolos; corrigido com escape `\$` (validado no DOM).
+- **Observações sem ação (já cobertas por decisões registradas):** preço
+  13,01 (ev_equity, 08/07) vs 13,28 (comparáveis, 12/07) entre seções —
+  consequência de D-011/D-022, sincroniza na Onda 5; screenshot da aba do
+  navegador embutido trava com os Plotly pesados (validação feita por
+  DOM/texto + conferência numérica, que é mais forte que pixel).
+- **Artefatos novos no working tree:** `data/premissas/RENT3_premissas.json`
+  (premissas automáticas geradas pelo pipeline) e `data/watchlist.json`
+  (vazio, criado pelo teste add/remove); `data/processed/RENT3_*` ficam fora
+  do git (ignorado). Nada commitado nesta sessão (humano decide o commit).
+- **PRÓXIMA TAREFA:** Prompt 5 do `PROMPTS_FABLE.md` (Onda 5).
 
 ### Sessão 12/07/2026 (4ª) — v2.0 ONDA 4 CONCLUÍDA: front-end multi-empresa
 
