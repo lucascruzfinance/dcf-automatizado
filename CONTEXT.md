@@ -126,16 +126,20 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
 - **Data da última atualização:** 13/07/2026
-- **Versão alvo:** v2.0 "Universalização" (5 ondas do `PROMPTS_FABLE.md`; v1.0 concluída em 11/07/2026)
-- **Fase atual:** v2.0 — **ONDAS 1, 2, 3 e 4 CONCLUÍDAS em 12/07/2026 e
-  VALIDADAS em 13/07/2026** (suíte 135 verde, auditoria da cadeia de dados,
-  figuras conferidas contra os JSONs e app real validado no navegador seção a
-  seção; 2 bugs visuais corrigidos — D-025/D-026). Qualquer ticker da B3 roda
-  coleta → motor correto por tipo (FCFF/WACC ou FCFE/Ke) → comparáveis reais
-  → app multi-empresa. Próxima: **Onda 5 — Prompt 5** (Excel dinâmico por
-  tipo, exportador BI completo, Power BI, PDF e automação/orquestração de
-  dados). Decisões autônomas pendentes de revisão humana:
-  **`Humano_revisar.md`** (D-001+).
+- **Versão alvo:** **v2.1 "Padrão Smartfit"** (semanas 8–10, 8 prompts do
+  `PROMPTS_FABLE.md` reescrito; v2.0 Ondas 1–4 concluídas; a antiga Onda 5 foi
+  redistribuída — parte virou as semanas 8–10, o resto virou backlog v2.2).
+- **Fase atual:** v2.0 — **ONDAS 1, 2, 3 e 4 CONCLUÍDAS/ VALIDADAS em
+  13/07/2026** (suíte 135 verde, auditoria da cadeia de dados, figuras
+  conferidas contra os JSONs e app real validado no navegador; D-025/D-026).
+  Qualquer ticker da B3 roda coleta → motor por tipo (FCFF/WACC ou FCFE/Ke) →
+  comparáveis reais → app multi-empresa. **Planejamento da v2.1 feito em
+  13/07/2026** (ver sessão do Claude Code abaixo): novo Excel de referência do
+  mentor (Smartfit/SMFT3) analisado e o `PROMPTS_FABLE.md` reescrito do zero
+  para as semanas 8–10. **Próxima tarefa: Prompt 8.1** (DRE completa
+  bruta→líquida com CPV/SG&A separados, imposto efetivo e D&A aberta).
+  Decisões autônomas pendentes de revisão humana: **`Humano_revisar.md`**
+  (D-001+, agora até D-035).
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -209,6 +213,54 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 13/07/2026 (Claude Code) — Planejamento da v2.1 "Padrão Smartfit" (novo Excel de referência)
+
+- **Gatilho:** o humano adicionou ao repo o modelo Excel do mentor (Heitor
+  Crespo, InFinance), "Smartfit Model — PEP 2025.2 — Grupo 4", um DCF
+  operacional mais completo que o da Direcional, e pediu: analisar as
+  diferenças, planejar em prompts progressivos a aplicação de TUDO que o
+  Smartfit tem e o projeto não, organizar os 2 Excels em local de referência,
+  e reescrever o `PROMPTS_FABLE.md` do zero até a semana 10 (02/08). Recado do
+  mentor: "modelo tá mais bull, mas é assim que tem que ser feito — através de
+  unit economics". Decisão do Lucas: começar por premissas básicas; unit
+  economics fica para depois.
+- **Análise feita (só leitura, nenhum código de produção tocado):** dump
+  programático (openpyxl) das 8 abas do Smartfit e das abas-chave da
+  Direcional. O Smartfit tem: DRE bruta→líquida com CPV/SG&A por natureza,
+  IFRS-16 completo (lease asset + liability + juros de arrendamento), D&A por
+  safra de CAPEX (meia no 1º ano, para no saldo, vida derivada do histórico),
+  capex expansão×manutenção, WK multi-driver (dias sobre RB/CPV/deduções/SG&A),
+  dívida instrumento a instrumento em 6 moedas (~45 emissões), revolver formal
+  com caixa mínimo, DFC INDIRETO reconciliando o BP inteiro, BP aberto com
+  linha Check, aba Macro (fonte Itaú), aba de controle "To do list", e
+  D@G/AVP (retornos de PE: múltiplos entrada/saída, TIR/MOIC). O projeto já
+  tem o que o Smartfit NÃO tem: WACC/Ke, VT de Gordon, FCFF explícito,
+  comparáveis reais, checklist, cenários, football field, sensibilidades,
+  front-end e coleta automática.
+- **Reorganização dos arquivos de referência (D-029):** criado `referencias/`
+  (+`README.md`) e `referencias/modelos_excel/` com os DOIS xlsx (Direcional
+  e Smartfit, via `git mv`) e um mapa estrutural por aba/linha de cada
+  (`ESTRUTURA_DIRECIONAL.md`, `ESTRUTURA_SMARTFIT.md`). O da Direcional saiu
+  de `tests/fixtures/` (nenhum teste dependia dele — verificado por grep).
+  `CONTEXT.md`, `README.md` e `CLAUDE.md` atualizados para o novo caminho.
+- **`PROMPTS_FABLE.md` reescrito do zero:** de "v2.0 Universalização / 5
+  Ondas" para **"v2.1 Padrão Smartfit / 8 prompts em 3 semanas"** (8.1–8.3
+  motor por dentro; 9.1–9.3 macro/retornos + front-end guiado + Excel de 9
+  abas; 10.1–10.2 auditoria dupla + universalização B3 + fechamento). Semana
+  8 = 12–19/07, 9 = 19–26/07, 10 = 26/07–02/08. Inclui uma tabela de gap
+  (16 mecânicas do Smartfit → prompt que a implementa), Princípios
+  Invariantes atualizados (retrocompatibilidade de premissas), e um Apêndice
+  de backlog (unit economics = v3.0; BI/PDF/Power BI/Excel bancário/trimestres
+  = v2.2) e um checklist do que o humano precisa fazer.
+- **Decisões registradas:** D-027 a D-035 em `Humano_revisar.md` (adotar
+  mecânica e adiar unit economics; semanas em vez de ondas; ticker SMFT3; DRE
+  completa opcional/retrocompatível; dívida por instrumento opcional; traduzir
+  D@G/AVP para "Retornos do acionista"; Excel de 9 abas só p/ não-financeiras;
+  Semana 10 = auditoria dupla).
+- **Nada commitado** (o humano decide o commit). Artefatos de análise ficaram
+  no scratchpad da sessão (fora do repo).
+- **PRÓXIMA TAREFA:** Prompt 8.1 do `PROMPTS_FABLE.md`.
 
 ### Sessão 13/07/2026 — VALIDAÇÃO COMPLETA das Ondas 3–4 (4 frentes) + 2 correções visuais
 

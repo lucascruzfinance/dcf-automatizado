@@ -15,6 +15,151 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 
 ---
 
+## 13/07/2026 — Planejamento da v2.1 "Padrão Smartfit" (novo Excel de referência do mentor)
+
+> Sessão do **Claude Code**: análise do modelo Smartfit enviado pelo mentor,
+> comparação com o da Direcional e com o código atual, reorganização dos
+> arquivos de referência e reescrita completa do `PROMPTS_FABLE.md` para as
+> semanas 8–10. Nenhum código de motor/app/exportador foi tocado — só
+> planejamento e documentação. As decisões abaixo (D-027 a D-035) orientam o
+> Fable 5 nas semanas 8–10 e podem ser revertidas pelo humano.
+
+### D-027 ⏳ — Adotar a MECÂNICA do Smartfit, adiar o UNIT ECONOMICS para a v3.0
+
+- **Situação:** o mentor disse "é assim que tem que ser feito — através de unit
+  economics", mas o Lucas decidiu (mensagem de 13/07) começar por premissas
+  básicas (crescimento %, margens %, capex %) porque unit economics exige um
+  método específico por setor que ele ainda precisa aprender e receber mais
+  exemplos.
+- **Escolha:** as semanas 8–10 adotam TODO o resto da mecânica do Smartfit
+  (DRE completa bruta→líquida, IFRS-16, D&A por safra, revolver, DFC indireto,
+  BP aberto, retornos TIR/MOIC, Excel de 9 abas) usando premissas básicas; o
+  build-up por unit economics fica para a v3.0. No Prompt 8.1 a projeção de
+  receita é extraída para uma função plugável (`projetar_receita`) para que a
+  v3.0 encaixe o build-up setorial sem reescrever a DRE.
+- **Alternativas:** (a) implementar unit economics já (bloqueia — falta método
+  setorial e exemplos); (b) ignorar o Smartfit e manter a v2.0 (perde o
+  benchmark novo). Registrado como o caminho pragmático que preserva o alvo.
+
+### D-028 ⏳ — Numeração por SEMANAS de calendário, não por "ondas"
+
+- **Situação:** o humano pediu que daqui para frente o planejamento use
+  semanas datadas (8 = 12–19/07, 9 = 19–26/07, 10 = 26/07–02/08) e que o
+  `PROMPTS_FABLE.md` seja reescrito do zero até a semana 10 (02/08).
+- **Escolha:** `PROMPTS_FABLE.md` reescrito com 8 prompts (8.1–8.3, 9.1–9.3,
+  10.1–10.2) mapeados às 3 semanas; a nomenclatura "v2.0 Universalização /
+  Ondas 1–5" foi encerrada e substituída por "v2.1 Padrão Smartfit". O
+  histórico das Ondas 1–4 (concluídas) permanece no `CONTEXT.md`.
+- **Alternativas:** manter "Ondas" (contraria o pedido); recomeçar a contagem
+  de semanas em 1 (perde a continuidade com as semanas 1–7 já existentes no
+  histórico do projeto).
+
+### D-029 ⏳ — Excels de referência movidos para `referencias/modelos_excel/`
+
+- **Situação:** o Smartfit estava solto na raiz do repo; o da Direcional vivia
+  em `tests/fixtures/`. O humano pediu um lugar canônico que sirva de
+  referência para o Claude Code / Codex, sem ficar solto.
+- **Escolha:** criado `referencias/` (com `README.md`) e
+  `referencias/modelos_excel/` contendo os DOIS xlsx + um `ESTRUTURA_*.md`
+  para cada (mapa por aba/linha extraído com openpyxl) + o mentor/legenda. O
+  Smartfit foi renomeado para `Smartfit_SMFT3_referencia.xlsx` (padrão do da
+  Direcional). Movimentação via `git mv` (preserva histórico). Referências em
+  `CONTEXT.md`, `README.md` e `CLAUDE.md` atualizadas.
+- **Verificação:** nenhum teste depende do arquivo da Direcional (os testes
+  usam fixtures sintéticas); `grep` confirmou que só docs citavam
+  `tests/fixtures/...xlsx`. Sem quebra de teste esperada pela mudança.
+- **Alternativas:** deixar em `tests/fixtures/` (mistura material de
+  referência com fixtures de teste); duplicar (arquivos xlsx grandes no git).
+
+### D-030 ⏳ — Ticker de referência do Smartfit: `SMFT3`
+
+- **Situação:** o modelo do mentor avalia a Smart Fit; o pipeline identifica
+  empresas por ticker B3. A Smart Fit negocia como **SMFT3**.
+- **Escolha:** usar `SMFT3` como o ticker da empresa de referência da v2.1 (o
+  arquivo de referência e os DoDs das semanas 8–10 citam SMFT3). O Fable deve
+  confirmar na primeira coleta que o resolvedor de ticker encontra SMFT3 na
+  CVM (Smart Fit Escola de Ginástica e Dança S.A.); se o código CVM divergir,
+  registrar e ajustar.
+- **Risco a checar pelo humano/Fable:** SMFT3 fez IPO em 2021 — deve ter ≥ 3
+  exercícios anuais na CVM (2022–2024), suficiente para as âncoras. Confirmar
+  no Prompt 8.1.
+
+### D-031 ⏳ — DRE completa é OPCIONAL/retrocompatível (modo legado preservado)
+
+- **Situação:** trocar "receita líquida × margem EBITDA" por uma DRE completa
+  (bruta→líquida, CPV, SG&A separados) poderia quebrar a regressão dourada de
+  DIRR3/MGLU3 e os arquivos de premissas v2 já existentes.
+- **Escolha:** o Prompt 8.1 mantém DOIS modos: **legado** (arquivo v2 só com
+  `margem_ebitda_ano1..8` → caminho atual byte a byte) e **completo** (campos
+  novos presentes → DRE Smartfit). O `gerador_premissas.py` passa a gerar
+  sempre o conjunto completo; a regressão dourada roda no modo legado. Todo
+  campo novo de premissa é opcional (Princípio 13 novo).
+- **Alternativas:** migração forçada (quebra golden e premissas antigas);
+  duplicar o projetor (dobra manutenção).
+
+### D-032 ⏳ — Dívida por instrumento é OPCIONAL; target-leverage vira backlog
+
+- **Situação:** o Smartfit modela ~45 instrumentos de dívida em várias moedas
+  e uma dívida-alvo = alavancagem × EBITDA. Reproduzir isso como obrigatório
+  seria inviável para "qualquer empresa da B3" automaticamente.
+- **Escolha:** no Prompt 8.3, a tabela de instrumentos é OPCIONAL nas
+  premissas (o analista copia das notas explicativas, já em BRL); sem ela, o
+  perfil CP/LP agregado da v2 continua. A dívida-alvo por alavancagem e a
+  conversão automática de moeda vão para o backlog (Apêndice C). O REVOLVER,
+  esse sim, é formalizado (juros próprios + amortização) porque generaliza a
+  captação automática que a v2 já tem.
+- **Alternativas:** exigir instrumentos (não escala); ignorar o revolver
+  (perde o fechamento de caixa sem plug que é a espinha do modelo).
+
+### D-033 ⏳ — Traduzir D@G/AVP (deal de PE) para "Retornos do acionista"
+
+- **Situação:** as abas D@G e AVP do Smartfit são de private equity (cap
+  table, money-in/out, sources & uses, diluição, TIR do fundo) — não se
+  aplicam a equity listado.
+- **Escolha:** o Prompt 9.1 cria um painel de **Retornos do acionista**:
+  múltiplos implícitos por ano (no preço atual e no target) + TIR/MOIC de
+  comprar ao preço atual e realizar o target no ano N (com dividendos). A
+  mecânica de deal (cap table/sources&uses/diluição) é descartada.
+- **Alternativas:** copiar D@G/AVP literalmente (produz números sem sentido
+  para ação listada); omitir retornos (perde uma camada que o mentor valoriza).
+
+### D-034 ⏳ — Excel novo: 9 abas para NÃO-financeiras; bancário fica no backlog
+
+- **Situação:** o exportador atual tem 7 abas (FCFF). O Smartfit sugere mais
+  abas (Capa+legenda, controle, Macro, Build-Up, Model 3-statements, DCF &
+  Retornos). Bancos usam FCFE e não têm dívida operacional/leasing como
+  não-financeiras.
+- **Escolha:** o Prompt 9.3 reescreve o Excel para 9 abas cobrindo QUALQUER
+  não-financeira; bancos mantêm o caminho atual (Excel FCFF bloqueado com
+  aviso no app) e o Excel bancário vai para o backlog v2.2. O
+  `dfc_simplificado` legado é removido no 9.3 (consumidores migram para o DFC
+  indireto).
+- **Alternativas:** Excel único para os dois tipos (complexo e arriscado
+  agora); manter 7 abas (não alcança o padrão Smartfit).
+
+### D-035 ⏳ — Semana 10 é AUDITORIA dupla (Excel recalculado + app no navegador)
+
+- **Situação:** o humano pediu explicitamente 4 provas: (2) código sem erro
+  com dados automatizados; (3) front-end correspondendo; (4) Excel gerado
+  correto em valores/fórmulas/referências/premissas/comentários/cores; (5)
+  funcionar para qualquer empresa e premissa→efeito.
+- **Escolha:** o Prompt 10.1 cria um `verificar_excel.py` que ABRE o Excel,
+  RECALCULA de verdade (Excel COM/LibreOffice) e confere célula a célula
+  contra os JSONs, mais auditoria de cores/comentários/consistência de fórmula
+  e paridade estrutural com o Smartfit; o 10.2 amplia o lote B3 (≥12 empresas,
+  casos de borda) e adiciona `test_premissa_efeito.py` (edita 1 premissa →
+  verifica a cadeia até o Excel). É o custo de garantir "zero erro".
+- **Alternativas:** confiar nos testes unitários (não pega erro de fórmula no
+  Excel real); validação só manual (não repetível).
+
+**Observação sem decisão nova:** os itens do "To do list" e "Considerações" do
+próprio modelo do mentor (D&A de leasing/imob "muito alta", "checar revolver",
+"net debt muito alto", "EBITDA desproporcional") são limitações CONHECIDAS do
+modelo dele — não do nosso código. Foram usados apenas para entender a
+mecânica; não são tarefas do projeto.
+
+---
+
 ## 13/07/2026 — Validação completa das Ondas 3–4 (suíte + auditoria + figuras + app no navegador)
 
 ### D-025 ⏳ — Painel de decisão passa a mostrar a taxa e o g do CENÁRIO ativo
