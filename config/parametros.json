@@ -29,6 +29,22 @@
     "caixa_minimo_pct_receita": 0.02,
     "taxa_aplicacao_caixa_fallback": 0.10
   },
+  "ppe_safras": {
+    "descricao": "D&A por safra de CAPEX (Prompt 8.2): vida util DERIVADA do historico (imobilizado/D&A), clamp [min,max]; meia-depreciacao no ano da safra; capex split expansao x manutencao.",
+    "vida_util_min_anos": 3,
+    "vida_util_max_anos": 30,
+    "capex_expansao_pct_padrao": 0.80
+  },
+  "leasing": {
+    "descricao": "IFRS-16 (Prompt 8.2): rollforward do passivo/ativo de arrendamento, juros de arrendamento separados dos juros de divida, D&A de direito de uso. Empresa com passivo < limiar do ativo => bloco zera (sem erro). Taxa implicita clampada em torno do CDI/Selic.",
+    "limiar_leasing_relevante_pct_ativo": 0.01,
+    "spread_arrendamento_sobre_cdi": 0.02,
+    "clamp_taxa_min_sobre_cdi_pp": -0.02,
+    "clamp_taxa_max_sobre_cdi_pp": 0.08,
+    "prazo_medio_leasing_min_anos": 2,
+    "prazo_medio_leasing_max_anos": 15,
+    "prazo_medio_leasing_padrao_anos": 6
+  },
   "desconto": {
     "usar_convencao_meio_periodo": false,
     "fracao_ano_stub": 0.0

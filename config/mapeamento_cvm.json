@@ -309,6 +309,38 @@
       "descricao": "Modo do IR/CSLL na DRE completa: marginal ou efetiva_historica",
       "sinal_esperado": "nao_aplicavel"
     },
+    "juros_arrendamento": {
+      "descricao": "Juros de arrendamento (IFRS-16), separados dos juros de divida",
+      "sinal_esperado": "positivo"
+    },
+    "direito_uso_ativo": {
+      "descricao": "Ativo de direito de uso (IFRS-16) projetado",
+      "sinal_esperado": "positivo"
+    },
+    "amortizacao_arrendamento": {
+      "descricao": "Amortizacao do passivo de arrendamento no ano (IFRS-16)",
+      "sinal_esperado": "positivo"
+    },
+    "adicoes_arrendamento": {
+      "descricao": "Adicoes de arrendamento no ano (novos contratos, IFRS-16)",
+      "sinal_esperado": "positivo"
+    },
+    "capex_expansao": {
+      "descricao": "CAPEX de expansao (parcela do capex total)",
+      "sinal_esperado": "negativo"
+    },
+    "capex_manutencao": {
+      "descricao": "CAPEX de manutencao (parcela do capex total)",
+      "sinal_esperado": "negativo"
+    },
+    "capex_expansao_pct": {
+      "descricao": "Percentual do CAPEX total destinado a expansao",
+      "sinal_esperado": "positivo"
+    },
+    "vida_util_ppe_derivada": {
+      "descricao": "Vida util do imobilizado derivada do historico (imob/D&A), clampada",
+      "sinal_esperado": "positivo"
+    },
     "ativo_total": {
       "descricao": "Ativo Total (BP 1 historico e ativo total projetado)",
       "sinal_esperado": "positivo_ou_negativo"
