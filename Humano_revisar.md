@@ -15,6 +15,93 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 
 ---
 
+## 14/07/2026 — Prompt 8.1 (DRE completa) + descope do revolver formal
+
+> Sessão do **Claude Code** a pedido de Lucas: (1) retirar do `PROMPTS_FABLE.md`
+> (e demais locais do plano) a NECESSIDADE de um revolver formal no DCF; (2)
+> implementar o Prompt 8.1 — DRE completa bruta→líquida com CPV/SG&A separados,
+> imposto efetivo e D&A aberta. Código de motor tocado (projetor_dre, schedule_ppe,
+> schedule_divida, gerador_premissas) + configs + testes. Golden DIRR3/MGLU3
+> preservada byte a byte.
+
+### D-036 ⏳ — Revolver formal FORA DE ESCOPO (supera a parte de revolver da D-032/D-027)
+
+- **Situação:** a D-032 (13/07) tinha decidido FORMALIZAR um revolver (juros
+  próprios + amortização automática, bloco `revolver` separado, spread em config)
+  como evolução da captação automática v2. Lucas pediu em 14/07 para **retirar essa
+  necessidade** do `PROMPTS_FABLE.md`, do README e de qualquer outro local que
+  dissesse que "haverá revolver no DCF".
+- **Escolha:** o projeto **NÃO implementa revolver formal**. A **captação automática
+  para caixa mínimo** que a v2 já tem (`caixa_minimo_pct_receita`, D-015) permanece
+  como o mecanismo de fechamento de caixa SEM plug — a captação entra na dívida
+  estrutural e paga juros por Kd em t+1. Editado no `PROMPTS_FABLE.md`: tabela de gap
+  (linha 10), Prompt 8.3 (título, contexto, objetivo, 8.3.2, DFC, BP, contratos, DoD,
+  testes) e todas as referências cruzadas em 8.1/8.2/9.1/9.2/9.3/10.1/10.2. Onde o
+  Smartfit usa "Revolver", o plano passa a usar a captação automática v2.
+- **Referências IMUTÁVEIS não alteradas (Princípio 14):** `referencias/README.md` e
+  `referencias/modelos_excel/ESTRUTURA_SMARTFIT.md` descrevem FATUALMENTE o modelo do
+  mentor (que TEM um revolver) — não são "o nosso DCF", então a descrição foi mantida
+  intacta. O `CONTEXT.md` (log histórico da sessão 13/07) idem; o descope fica
+  registrado na sessão nova de 14/07.
+- **Alternativas:** manter a D-032 (contraria o pedido explícito); apagar toda menção
+  a revolver, inclusive dos mapas de referência (falsificaria a descrição do modelo do
+  mentor — vetado pela imutabilidade das referências).
+
+### D-037 ⏳ — DRE completa: detecção de modo por premissa definidora (retrocompat)
+
+- **Situação:** trocar "receita líquida × margem EBITDA" pela DRE completa não pode
+  quebrar a golden de DIRR3/MGLU3 nem os arquivos de premissas v2.
+- **Escolha:** o `projetor_dre` roda no **modo completo** SOMENTE quando o arquivo de
+  premissas traz as duas premissas definidoras — `margem_bruta_ano1` E
+  `sgna_pct_receita_ano1`. Sem elas, roda no **modo legado** byte a byte (path atual
+  intocado). O modo é persistido em `modo_dre` no JSON de projeção e propagado aos
+  schedules. **Verificado:** DIRR3 17.041750319793266 e MGLU3 8.104037755921702
+  IDÊNTICOS (diff 0.0) com premissas v2 e mercado congelado; a DRE ano1 é byte a byte.
+- **Cadeia no modo completo:** a D&A já está embutida em CPV/SG&A (como no Smartfit
+  L68-69) ⇒ o EBIT sai direto das margens; o `schedule_ppe` no modo completo apenas
+  preenche `da_imobilizado` e faz `EBITDA = EBIT + D&A` (não recalcula EBT/IR/LL); o
+  `schedule_divida` recompõe EBT com o resultado financeiro e o IR pelo modo da DRE
+  completa.
+- **Alternativas:** migração forçada (quebra golden e premissas antigas); duplicar o
+  projetor (dobra manutenção).
+
+### D-038 ⏳ — SG&A separa Outras e Equivalência (evita dupla contagem)
+
+- **Situação:** o Prompt 8.1.1 descreve `sgna_pct` como "3.04 comerciais + G&A +
+  outras, excluindo equivalência", mas o quadro da DRE (8.1.2) tem linhas SEPARADAS
+  para SG&A, Outras receitas/despesas e Equivalência. Somar "outras" dentro de SG&A E
+  ter uma linha `outras_despesas_pct_receita` contaria "outras" duas vezes no EBIT.
+- **Escolha:** no motor e no gerador, `sgna` = apenas comerciais + G&A (3.04.01 +
+  3.04.02); `outras_despesas_pct_receita` = 3.04.03/04/05 (impairment + outras rec/desp
+  operacionais, com sinal); `equivalencia_pct_receita` = 3.04.06. Assim
+  `EBIT = LucroBruto + SG&A + Outras + Equivalência` reconstrói o EBIT sem dupla
+  contagem. Registrado por divergir da leitura literal do texto do prompt.
+
+### D-039 ⏳ — Defaults setoriais da DRE completa em bloco único no setores.json
+
+- **Situação:** o Prompt 8.1.4 pede defaults setoriais de `margem_bruta`/`sgna` para o
+  gerador. Adicionar 2 chaves em cada um dos 16 `premissas_default` geraria um diff
+  ruidoso (o `json.dump` reflow quebraria arrays `peers`/`vetor_sensibilidade`).
+- **Escolha:** um bloco novo `defaults_dre_completa` (subtipo → {margem_bruta,
+  sgna_pct_receita}) em `config/setores.json` — uma edição contígua, sem tocar nos
+  blocos existentes. O gerador usa a média histórica quando disponível e cai nesses
+  defaults. Clamps/defaults globais (aliquota efetiva [15%,45%], marginal 34%, modo)
+  em `config/parametros.json` (`dre_completa`).
+
+### D-040 ⏳ — SMFT3 classificada como "outros"; alíquota default marginal
+
+- **Situação:** o setor CVM da Smart Fit é "Brinquedos e Lazer", que não tem regra em
+  `mapa_setor_cvm` → subtipo `outros` (FCFF/WACC, default seguro). O gerador default
+  usa `modo_aliquota = "marginal"` (34%), não a efetiva histórica.
+- **Escolha:** manter `outros` (nenhum subtipo existente descreve academia melhor que
+  o balde genérico; mapear errado seria pior) e `marginal` como default conservador
+  (padrão de `parametros.json`; o analista liga `efetiva_historica` se quiser — o
+  `aliquota_efetiva` histórico já é gravado na premissa). **Resultado SMFT3 (premissas
+  automáticas, REVISAR):** Target R$ 12,36 · VENDA · score 95 · modo_dre completo ·
+  balanço fecha (dif 0,0) · DRE bruta→líquida→CPV→SG&A→EBIT→EBITDA→EBT→LL coerente.
+
+---
+
 ## 13/07/2026 — Planejamento da v2.1 "Padrão Smartfit" (novo Excel de referência do mentor)
 
 > Sessão do **Claude Code**: análise do modelo Smartfit enviado pelo mentor,
@@ -97,7 +184,7 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 - **Alternativas:** migração forçada (quebra golden e premissas antigas);
   duplicar o projetor (dobra manutenção).
 
-### D-032 ⏳ — Dívida por instrumento é OPCIONAL; target-leverage vira backlog
+### D-032 🔁 REVERTIDA (ver D-036) — Dívida por instrumento é OPCIONAL; target-leverage vira backlog
 
 - **Situação:** o Smartfit modela ~45 instrumentos de dívida em várias moedas
   e uma dívida-alvo = alavancagem × EBITDA. Reproduzir isso como obrigatório

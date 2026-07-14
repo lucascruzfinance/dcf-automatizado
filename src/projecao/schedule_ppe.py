@@ -215,16 +215,51 @@ def projetar_linhas_ppe(
     return linhas
 
 
+def _da_memo_completa(linha_dre: dict[str, Any], depreciacao: float) -> float:
+    """D&A total do memo no modo completo = imobilizado + direito uso + intang.
+
+    No modo completo a D&A ja esta embutida em CPV/SG&A (o EBIT sai direto das
+    margens); esta funcao devolve a D&A TOTAL do memo, usando a depreciacao do
+    imobilizado recem-calculada pelo schedule PP&E e mantendo as demais
+    componentes (direito de uso, intangivel) como estao (zeradas ate o 8.2).
+    """
+    da_direito_uso = float(linha_dre.get("da_direito_uso") or 0.0)
+    da_intangivel = float(linha_dre.get("da_intangivel") or 0.0)
+    return depreciacao + da_direito_uso + da_intangivel
+
+
 def atualizar_dre_com_depreciacao(
     dre: dict[str, dict[str, Any]],
     ppe: dict[str, dict[str, float | str]],
     usa_ret: bool,
+    modo_dre: str = "legado",
 ) -> None:
-    """Sobrescreve a D&A da DRE e recalcula EBIT, EBT, IR/CSLL e LL."""
+    """Fecha a D&A da DRE com a serie do schedule PP&E.
+
+    Modo LEGADO: EBIT = EBITDA - D&A e recalcula EBT/IR/LL (a D&A reduz o
+    lucro). Modo COMPLETO (Padrao Smartfit): a D&A ja esta embutida em
+    CPV/SG&A, entao o EBIT permanece fixo e apenas a D&A do imobilizado e o
+    EBITDA (= EBIT + D&A total) sao atualizados — EBT/IR/LL nao mudam aqui.
+    """
     for ano in range(1, HORIZONTE_PROJECAO + 1):
         chave_ano = f"ano{ano}"
         linha_dre = dre[chave_ano]
         linha_ppe = ppe[chave_ano]
+        depreciacao = obter_float_obrigatorio(
+            linha_ppe,
+            "depreciacao_amortizacao",
+            chave_ano,
+        )
+
+        if modo_dre == "completo":
+            ebit = obter_float_obrigatorio(linha_dre, "ebit", chave_ano)
+            da_total = _da_memo_completa(linha_dre, depreciacao)
+            linha_dre["da_imobilizado"] = depreciacao
+            linha_dre["depreciacao_amortizacao"] = da_total
+            # Formula: EBITDA = EBIT + D&A total (EBIT ja e apos D&A embutida).
+            linha_dre["ebitda"] = ebit + da_total
+            continue
+
         receita_liquida = obter_float_obrigatorio(
             linha_dre,
             "receita_liquida",
@@ -234,11 +269,6 @@ def atualizar_dre_com_depreciacao(
         resultado_financeiro = obter_float_obrigatorio(
             linha_dre,
             "resultado_financeiro",
-            chave_ano,
-        )
-        depreciacao = obter_float_obrigatorio(
-            linha_ppe,
-            "depreciacao_amortizacao",
             chave_ano,
         )
 
@@ -287,6 +317,7 @@ def projetar_ppe(
         raiz,
     )
     ano0_ppe = carregar_ano0_ppe(ticker_normalizado, raiz)
+    modo_dre = str(conteudo.get("modo_dre", "legado"))
     ppe = projetar_linhas_ppe(
         dre=dre,
         taxas_capex_receita=taxas_capex_receita,
@@ -297,6 +328,7 @@ def projetar_ppe(
         dre=dre,
         ppe=ppe,
         usa_ret=empresa_usa_ret(premissas_completas, metadados),
+        modo_dre=modo_dre,
     )
     atualizar_projecao_ppe(caminho_projecao, conteudo, ano0_ppe, ppe)
     return {

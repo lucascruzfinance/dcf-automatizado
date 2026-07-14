@@ -125,7 +125,7 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
-- **Data da última atualização:** 13/07/2026
+- **Data da última atualização:** 14/07/2026
 - **Versão alvo:** **v2.1 "Padrão Smartfit"** (semanas 8–10, 8 prompts do
   `PROMPTS_FABLE.md` reescrito; v2.0 Ondas 1–4 concluídas; a antiga Onda 5 foi
   redistribuída — parte virou as semanas 8–10, o resto virou backlog v2.2).
@@ -136,10 +136,11 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   comparáveis reais → app multi-empresa. **Planejamento da v2.1 feito em
   13/07/2026** (ver sessão do Claude Code abaixo): novo Excel de referência do
   mentor (Smartfit/SMFT3) analisado e o `PROMPTS_FABLE.md` reescrito do zero
-  para as semanas 8–10. **Próxima tarefa: Prompt 8.1** (DRE completa
-  bruta→líquida com CPV/SG&A separados, imposto efetivo e D&A aberta).
-  Decisões autônomas pendentes de revisão humana: **`Humano_revisar.md`**
-  (D-001+, agora até D-035).
+  para as semanas 8–10. **Prompt 8.1 CONCLUÍDO em 14/07/2026** (DRE completa
+  bruta→líquida com CPV/SG&A separados, imposto efetivo e D&A aberta; revolver
+  formal descopado). **Próxima tarefa: Prompt 8.2** (IFRS-16 completo, D&A por
+  safra de CAPEX, capex expansão×manutenção). Decisões autônomas pendentes de
+  revisão humana: **`Humano_revisar.md`** (D-001+, agora até D-040).
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -213,6 +214,61 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 14/07/2026 (Claude Code) — Prompt 8.1 (DRE completa) + descope do revolver
+
+- **Pedido do humano:** (1) retirar do `PROMPTS_FABLE.md`, README e demais locais
+  a NECESSIDADE de um revolver formal no DCF; (2) executar o Prompt 8.1.
+- **Descope do revolver (D-036):** o projeto NÃO implementa revolver formal. A
+  captação automática para caixa mínimo da v2 (`caixa_minimo_pct_receita`, D-015)
+  fica como o mecanismo de fechamento de caixa. Editado `PROMPTS_FABLE.md` (tabela
+  de gap linha 10, Prompt 8.3 inteiro e referências cruzadas em 8.1/8.2/9.1/9.2/
+  9.3/10.1/10.2); D-032 marcada 🔁 REVERTIDA. As referências IMUTÁVEIS
+  (`referencias/README.md`, `ESTRUTURA_SMARTFIT.md`) descrevem FATUALMENTE o modelo
+  do mentor (que tem revolver) e foram mantidas intactas (Princípio 14).
+- **DRE completa (Prompt 8.1) implementada, retrocompatível (D-037):**
+  - `projetor_dre.py`: modo detectado pela presença de `margem_bruta` +
+    `sgna_pct_receita`. Modo COMPLETO projeta Receita Bruta → (−)Deduções →
+    Receita Líquida → (−)CPV (via margem bruta) → Lucro Bruto → (−)SG&A →
+    (+/−)Outras → (+/−)Equivalência → EBIT → EBT → IR/CSLL → LL; memo D&A aberta
+    (direito de uso/imobilizado/intangível) e EBITDA = EBIT + D&A. Função plugável
+    `projetar_receita` extraída (encaixe do unit economics v3.0). Imposto por modo
+    `marginal` (default) ou `efetiva_historica` (clamp [15%,45%]); RET sobre a
+    Receita BRUTA PROJETADA ano a ano. Modo LEGADO (arquivo v2 só com margem
+    EBITDA) intocado byte a byte.
+  - `schedule_ppe.py`: no modo completo preenche `da_imobilizado` e faz
+    `EBITDA = EBIT + D&A` sem recalcular EBT/IR/LL (D&A já embutida em CPV/SG&A).
+  - `schedule_divida.py`: no modo completo recompõe o IR pela regra da DRE
+    completa (RET sobre Receita Bruta projetada; efetiva/marginal via
+    `politicas_projecao.dre`). WK já usa o `cpv_cmv` projetado real.
+  - `gerador_premissas.py`: passa a gerar SEMPRE o conjunto completo (margem
+    bruta/SG&A/deduções ancorados no histórico + defaults do subtipo;
+    `modo_aliquota` marginal; `aliquota_efetiva` histórica gravada; margem EBITDA
+    mantida para retrocompat). SG&A = comerciais + G&A; Outras/Equivalência
+    separadas (D-038, evita dupla contagem).
+  - Configs: `parametros.json` bloco `dre_completa`; `setores.json` bloco
+    `defaults_dre_completa` por subtipo (D-039); `mapeamento_cvm.json` +12 campos;
+    `template_naofinanceiras.json` com os campos novos (todos opcionais).
+- **Validação:**
+  - **Regressão dourada preservada:** DIRR3 17.041750319793266 e MGLU3
+    8.104037755921702 IDÊNTICOS (diff 0.0) rodando o chain com mercado congelado
+    (a divergência de ~0,05% no `verificar_semana3` é o `rf_usd` ao vivo — D-011).
+  - **SMFT3 coletada e rodando em modo completo (D-040):** Target R$ 12,36 · VENDA
+    · score 95 · subtipo `outros` · balanço fecha (dif 0,0) · DRE completa
+    coerente (todas as identidades batem). Premissas AUTOMÁTICAS (REVISAR).
+  - **DIRR3 em modo completo (temp root, premissas auto):** RET = −4% × Receita
+    Bruta projetada EXATO; EBITDA = EBIT + D&A; Target R$ 23,88 (premissas
+    auto CAGR-based, não comparável 1:1 com as de teste legadas — a mudança
+    material é o RET sobre a bruta projetada).
+  - `pytest tests -q` → **142 verdes** (7 novos: DRE completa, imposto efetivo
+    com clamp, RET sobre bruta, contrato retrocompat, PP&E modo completo, gerador
+    conjunto completo, gerador sem DVA → deduções 0 + aviso). `black --workers 1`
+    e `flake8` limpos.
+- **Artefatos novos no working tree:** `data/premissas/SMFT3_premissas.json`
+  (premissas automáticas completas); `data/raw/cvm/SMFT3_*`, `data/processed/
+  SMFT3_*`, `outputs/bi/SMFT3/` (gerados; a maioria ignorada pelo git). Nada
+  commitado (o humano decide o commit).
+- **PRÓXIMA TAREFA:** Prompt 8.2 do `PROMPTS_FABLE.md`.
 
 ### Sessão 13/07/2026 (Claude Code) — Planejamento da v2.1 "Padrão Smartfit" (novo Excel de referência)
 

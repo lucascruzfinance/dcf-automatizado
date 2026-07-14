@@ -14,6 +14,16 @@
   },
   "vida_util_ppe_anos": 10,
   "payout_dividendos": 0,
+  "dre_completa": {
+    "descricao": "Clamps e defaults da DRE completa (Padrao Smartfit, Prompt 8.1): receita bruta->liquida, CPV/SG&A separados, imposto efetivo % EBT e D&A aberta. Todos os campos de premissa correspondentes sao OPCIONAIS; ausencia => modo legado (margem EBITDA direta).",
+    "modo_aliquota_padrao": "marginal",
+    "aliquota_marginal": 0.34,
+    "aliquota_efetiva_min": 0.15,
+    "aliquota_efetiva_max": 0.45,
+    "deducoes_pct_receita_bruta_padrao": 0.0,
+    "outras_despesas_pct_receita_padrao": 0.0,
+    "equivalencia_pct_receita_padrao": 0.0
+  },
   "politica_divida": {
     "prazo_amortizacao_lp_anos": 5,
     "caixa_minimo_pct_receita": 0.02,

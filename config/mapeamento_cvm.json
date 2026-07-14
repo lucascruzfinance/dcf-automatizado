@@ -261,6 +261,54 @@
       "descricao": "EBITDA",
       "sinal_esperado": "positivo_ou_negativo"
     },
+    "deducoes": {
+      "descricao": "Deducoes da Receita Bruta (DRE completa Padrao Smartfit)",
+      "sinal_esperado": "negativo"
+    },
+    "sgna": {
+      "descricao": "Despesas com Vendas, Gerais e Administrativas projetadas (SG&A)",
+      "sinal_esperado": "negativo"
+    },
+    "outras_receitas_despesas": {
+      "descricao": "Outras Receitas/Despesas Operacionais projetadas (DRE completa)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "equivalencia_patrimonial": {
+      "descricao": "Equivalencia Patrimonial projetada (DRE completa)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "margem_bruta": {
+      "descricao": "Margem Bruta (Lucro Bruto / Receita Liquida)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "sgna_pct_receita": {
+      "descricao": "SG&A sobre Receita Liquida (premissa da DRE completa)",
+      "sinal_esperado": "positivo"
+    },
+    "aliquota_efetiva_usada": {
+      "descricao": "Aliquota de IR/CSLL efetiva usada na DRE completa (% EBT)",
+      "sinal_esperado": "positivo"
+    },
+    "da_direito_uso": {
+      "descricao": "Depreciacao do Direito de Uso (IFRS-16; memo da D&A aberta)",
+      "sinal_esperado": "negativo"
+    },
+    "da_imobilizado": {
+      "descricao": "Depreciacao do Imobilizado (memo da D&A aberta)",
+      "sinal_esperado": "negativo"
+    },
+    "da_intangivel": {
+      "descricao": "Amortizacao do Intangivel (memo da D&A aberta)",
+      "sinal_esperado": "negativo"
+    },
+    "modo_dre": {
+      "descricao": "Modo da DRE projetada: legado (margem EBITDA) ou completo (Smartfit)",
+      "sinal_esperado": "nao_aplicavel"
+    },
+    "modo_aliquota": {
+      "descricao": "Modo do IR/CSLL na DRE completa: marginal ou efetiva_historica",
+      "sinal_esperado": "nao_aplicavel"
+    },
     "ativo_total": {
       "descricao": "Ativo Total (BP 1 historico e ativo total projetado)",
       "sinal_esperado": "positivo_ou_negativo"

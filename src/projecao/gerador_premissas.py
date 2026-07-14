@@ -17,23 +17,31 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 from src.projecao.projetor_dre import (
     HORIZONTE_PROJECAO,
     carregar_json,
     carregar_metadados,
+    carregar_razao_receita_bruta,
     normalizar_ticker,
     resolver_raiz,
     salvar_json,
+    selecionar_ultimo_exercicio,
 )
 
 LIMITES_CRESCIMENTO = (-0.05, 0.15)
 LIMITES_MARGEM = (0.0, 0.60)
 LIMITES_CAPEX_RECEITA = (-0.30, -0.005)
+LIMITES_MARGEM_BRUTA = (0.01, 0.95)
+LIMITES_SGNA = (0.0, 0.90)
+LIMITES_DEDUCOES = (0.0, 0.90)
 G_PERPETUIDADE_PADRAO = 0.035
 KD_PADRAO = 0.12
 BETA_PADRAO = 1.0
 ERP_PADRAO = 0.045
 CRP_PADRAO = 0.03
+MODO_ALIQUOTA_PADRAO = "marginal"
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +103,89 @@ def _metricas(ticker: str, raiz: Path) -> dict[str, Any]:
     return carregar_json(caminho)
 
 
+def _defaults_dre_completa(subtipo: str, raiz: Path) -> dict[str, float]:
+    """Defaults setoriais da DRE completa (config/setores.json)."""
+    setores = carregar_json(raiz / "config" / "setores.json")
+    bloco = setores.get("defaults_dre_completa", {})
+    return bloco.get(str(subtipo), bloco.get("outros", {}))
+
+
+def _valor_ano0_dre(dados: pd.DataFrame, nome: str) -> float:
+    """Valor padronizado do Ano 0 para uma conta da DRE; ausente vira 0.0."""
+    try:
+        linha = selecionar_ultimo_exercicio(dados, nome)
+    except RuntimeError:
+        return 0.0
+    valor = linha["valor_padronizado"]
+    return float(valor) if pd.notna(valor) else 0.0
+
+
+def _ancoras_dre_completa(
+    ticker: str,
+    raiz: Path,
+    agregados: dict[str, Any],
+    defaults_setor: dict[str, float],
+) -> dict[str, Any]:
+    """Ancoras da DRE completa: margem bruta, SG&A, deducoes, outras, equiv.
+
+    Usa a media historica quando disponivel (margem bruta agregada; SG&A,
+    outras, equivalencia e deducoes a partir do Ano 0 real da CVM/DVA) e cai
+    nos defaults setoriais quando falta a linha. Deducoes sem DVA => 0 + aviso
+    (Prompt 8.1.1). Sao PONTOS DE PARTIDA — o analista revisa.
+    """
+    margem_bruta = _numero(
+        agregados.get("margem_bruta_media_3a"),
+        _numero(defaults_setor.get("margem_bruta"), 0.30),
+    )
+
+    # SG&A, outras e equivalencia a partir do Ano 0 real (3.04.xx da CVM).
+    caminho_dre = raiz / "data" / "raw" / "cvm" / f"{ticker}_dre.json"
+    sgna_pct = _numero(defaults_setor.get("sgna_pct_receita"), 0.15)
+    outras_pct = 0.0
+    equivalencia_pct = 0.0
+    if caminho_dre.exists():
+        dados = pd.DataFrame(carregar_json(caminho_dre))
+        receita = _valor_ano0_dre(dados, "receita_liquida")
+        if receita > 0:
+            despesas_vendas = _valor_ano0_dre(dados, "despesas_vendas")
+            desp_g_adm = _valor_ano0_dre(dados, "despesas_gerais_administrativas")
+            perdas = _valor_ano0_dre(dados, "perdas_nao_recuperabilidade")
+            outras_rec = _valor_ano0_dre(dados, "outras_receitas_operacionais")
+            outras_desp = _valor_ano0_dre(dados, "outras_despesas_operacionais")
+            equiv = _valor_ano0_dre(dados, "resultado_equivalencia_patrimonial")
+            # SG&A = comerciais + G&A (despesas negativas -> ratio positivo).
+            sgna_abs = abs(despesas_vendas + desp_g_adm)
+            if sgna_abs > 0:
+                sgna_pct = sgna_abs / receita
+            # Outras = impairment + outras receitas/despesas operacionais (com sinal).
+            outras_pct = (perdas + outras_rec + outras_desp) / receita
+            equivalencia_pct = equiv / receita
+
+    # Deducoes via DVA (razao RB/RL do Ano 0); deducoes% = 1 - RL/RB.
+    razao, fonte_razao = carregar_razao_receita_bruta(ticker, raiz)
+    if razao is not None and razao > 1:
+        deducoes_pct = 1 - (1 / razao)
+        fonte_deducoes = fonte_razao
+    else:
+        deducoes_pct = 0.0
+        fonte_deducoes = "sem_dva_deducoes_zero"
+        logger.warning(
+            "%s: DVA/receita bruta indisponivel (%s); deducoes = 0.",
+            ticker,
+            fonte_razao,
+        )
+
+    return {
+        "margem_bruta": margem_bruta,
+        "sgna_pct_receita": sgna_pct,
+        "deducoes_pct": deducoes_pct,
+        "outras_despesas_pct_receita": round(outras_pct, 5),
+        "equivalencia_pct_receita": round(equivalencia_pct, 5),
+        "aliquota_efetiva": _numero(agregados.get("aliquota_efetiva_media_3a"), None),
+        "fonte_deducoes": fonte_deducoes,
+    }
+
+
 def gerar_premissas_nao_financeira(
     ticker: str,
     metadados: dict[str, Any],
@@ -146,6 +237,46 @@ def gerar_premissas_nao_financeira(
     for nome, vetor in vetores.items():
         for ano, valor in vetor.items():
             premissas[f"{nome}_ano{ano}"] = round(valor, 5)
+
+    # --- DRE completa (Padrao Smartfit, Prompt 8.1): conjunto SEMPRE gerado ---
+    # margem_ebitda continua acima (retrocompat); os campos abaixo ligam o modo
+    # completo (bruta->liquida, CPV/SG&A separados, imposto efetivo, D&A aberta).
+    defaults_setor = _defaults_dre_completa(
+        str(metadados.get("subtipo") or "outros"), raiz
+    )
+    ancoras = _ancoras_dre_completa(ticker, raiz, agregados, defaults_setor)
+    vetores_dre = {
+        "margem_bruta": _interpolar_vetor(
+            ancoras["margem_bruta"],
+            _numero(defaults_setor.get("margem_bruta"), ancoras["margem_bruta"]),
+            LIMITES_MARGEM_BRUTA,
+        ),
+        "sgna_pct_receita": _interpolar_vetor(
+            ancoras["sgna_pct_receita"],
+            _numero(
+                defaults_setor.get("sgna_pct_receita"),
+                ancoras["sgna_pct_receita"],
+            ),
+            LIMITES_SGNA,
+        ),
+        "deducoes_pct_receita_bruta": _interpolar_vetor(
+            ancoras["deducoes_pct"],
+            ancoras["deducoes_pct"],
+            LIMITES_DEDUCOES,
+        ),
+    }
+    for nome, vetor in vetores_dre.items():
+        for ano, valor in vetor.items():
+            premissas[f"{nome}_ano{ano}"] = round(valor, 5)
+    premissas["outras_despesas_pct_receita"] = ancoras["outras_despesas_pct_receita"]
+    premissas["equivalencia_pct_receita"] = ancoras["equivalencia_pct_receita"]
+    premissas["modo_aliquota"] = MODO_ALIQUOTA_PADRAO
+    if ancoras.get("aliquota_efetiva") is not None:
+        premissas["aliquota_efetiva"] = round(float(ancoras["aliquota_efetiva"]), 5)
+    premissas["origem_dre_completa"] = (
+        "margem_bruta/SG&A/deducoes derivados de ancoras historicas + defaults "
+        f"do subtipo; deducoes: {ancoras['fonte_deducoes']}; REVISAR"
+    )
 
     premissas["dso"] = round(_numero(agregados.get("dso_media_3a"), 45.0))
     premissas["dio"] = round(_numero(agregados.get("dio_media_3a"), 45.0))

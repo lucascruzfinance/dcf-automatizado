@@ -37,6 +37,7 @@ try:
     from src.projecao.projetor_dre import (
         HORIZONTE_PROJECAO,
         calcular_ir_csll,
+        calcular_ir_csll_completo,
         carregar_json,
         carregar_metadados,
         empresa_usa_ret,
@@ -57,6 +58,7 @@ except ModuleNotFoundError as erro:
     from projetor_dre import (
         HORIZONTE_PROJECAO,
         calcular_ir_csll,
+        calcular_ir_csll_completo,
         carregar_json,
         carregar_metadados,
         empresa_usa_ret,
@@ -434,6 +436,8 @@ def projetar_divida_balanco_dfc(
     usa_ret: bool,
     razao_receita_bruta: float | None,
     parametros: dict[str, float],
+    modo_dre: str = "legado",
+    contexto_ir_completo: dict[str, Any] | None = None,
 ) -> tuple[
     dict[str, dict[str, float | str]],
     dict[str, dict[str, float | str]],
@@ -486,12 +490,33 @@ def projetar_divida_balanco_dfc(
         # DRE recalculada com o resultado financeiro completo.
         linha_dre["resultado_financeiro"] = resultado_financeiro
         linha_dre["ebt"] = ebit + resultado_financeiro
-        linha_dre["ir_csll"] = calcular_ir_csll(
-            ebt=float(linha_dre["ebt"]),
-            receita_liquida=receita_liquida,
-            usa_ret=usa_ret,
-            razao_receita_bruta=razao_receita_bruta,
-        )
+        if modo_dre == "completo":
+            # Modo completo: RET sobre a Receita BRUTA PROJETADA ano a ano;
+            # demais empresas seguem o modo de aliquota (marginal/efetiva) da
+            # DRE completa. A D&A ja esta embutida no EBIT (nao recalcula).
+            contexto = contexto_ir_completo or {}
+            receita_bruta = obter_float_obrigatorio(
+                linha_dre,
+                "receita_bruta",
+                chave_ano,
+            )
+            ir_csll, aliquota_usada = calcular_ir_csll_completo(
+                ebt=float(linha_dre["ebt"]),
+                receita_bruta=receita_bruta,
+                usa_ret=usa_ret,
+                modo_aliquota=str(contexto.get("modo_aliquota", "marginal")),
+                aliquota_efetiva=contexto.get("aliquota_efetiva"),
+                aliquota_marginal=float(contexto.get("aliquota_marginal", 0.34)),
+            )
+            linha_dre["ir_csll"] = ir_csll
+            linha_dre["aliquota_efetiva_usada"] = aliquota_usada
+        else:
+            linha_dre["ir_csll"] = calcular_ir_csll(
+                ebt=float(linha_dre["ebt"]),
+                receita_liquida=receita_liquida,
+                usa_ret=usa_ret,
+                razao_receita_bruta=razao_receita_bruta,
+            )
         linha_dre["lucro_liquido"] = linha_dre["ebt"] + linha_dre["ir_csll"]
         lucro_liquido = float(linha_dre["lucro_liquido"])
 
@@ -725,6 +750,17 @@ def projetar_divida(
     )
     razao_receita_bruta = _numero_ou_none(razao_receita_bruta)
 
+    modo_dre = str(conteudo.get("modo_dre", "legado"))
+    politicas_dre = conteudo.get("politicas_projecao", {}).get("dre", {})
+    contexto_ir_completo = {
+        "modo_aliquota": politicas_dre.get("modo_aliquota", "marginal"),
+        "aliquota_efetiva": _numero_ou_none(
+            politicas_dre.get("aliquota_efetiva_disponivel")
+        ),
+        "aliquota_marginal": _numero_ou_none(politicas_dre.get("aliquota_marginal"))
+        or 0.34,
+    }
+
     payout, origem_payout = resolver_payout(
         premissas_completas,
         metadados,
@@ -749,6 +785,8 @@ def projetar_divida(
         usa_ret=usa_ret,
         razao_receita_bruta=razao_receita_bruta,
         parametros=parametros,
+        modo_dre=modo_dre,
+        contexto_ir_completo=contexto_ir_completo,
     )
     fechamento_ok = validar_fechamento_balanco(balanco)
     politicas = {

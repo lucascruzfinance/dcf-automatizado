@@ -78,7 +78,7 @@ através de unit economics."*
 | 7 | Capex **expansão × manutenção** | Capex único % receita | 8.2 |
 | 8 | **WK multi-driver**: clientes=dias de RB; fornecedores=dias de CPV; impostos=dias de deduções; salários=dias de SG&A | DSO/DIO/DPO ou % receita | 8.3 |
 | 9 | **Dívida por instrumento** (saldo, taxa, moeda, curva, vencimento) | Perfil CP/LP agregado | 8.3 |
-| 10 | **Revolver formal** (caixa mínimo % receita, juros CDI+spread, amortização automática) | Captação p/ caixa mínimo sem juros próprios/amortização | 8.3 |
+| 10 | ~~Revolver formal~~ **FORA DE ESCOPO (decisão de Lucas, 14/07/2026):** o projeto NÃO implementa um revolver formal. A **captação automática para caixa mínimo** que a v2 já tem permanece como o mecanismo de fechamento de caixa. | Captação p/ caixa mínimo (v2) — **mantida** | — |
 | 11 | **DFC indireto COMPLETO** reconciliando cada linha do BP (blocos IFRS-16, impostos diferidos, WK, outros operacionais, capex, dividendos, OCI) + caixa BoP/EoP + FCO % EBITDA | DFC simplificado | 8.3 |
 | 12 | **BP aberto linha a linha** (diferidos, depósitos judiciais, receita diferida…) com linha `Check` visível | BP mínimo com residuais agregados | 8.3 |
 | 13 | **Aba Macro** (PIB, IPCA, IGP-M, Selic, CDI, câmbio; histórico + projeção) alimentando o modelo | Selic/IPCA/Focus coletados, sem bloco anual nem aba | 9.1 |
@@ -273,7 +273,9 @@ validação do `main.py`/app com os vetores (8 valores individuais cada):
 
 ## O que NÃO fazer
 
-- NÃO implementar IFRS-16, safras de D&A, revolver ou DFC completo (Prompts 8.2/8.3).
+- NÃO implementar IFRS-16, safras de D&A ou DFC completo (Prompts 8.2/8.3). O
+  revolver formal está FORA DE ESCOPO (decisão 14/07/2026): a captação automática
+  para caixa mínimo da v2 permanece como o mecanismo de fechamento de caixa.
 - NÃO quebrar bancos (trilha FCFE não usa este projetor — não tocar).
 - NÃO replicar a abertura por segmento/coorte do Smartfit (v3.0).
 - NÃO mudar o front-end nem o Excel ainda (Semana 9) — apenas garantir que não quebram.
@@ -408,7 +410,8 @@ depreciação economicamente realista, como no Smartfit:
 
 ## O que NÃO fazer
 
-- NÃO mexer no revolver/DFC/BP completo (Prompt 8.3). NÃO tocar em bancos.
+- NÃO mexer no DFC/BP completo (Prompt 8.3). NÃO tocar em bancos. (O revolver
+  formal está fora de escopo — a captação automática v2 fecha o caixa.)
 - NÃO adotar capex/academia nem qualquer driver por unidade (v3.0).
 - NÃO alterar a convenção de sinais persistida (capex assinado; D&A positiva no
   schedule, negativa na DRE — seguir o que os módulos atuais documentam).
@@ -420,30 +423,37 @@ depreciação economicamente realista, como no Smartfit:
 ---
 ---
 
-# PROMPT 8.3 — Dívida por instrumento (opcional), revolver formal, DFC indireto completo e BP aberto (Semana 8 · 12–19/07)
+# PROMPT 8.3 — Dívida por instrumento (opcional), DFC indireto completo e BP aberto (Semana 8 · 12–19/07)
+
+> **Escopo ajustado (decisão de Lucas, 14/07/2026): SEM revolver formal.** O projeto
+> NÃO implementa um revolver com juros próprios/amortização automática. A **captação
+> automática para caixa mínimo** que a v2 já tem (`caixa_minimo_pct_receita`) permanece
+> como o mecanismo de fechamento de caixa SEM plug. Onde o Smartfit usa "Revolver",
+> este prompt usa a captação automática v2.
 
 ## Papel e contexto
 
 Você é o **Claude Fable 5**. Os Prompts 8.1–8.2 fecharam (DRE completa; IFRS-16;
 safras). Leia `CONTEXT.md`, `ESTRUTURA_SMARTFIT.md` (seções "Debt", "Dívida POR
-INSTRUMENTO", "Revolver", "Equity schedule", "Balance Sheet", "Cash Flow"),
+INSTRUMENTO", "Equity schedule", "Balance Sheet", "Cash Flow"),
 `src/projecao/schedule_divida.py`, `src/projecao/schedule_wk.py` e
 `src/valuation/checklist.py`. Esta é a **terceira etapa da Semana 8** — a mais densa;
-se precisar, divida em duas sessões (8.3a dívida+revolver / 8.3b DFC+BP), fechando o
+se precisar, divida em duas sessões (8.3a dívida / 8.3b DFC+BP), fechando o
 DoD completo ao final.
 
 ## Objetivo
 
-Fechar o motor no padrão Smartfit: dívida modelável por instrumento, revolver que
-fecha o caixa SEM plug, um DFC indireto que reconcilia TODAS as linhas do balanço, e
-um BP projetado aberto com verificação visível. Inclui o WK multi-driver.
+Fechar o motor no padrão Smartfit: dívida modelável por instrumento, a captação
+automática para caixa mínimo (v2) que fecha o caixa SEM plug, um DFC indireto que
+reconcilia TODAS as linhas do balanço, e um BP projetado aberto com verificação
+visível. Inclui o WK multi-driver.
 
 ## Referência no modelo Smartfit
 
 - Dívida agregada + target: `Build-Up` L395–L418. Instrumentos: L420–L1030 (estrutura
   por bloco: saldo, curva de amortização, vencimento, juros, moeda, Kd).
-- Revolver: `Build-Up` L1051–L1072 (caixa mínimo 2% da receita; saque =
-  `-MIN(cash need, 0)`; juros CDI+spread sobre saldo de abertura).
+- O Smartfit tem um bloco de Revolver (`Build-Up` L1051–L1072); NÃO o replicamos — a
+  captação automática para caixa mínimo da v2 cumpre o mesmo papel de fechar o caixa.
 - Equity schedule: `Build-Up` L1080–L1090. Receita financeira: L1074–L1078.
 - DFC indireto: `Model ` L129–L186 (blocos e ordem descritos no mapa estrutural).
 - BP aberto + Check: `Model ` L83–L127.
@@ -465,7 +475,7 @@ um BP projetado aberto com verificação visível. Inclui o WK multi-driver.
   `config/setores.json`; construtoras seguem ancoradas como hoje).
 - NWC e ΔNWC continuam com a mesma definição persistida (compat com FCFF).
 
-### 8.3.2 Dívida por instrumento (OPCIONAL) + revolver formal (`schedule_divida.py`)
+### 8.3.2 Dívida por instrumento (OPCIONAL) + captação automática v2 (`schedule_divida.py`)
 
 - **Tabela opcional de instrumentos** nas premissas:
   ```json
@@ -482,12 +492,12 @@ um BP projetado aberto com verificação visível. Inclui o WK multi-driver.
   (conversão automática de moeda = backlog; documentar no template).
 - Agregação: juros por instrumento = taxa × saldo de ABERTURA (D-015); amortizações
   somadas ao fluxo de financiamento; captações novas continuam pela regra v2.
-- **Revolver formal** (evolução da captação automática v2): saque =
-  `max(0, caixa_minimo − caixa_pre_revolver)`; **amortização automática** quando o
-  caixa excede o mínimo E há saldo de revolver; juros próprios =
-  `(CDI_coletado + spread_revolver) × saldo de abertura` (spread em
-  `config/parametros.json`, default 2,5pp); saldo persistido em bloco `revolver`
-  separado da dívida estrutural. `caixa_minimo_pct_receita` continua premissa.
+- **Captação automática para caixa mínimo (v2 — MANTIDA, sem revolver formal):** quando
+  o caixa projetado fica abaixo de `caixa_minimo_pct_receita × receita`, o motor capta a
+  diferença no fim do ano (regra v2 já existente, sem juros no próprio ano — D-015). NÃO
+  criar um bloco `revolver` separado nem juros próprios/amortização automática de
+  revolver: a captação já entra na dívida estrutural e paga juros por Kd em t+1
+  (decisão 14/07/2026). `caixa_minimo_pct_receita` continua premissa.
 - Receita financeira: alinhar a taxa default ao **CDI coletado** (9.1 amplia o
   coletor; até lá, Selic ≈ CDI com aviso) — mantém a cascata premissa > coletado >
   fallback.
@@ -507,9 +517,9 @@ EBITDA
 (=) FCO   [+ % do EBITDA — indicador de conversão]
   bloco Capex: imobilizado, intangível (assinados)
 (=) FCO pós-capex [+ % do EBITDA]
-  Resultado financeiro caixa (juros dívida + revolver + receita financeira)
-  Δ Empréstimos (captações − amortizações, por instrumento quando houver)
-  Δ Revolver (saques − amortizações)
+  Resultado financeiro caixa (juros dívida + receita financeira)
+  Δ Empréstimos (captações − amortizações, por instrumento quando houver;
+                 inclui a captação automática para caixa mínimo da v2)
   Dividendos pagos
   Outros (OCI/capital social — Δ=0 explícito)
 (=) Variação de caixa → Caixa BoP → Caixa EoP
@@ -526,7 +536,7 @@ EBITDA
   impostos a recuperar, outros CP, direito de uso, imobilizado, intangível,
   diferidos/judiciais/outros LP (constantes explícitos, um campo cada — vindos do BP
   REAL do Ano 0 como na D-016), fornecedores, salários, impostos a recolher, receita
-  diferida, outros CP passivos, empréstimos CP/LP, revolver, arrendamento CP/LP,
+  diferida, outros CP passivos, empréstimos CP/LP, arrendamento CP/LP,
   outros LP, PL (capital social + reservas + lucros acumulados evoluindo com
   LL − dividendos + OCI constante, minoritários).
 - Campo `verificacao_balanco` por ano (diferença absoluta) — o Excel do 9.2 exibirá
@@ -534,19 +544,19 @@ EBITDA
 
 ## Contratos de interface
 
-- Blocos: `divida` (instrumentos opcionais + agregado), `revolver` (novo), `dfc`
-  (novo indireto) + `dfc_simplificado` (legado temporário), `balanco` (aberto),
-  `wk` (multi-driver). Todos os nomes no mapeamento.
+- Blocos: `divida` (instrumentos opcionais + agregado, inclui a captação automática
+  v2), `dfc` (novo indireto) + `dfc_simplificado` (legado temporário), `balanco`
+  (aberto), `wk` (multi-driver). Todos os nomes no mapeamento. (Sem bloco `revolver`.)
 - `calculador_fcff`/`calculador_ev`/`checklist` continuam lendo os campos que já
-  leem (FCFF não muda de definição; bridge usa dívida total incl. revolver).
+  leem (FCFF não muda de definição; bridge usa a dívida total).
 
 ## Definição de Pronto (DoD)
 
 - SMFT3, DIRR3, MGLU3, VALE3, WEGE3, RADL3, RENT3 rodam ponta a ponta com: DFC
   indireto fechando (variação de caixa = Δ caixa do BP; dif < 1e-6), balanço aberto
-  verificado nos 8 anos, revolver sacando/amortizando quando aplicável.
-- Caso de estresse: premissas que forçam caixa negativo → revolver saca, paga juros,
-  amortiza quando sobra — teste sintético cobrindo o ciclo completo.
+  verificado nos 8 anos, captação automática cobrindo o caixa mínimo quando aplicável.
+- Caso de estresse: premissas que forçam caixa abaixo do mínimo → a captação
+  automática (v2) cobre o déficit no fim do ano — teste sintético cobrindo o ciclo.
 - Instrumentos de dívida: DIRR3 com tabela de 2 instrumentos fictícios nas premissas
   de TESTE produz juros/amortizações por instrumento (não usar como tese).
 - **Regressão dourada EXPLICADA** (padrão D-022) para DIRR3/MGLU3.
@@ -555,7 +565,7 @@ EBITDA
 ## Testes e validação
 
 - `tests/test_schedule_divida.py` estendido: instrumento com curva, bullet no
-  vencimento, sem tabela → v2 idêntico; revolver saque/juros/amortização.
+  vencimento, sem tabela → v2 idêntico; captação automática cobrindo o caixa mínimo.
 - `tests/test_dfc_indireto.py` (novo): cada bloco reconcilia com o BP; FCO % EBITDA;
   caixa EoP = caixa BP; empresa sem leasing → bloco IFRS-16 zerado.
 - `tests/test_schedule_wk.py` estendido: modo multi-driver com drivers distintos;
@@ -608,7 +618,7 @@ copiar"), `src/coleta/coletor_macro.py`, `src/valuation/calculador_ev.py` e
 - **Bloco `macro_anual` persistido na projeção**: para `ano1..8`, IPCA/Selic/CDI/PIB
   esperados — Focus para os anos que ele cobre; além do horizonte, convergência
   linear para as metas de longo prazo em `config/parametros.json` (documentar).
-- O motor passa a LER daqui o CDI (receita financeira, revolver — cascata
+- O motor passa a LER daqui o CDI (receita financeira — cascata
   premissa > coletado > fallback do 8.3 fica completa). NENHUMA outra fórmula muda.
 
 ### 9.1.2 Painel de Retornos (`src/valuation/calculador_retornos.py`, novo)
@@ -644,7 +654,7 @@ persiste bloco `retornos`:
   coerentes (teste de sanidade: preço-alvo > preço atual ⇒ TIR > 0).
 - Seção Retornos renderiza no app para as 4 empresas; `tests/test_app.py` cobre.
 - Regressão dourada: Target Price INALTERADO (nada aqui muda o valuation; CDI só
-  muda receita financeira/revolver se antes usava fallback — se mudar, explicar).
+  muda a receita financeira se antes usava fallback — se mudar, explicar).
 - `pytest` verde; `black`/`flake8` limpos.
 
 ## Testes e validação
@@ -708,8 +718,8 @@ nenhuma capacidade existente (as 8 seções atuais viram sub-abas da etapa 3):
   4. Capex & D&A (capex % receita ×8; expansão %; vidas úteis derivadas EXIBIDAS
      como informação, com override opcional)
   5. IFRS-16 (adições % receita ×8; taxa; prazo — só se a empresa tem leasing)
-  6. Dívida & Revolver (Kd; caixa mínimo; spread; tabela OPCIONAL de instrumentos
-     via `st.data_editor` com adicionar/remover linha)
+  6. Dívida (Kd; caixa mínimo % receita; tabela OPCIONAL de instrumentos
+     via `st.data_editor` com adicionar/remover linha) — sem revolver
   7. Dividendos & Impostos (payout; modo de alíquota)
   8. Custo de capital & Perpetuidade (beta, ERP, CRP, g, estrutura-alvo)
   9. Macro (somente leitura: bloco `macro_anual` com fonte/data)
@@ -795,7 +805,7 @@ aba de controle, comentários, fundo de premissa).
 | 2 | `Avisos` | Aba de CONTROLE estilo "To do list": score de qualidade + avisos da coleta, checklist do motor (status colorido), contas não mapeadas, fallbacks usados (leasing estimado etc.), flag de premissas automáticas, "Considerações ao analista" | Smartfit `To do list` |
 | 3 | `Macro` | Bloco `macro_anual` + séries coletadas (histórico e projeção, fonte e data por série) | Smartfit `Macro` |
 | 4 | `Premissas` | TODOS os vetores ×8 e escalares (grupos do 9.2.2), fonte azul + fundo `FFFFCC`, âncora histórica ao lado, **comentário de célula em cada premissa** (origem/âncora/última edição) | conv. WSP+Smartfit |
-| 5 | `Build-Up` | Blocos verticais: Receita (bruta→líquida), CPV/SG&A, WK multi-driver (dias × driver), PP&E + **matriz de safras de D&A**, Leasing (asset+liability), Dívida (agregado + instrumentos quando houver), Revolver, Equity schedule | Smartfit `Build-Up` |
+| 5 | `Build-Up` | Blocos verticais: Receita (bruta→líquida), CPV/SG&A, WK multi-driver (dias × driver), PP&E + **matriz de safras de D&A**, Leasing (asset+liability), Dívida (agregado + instrumentos quando houver, inclui captação automática v2), Equity schedule | Smartfit `Build-Up` |
 | 6 | `Model` | P&L completa + BP ABERTO + DFC INDIRETO, 3 exercícios históricos + 8 projetados, **linha `Check` do balanço** (`IF(=,"Ok",dif)`) e caixa BoP/EoP amarrado | Smartfit `Model ` |
 | 7 | `DCF & Retornos` | FCFF 8 anos (ROIC/ROIIC), decomposição do WACC, VT, bridge EV→Equity→Target→Upside, **múltiplos implícitos por ano + TIR/MOIC** (bloco `retornos`), Football Field/Waterfall PNG | Direcional `FCFF` + Smartfit `D@G`/`AVP` |
 | 8 | `Sensibilidades` | 3 tabelas atuais com formatação condicional + grade de cenários Bear/Base/Bull (premissas e resultados por cenário) | atual + `cenarios` |
@@ -814,11 +824,10 @@ aba de controle, comentários, fundo de premissa).
   anos como texto. Larguras, freeze panes (cabeçalho + rótulos), agrupamento
   (outline) dos blocos do Build-Up.
 - **Comentários de célula** (novo padrão): toda premissa (origem/âncora), toda
-  fórmula-chave (fórmula financeira em português — FCFF, VT, bridge, revolver,
-  safras), todo fallback (ex.: "direito de uso estimado = passivo de arrendamento").
+  fórmula-chave (fórmula financeira em português — FCFF, VT, bridge, safras),
+  todo fallback (ex.: "direito de uso estimado = passivo de arrendamento").
 - **Blocos condicionais:** empresa sem leasing → bloco Leasing omitido (sem linhas
-  vazias); sem instrumentos → só o agregado; sem revolver acionado → bloco com
-  saldos zero mas fórmulas vivas.
+  vazias); sem instrumentos → só o agregado da dívida.
 - **Compatibilidade:** manter função/CLI atuais (`exportar_excel(ticker)`), o Excel
   Preview do app lê as abas novas automaticamente (leitor é genérico); atualizar as
   constantes `LINHA_*` e os testes de alinhamento.
@@ -890,7 +899,7 @@ Para um ticker, executa e imprime relatório (e persiste
 2. **Célula a célula vs motor**: TODAS as linhas-chave × 8 anos contra os JSONs
    persistidos (tolerância 1e-6 relativa): receita bruta/líquida, CPV, SG&A, EBIT,
    EBITDA, LL, D&A (3 componentes), NWC/ΔNWC, capex, saldos de leasing, dívida,
-   revolver, caixa BoP/EoP, FCO e % EBITDA, FCFF, WACC, VT, EV, equity, Target,
+   caixa BoP/EoP, FCO e % EBITDA, FCFF, WACC, VT, EV, equity, Target,
    upside, TIR/MOIC, múltiplos implícitos.
 3. **Consistência de fórmula por linha**: nas colunas de projeção, a fórmula da
    coluna N difere da N+1 apenas pelas referências de coluna (detector de "célula
@@ -901,7 +910,7 @@ Para um ticker, executa e imprime relatório (e persiste
    (amostra); freeze panes.
 5. **Paridade estrutural com o Smartfit** (checklist fixo em
    `config/paridade_smartfit.json`): blocos obrigatórios presentes por aba (ex.:
-   Build-Up tem WK multi-driver + safras + leasing + revolver; Model tem DFC
+   Build-Up tem WK multi-driver + safras + leasing; Model tem DFC
    indireto com blocos nomeados; DCF tem TIR/MOIC) — comparação de ESTRUTURA, nunca
    de números (as premissas diferem por definição).
 
@@ -972,7 +981,7 @@ cadeia inteira JSON→Excel:
 
 - `margem_bruta_ano3` +2pp → lucro bruto/EBITDA/FCFF do ano 3 sobem; Target sobe;
   célula correspondente do Excel muda.
-- `caixa_minimo_pct_receita` ↑ → revolver saca mais; juros sobem; check fecha.
+- `caixa_minimo_pct_receita` ↑ → captação automática sobe; juros sobem; check fecha.
 - `dias_clientes` ↑ → NWC sobe, FCFF ano 1 cai.
 - `payout` ↑ → dividendos no DFC e equity schedule mudam; FCFF INALTERADO.
 - `adicoes_leasing_pct` ↑ → D&A direito de uso e juros de arrendamento sobem.

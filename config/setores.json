@@ -310,6 +310,25 @@
       }
     }
   },
+  "defaults_dre_completa": {
+    "descricao": "Defaults setoriais da DRE completa (Prompt 8.1) usados pelo gerador de premissas quando nao ha ancora historica: margem_bruta (lucro bruto / receita liquida) e sgna_pct_receita (SG&A / receita liquida). Valores plausiveis por subtipo, sobrepostos pela media historica quando disponivel. Todos opcionais no arquivo de premissas.",
+    "construcao_civil": { "margem_bruta": 0.35, "sgna_pct_receita": 0.10 },
+    "varejo": { "margem_bruta": 0.28, "sgna_pct_receita": 0.22 },
+    "industria": { "margem_bruta": 0.30, "sgna_pct_receita": 0.14 },
+    "consumo": { "margem_bruta": 0.35, "sgna_pct_receita": 0.20 },
+    "saude": { "margem_bruta": 0.30, "sgna_pct_receita": 0.15 },
+    "utility_energia": { "margem_bruta": 0.45, "sgna_pct_receita": 0.10 },
+    "saneamento": { "margem_bruta": 0.55, "sgna_pct_receita": 0.12 },
+    "telecom": { "margem_bruta": 0.55, "sgna_pct_receita": 0.20 },
+    "mineracao": { "margem_bruta": 0.45, "sgna_pct_receita": 0.06 },
+    "oleo_gas": { "margem_bruta": 0.45, "sgna_pct_receita": 0.08 },
+    "papel_celulose": { "margem_bruta": 0.40, "sgna_pct_receita": 0.10 },
+    "agro": { "margem_bruta": 0.25, "sgna_pct_receita": 0.08 },
+    "transporte_logistica": { "margem_bruta": 0.35, "sgna_pct_receita": 0.12 },
+    "tecnologia": { "margem_bruta": 0.55, "sgna_pct_receita": 0.30 },
+    "holding": { "margem_bruta": 0.40, "sgna_pct_receita": 0.10 },
+    "outros": { "margem_bruta": 0.30, "sgna_pct_receita": 0.15 }
+  },
   "mapa_setor_cvm": [
     { "contem": ["banco"], "subtipo": "banco" },
     {
