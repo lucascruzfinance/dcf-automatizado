@@ -15,6 +15,64 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 
 ---
 
+## 17/07/2026 — Simplificação da D&A (pedido de Lucas: reverter D&A por safra)
+
+> Sessão do **Claude Fable 5**. Pedido explícito de Lucas no meio do Prompt 8.2:
+> *"Não precisa fazer o D&A por safra, faça simplificado, conforme estava antes,
+> apenas fazendo CAPEX por % da receita e D&A por % do PP&E."* A modelagem de
+> arrendamento IFRS-16 (juros de arrendamento separados, D&A do direito de uso
+> por reclassificação, bridge com passivo somado) é MANTIDA; só a mecânica de
+> depreciação do imobilizado volta ao modelo simples.
+
+### D-047 ⏳ — D&A do imobilizado volta ao modelo SIMPLES (reverte D-041)
+
+- **Situação:** o Prompt 8.2.3 tinha trocado a D&A por uma matriz de safras de
+  CAPEX com vida útil DERIVADA do histórico (D-041). Lucas pediu para reverter à
+  mecânica simples "como estava antes" (v2/8.1).
+- **Escolha:** `schedule_ppe.py` volta a: (1) **CAPEX = % da receita** (premissa
+  `capex_receita_anoN`, inalterada); (2) **D&A = taxa única** `1/vida_util_ppe_anos`
+  (config = 10 anos) sobre o **PP&E de abertura**, com `MIN(quota, base)` para não
+  depreciar abaixo de zero (helper `calcular_depreciacao_amortizacao` que já
+  existia). Removidos: vida derivada, clamp [3,30], matriz de safras,
+  meia-depreciação e o bloco `ppe_safras` da config (virou `capex_split`). O
+  **intangível NÃO amortiza mais** (`da_intangivel = 0`; saldo do Ano 0 constante,
+  mas mantido como **linha própria do balanço** — a estrutura de D-043 permanece e
+  o balanço continua fechando por construção). **Mantido do 8.2:** split
+  informativo capex expansão×manutenção (agora com default por subtipo em
+  `setores.json` → global 80%) e a D&A histórica do Ano 0 persistida em `ano0.ppe`
+  (insumo do prazo médio do leasing).
+- **Alternativas:** manter as safras (contraria o pedido explícito); dobrar o
+  intangível de volta para dentro de `outros_ativos` como na v2 (funciona, mas
+  esconde a linha — manter explícita é mais auditável e o balanço fecha igual).
+
+### D-048 ⏳ — Golden re-baseline da simplificação (mudanças EXPLICADAS de Target)
+
+- **Números (preço de mercado congelado, mesmo rf da golden):**
+  DIRR3 16,8618 → **16,9029** (+0,24%); MGLU3 7,5128 → **2,6542** (−64,7%);
+  SMFT3 18,6259 → **0,6361** (−96,6%). Balanço fecha nos 3 (dif < 6e-9). VALE3
+  (109,85) e WEGE3 (12,87) rodam sem quebrar; `verificar_semana3` → SEMANA 3 OK.
+- **Driver único:** a D&A simples (config vida=10) é MENOR que a D&A por safra com
+  vida derivada (DIRR3 3,22; MGLU3 3,98; SMFT3 7,22 anos), então:
+  - **Modo legado (DIRR3, MGLU3):** menos D&A → menos tax shield `D&A×t` no FCFF.
+  - **Modo completo (SMFT3):** menos D&A add-back no FCFF (a D&A embutida em
+    CPV/SG&A vem das margens históricas, mas o add-back agora é menor).
+- **Por que a queda é grande em MGLU3/SMFT3 e não em DIRR3:** o equity é um
+  RESÍDUO pequeno após um bridge grande (dívida + leasing IFRS-16 somado, D-044).
+  MGLU3 (dívida 8,5 mi + leasing 3,6 mi) e SMFT3 (dívida 13,8 mi + leasing 6,3 mi)
+  têm bridge da ordem do próprio EV → uma redução moderada de EV vira uma queda
+  grande no equity/target (alavancagem do bridge). DIRR3 tem leasing imaterial e
+  dívida pequena → efeito quase nulo (+0,24%).
+- **AÇÃO RECOMENDADA AO HUMANO — SMFT3 R$ 0,64 é um artefato, não tese:** SMFT3 é
+  o pior caso para o modelo simples (leasing gigante, modo completo, **premissas
+  automáticas** `premissas_automaticas: true`). No modo completo a D&A embutida nas
+  margens (real, ~1,76 mi/ano) é MAIOR que o add-back simples (config vida 10),
+  subestimando o FCFF; com o bridge quase igual ao EV, o equity vira um sliver. Foi
+  exatamente esse descasamento que a D&A por safra corrigia (D-046). Se o Target de
+  SMFT3 importar como tese, ou (a) revisar as premissas na aba Premissas (crescimento/
+  margens/`prazo_medio_leasing_anos`), ou (b) reconsiderar reativar a D&A por safra
+  SÓ para o modo completo. Padrão D-024 (premissas automáticas produzem extremos; a
+  triangulação expõe; o analista revisa).
+
 ## 14/07/2026 — Prompt 8.2 (IFRS-16, D&A por safra, capex expansão×manutenção)
 
 > Sessão do **Claude Code**: modelagem do arrendamento (IFRS-16) como cidadão de
@@ -22,8 +80,12 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 > histórico, amortização do intangível e split de capex expansão×manutenção.
 > Novo módulo `src/projecao/schedule_leasing.py`; `schedule_ppe.py` reescrito;
 > `schedule_divida.py` e o bridge ajustados. Golden re-baseline EXPLICADO (D-045).
+> **NOTA (17/07/2026):** a parte de D&A por safra (D-041) foi REVERTIDA a pedido
+> de Lucas — ver D-047/D-048 na seção de 17/07 acima. O leasing IFRS-16 (D-042/
+> D-044) e a linha própria do intangível (D-043) permanecem; D-045/D-046 são
+> substituídos pelo novo golden re-baseline em D-048.
 
-### D-041 ⏳ — D&A do imobilizado POR SAFRA com vida útil DERIVADA do histórico
+### D-041 🔁 REVERTIDA em 17/07/2026 (ver D-047) — D&A do imobilizado POR SAFRA com vida útil DERIVADA do histórico
 
 - **Situação:** a v2/8.1 depreciava o imobilizado por uma taxa única global
   (`1/vida_util_ppe_anos`, config = 10 anos), subestimando a D&A de empresas

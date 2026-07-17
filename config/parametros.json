@@ -29,10 +29,8 @@
     "caixa_minimo_pct_receita": 0.02,
     "taxa_aplicacao_caixa_fallback": 0.10
   },
-  "ppe_safras": {
-    "descricao": "D&A por safra de CAPEX (Prompt 8.2): vida util DERIVADA do historico (imobilizado/D&A), clamp [min,max]; meia-depreciacao no ano da safra; capex split expansao x manutencao.",
-    "vida_util_min_anos": 3,
-    "vida_util_max_anos": 30,
+  "capex_split": {
+    "descricao": "Split informativo do capex (Prompt 8.2, modelo simples D-047): parcela do capex total em expansao (resto e manutencao). Sobrescrevivel por premissa (capex_expansao_pct_ano1..8) ou por subtipo em config/setores.json (premissas_default.capex_expansao_pct).",
     "capex_expansao_pct_padrao": 0.80
   },
   "leasing": {

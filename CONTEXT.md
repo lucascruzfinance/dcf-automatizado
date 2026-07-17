@@ -125,7 +125,7 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
-- **Data da última atualização:** 14/07/2026
+- **Data da última atualização:** 17/07/2026
 - **Versão alvo:** **v2.1 "Padrão Smartfit"** (semanas 8–10, 8 prompts do
   `PROMPTS_FABLE.md` reescrito; v2.0 Ondas 1–4 concluídas; a antiga Onda 5 foi
   redistribuída — parte virou as semanas 8–10, o resto virou backlog v2.2).
@@ -138,11 +138,15 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   mentor (Smartfit/SMFT3) analisado e o `PROMPTS_FABLE.md` reescrito do zero
   para as semanas 8–10. **Prompts 8.1 e 8.2 CONCLUÍDOS em 14/07/2026** (8.1: DRE
   completa bruta→líquida com CPV/SG&A separados, imposto efetivo e D&A aberta,
-  revolver formal descopado; 8.2: IFRS-16, D&A por safra de CAPEX com vida
-  derivada, amortização do intangível, capex expansão×manutenção). **Próxima
-  tarefa: Prompt 8.3** (dívida por instrumento opcional, DFC indireto completo,
-  BP aberto, WK multi-driver). Decisões autônomas pendentes de revisão humana:
-  **`Humano_revisar.md`** (D-001+, agora até D-046).
+  revolver formal descopado; 8.2: IFRS-16 + capex expansão×manutenção). **D&A por
+  safra REVERTIDA em 17/07/2026 a pedido de Lucas** (D-047/D-048): a depreciação
+  do imobilizado voltou ao modelo simples (CAPEX = % receita; D&A = taxa única
+  `1/vida_util_ppe_anos` sobre o PP&E de abertura); o intangível deixou de
+  amortizar; o IFRS-16 (juros de arrendamento, D&A do direito de uso, bridge com
+  passivo somado) foi MANTIDO. **Próxima tarefa: Prompt 8.3** (dívida por
+  instrumento opcional, DFC indireto completo, BP aberto, WK multi-driver).
+  Decisões autônomas pendentes de revisão humana: **`Humano_revisar.md`** (D-001+,
+  agora até D-048).
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -216,6 +220,45 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 17/07/2026 (Claude Fable 5) — Simplificação da D&A (reverte a D&A por safra do 8.2)
+
+- **Pedido de Lucas (no meio do Prompt 8.2):** *"Não precisa fazer o D&A por
+  safra, faça simplificado, conforme estava antes, apenas fazendo CAPEX por % da
+  receita e D&A por % do PP&E."*
+- **Entregue (só motor por dentro; leasing IFRS-16 intacto):**
+  - **`schedule_ppe.py` — D&A SIMPLES (D-047, reverte D-041):** CAPEX = % da
+    receita (premissa inalterada); D&A do imobilizado = taxa única
+    `1/vida_util_ppe_anos` (config = 10) sobre o PP&E de ABERTURA (reusa
+    `calcular_depreciacao_amortizacao` com `MIN(quota, base)`). Removidos: vida
+    derivada, clamp, matriz de safras, meia-depreciação. **Intangível não amortiza
+    mais** (`da_intangivel = 0`, saldo do Ano 0 constante, mas mantido como LINHA
+    PRÓPRIA do balanço — o balanço continua fechando). Mantido do 8.2: split
+    informativo capex expansão×manutenção (novo default por subtipo em
+    `setores.json` → global 80%) e a D&A histórica do Ano 0 em `ano0.ppe` (insumo
+    do prazo médio do leasing).
+  - **Config:** `parametros.json` — bloco `ppe_safras` virou `capex_split` (só o
+    `capex_expansao_pct_padrao`); `mapeamento_cvm.json` — removido
+    `vida_util_ppe_derivada`; `template_naofinanceiras.json` — comentário das
+    premissas opcionais atualizado.
+  - **Leasing (schedule_leasing.py) INTACTO** (juros de arrendamento separados,
+    D&A do direito de uso por reclassificação, bridge com passivo somado D-044);
+    adicionados apenas logs dos fallbacks (direito de uso, taxa, prazo).
+- **Validação:**
+  - **Golden re-baseline EXPLICADO (D-048, substitui D-045/D-046):** DIRR3
+    16,8618→16,9029 (+0,24%); MGLU3 7,5128→2,6542 (−64,7%); SMFT3
+    18,6259→0,6361 (−96,6%). Balanço fecha nos 3 (dif < 6e-9). Driver único: a
+    D&A simples (config vida 10) é MENOR que a por safra → menos tax shield
+    (legado) / menos add-back (completo); a queda vira grande em MGLU3/SMFT3
+    porque o equity é resíduo pequeno após bridge grande (dívida + leasing). VALE3
+    (109,85) e WEGE3 (12,87) rodam; `verificar_semana3` → SEMANA 3 OK.
+  - **SMFT3 R$ 0,64 é ARTEFATO (REVISAR), não tese** (D-048): pior caso do modelo
+    simples (leasing gigante + modo completo + premissas automáticas). No modo
+    completo a D&A real embutida nas margens > add-back simples → FCFF subestimado.
+  - `pytest tests -q` → **149 verdes** (−0, testes do PP&E reescritos para o modelo
+    simples: D&A % PP&E, intangível constante, split por subtipo, taxa da config
+    ignora D&A histórica). `black --workers 1` e `flake8` limpos.
+- **PRÓXIMA TAREFA:** Prompt 8.3 do `PROMPTS_FABLE.md` (fecha a Semana 8).
 
 ### Sessão 14/07/2026 (Claude Code) — Prompt 8.2 (IFRS-16 + D&A por safra + capex expansão/manutenção)
 

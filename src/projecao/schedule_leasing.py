@@ -15,6 +15,12 @@ Modela o arrendamento como cidadao de primeira classe:
 
 Empresa com passivo de arrendamento abaixo do limiar (% do ativo) => o bloco
 inteiro zera, sem erro (Principio 7).
+
+A taxa de arrendamento NAO e derivada dos juros historicos do DFC: as linhas
+de "juros sobre arrendamentos" chegam SEM padronizacao (nome/valor nao
+mapeados) e misturam exercicios ITR/DFP nos brutos da CVM (D-048). O default
+documentado e CDI + spread com clamp; o analista sobrepoe com a premissa
+``taxa_arrendamento``.
 """
 
 from __future__ import annotations
@@ -416,6 +422,29 @@ def projetar_leasing(
         premissas, ano0["direito_uso_ativo"], da_direito_uso_ano0, parametros
     )
     adicoes_pcts = carregar_adicoes_pcts(premissas)
+
+    # Fallbacks logados (Prompt 8.2.1); as origens ficam persistidas no bloco
+    # politicas_projecao.leasing junto com os valores usados.
+    if ano0["origem_direito_uso"] == "fallback_passivo_arrendamento":
+        logger.warning(
+            "%s sem ativo de direito de uso aberto no BP; "
+            "estimado = passivo de arrendamento (%.0f).",
+            ticker_normalizado,
+            ano0["direito_uso_ativo"],
+        )
+    if origem_taxa == "cdi_mais_spread":
+        logger.info(
+            "%s sem premissa taxa_arrendamento; usando CDI + spread = %.2f%%.",
+            ticker_normalizado,
+            taxa * 100,
+        )
+    if origem_prazo == "config_padrao":
+        logger.warning(
+            "%s sem D&A de direito de uso derivavel; prazo medio do leasing "
+            "caiu no padrao da config (%.0f anos).",
+            ticker_normalizado,
+            prazo,
+        )
 
     leasing = projetar_linhas_leasing(
         dre=dre,

@@ -1,4 +1,13 @@
-"""Schedule de PP&E e devolucao de D&A para a DRE projetada."""
+"""Schedule de PP&E e devolucao de D&A para a DRE projetada.
+
+Modelo SIMPLES por instrucao de Lucas (17/07/2026, D-047): CAPEX = % da
+receita (premissa anual) e D&A = taxa unica (1/vida_util_ppe_anos da config)
+sobre o PP&E de ABERTURA. A D&A por safra de CAPEX com vida derivada do
+historico (Prompt 8.2.3 original) foi descopada; o intangivel NAO amortiza
+(saldo constante do Ano 0, linha propria do balanco). Permanecem do 8.2: o
+split informativo capex expansao x manutencao e a D&A historica do Ano 0
+persistida em ``ano0.ppe`` (insumo do prazo medio do schedule de leasing).
+"""
 
 from __future__ import annotations
 
@@ -43,9 +52,8 @@ except ModuleNotFoundError as erro:
     )
 
 CAMPO_VIDA_UTIL_PPE = "vida_util_ppe_anos"
+CAMPO_CAPEX_EXPANSAO_PCT = "capex_expansao_pct"
 CAPEX_EXPANSAO_PCT_PADRAO = 0.80
-VIDA_UTIL_MIN_PADRAO = 3.0
-VIDA_UTIL_MAX_PADRAO = 30.0
 
 
 def obter_float_obrigatorio(
@@ -61,7 +69,7 @@ def obter_float_obrigatorio(
 
 
 def carregar_parametros_ppe(raiz_projeto: Path) -> dict[str, float]:
-    """Carrega parametros globais usados pelo schedule PP&E (com safras 8.2)."""
+    """Carrega parametros globais usados pelo schedule PP&E."""
     caminho = raiz_projeto / "config" / "parametros.json"
     parametros = carregar_json(caminho)
     valor = parametros.get(CAMPO_VIDA_UTIL_PPE)
@@ -72,40 +80,15 @@ def carregar_parametros_ppe(raiz_projeto: Path) -> dict[str, float]:
     if vida_util_anos <= 0:
         raise ValueError(f"Parametro precisa ser positivo: {CAMPO_VIDA_UTIL_PPE}")
 
-    safras = parametros.get("ppe_safras", {})
+    capex_split = parametros.get("capex_split", {})
     return {
         "vida_util_ppe_anos": vida_util_anos,
+        # Formula: taxa D&A = 1 / vida util (modelo simples, D-047).
         "taxa_depreciacao_ppe": 1 / vida_util_anos,
-        "vida_util_min_anos": float(
-            safras.get("vida_util_min_anos", VIDA_UTIL_MIN_PADRAO)
-        ),
-        "vida_util_max_anos": float(
-            safras.get("vida_util_max_anos", VIDA_UTIL_MAX_PADRAO)
-        ),
         "capex_expansao_pct_padrao": float(
-            safras.get("capex_expansao_pct_padrao", CAPEX_EXPANSAO_PCT_PADRAO)
+            capex_split.get("capex_expansao_pct_padrao", CAPEX_EXPANSAO_PCT_PADRAO)
         ),
     }
-
-
-def derivar_vida_util(
-    imobilizado_ano0: float,
-    da_historica_ano0: float,
-    parametros: dict[str, float],
-) -> tuple[float, str]:
-    """Vida util DERIVADA do historico: PP&E / D&A, clampada (Smartfit L339).
-
-    Devolve ``(vida, origem)``. Sem D&A historica confiavel, cai na
-    ``vida_util_ppe_anos`` da config (comportamento v2), tambem clampada.
-    """
-    minimo = parametros["vida_util_min_anos"]
-    maximo = parametros["vida_util_max_anos"]
-    if da_historica_ano0 > 0 and imobilizado_ano0 > 0:
-        # Formula: vida util = PP&E / D&A (numero de anos implicito).
-        vida = imobilizado_ano0 / da_historica_ano0
-        return max(minimo, min(maximo, vida)), "derivada_pp&e/d&a"
-    vida_config = parametros["vida_util_ppe_anos"]
-    return max(minimo, min(maximo, vida_config)), "config_vida_util_ppe_anos"
 
 
 def carregar_premissas_ppe(ticker: str, raiz_projeto: Path) -> dict[int, float]:
@@ -171,7 +154,7 @@ def _valor_opcional_ano0(dados: pd.DataFrame, nome: str, padrao: float = 0.0) ->
 
 
 def carregar_da_historica_ano0(ticker: str, raiz_projeto: Path) -> float:
-    """|D&A| historica do Ano 0 via DFC (base da vida util derivada)."""
+    """|D&A| historica do Ano 0 via DFC (insumo do prazo medio do leasing)."""
     caminho = raiz_projeto / "data" / "raw" / "cvm" / f"{ticker}_dfc.json"
     if not caminho.exists():
         return 0.0
@@ -227,6 +210,29 @@ def calcular_depreciacao_amortizacao(
     return max(depreciacao, 0.0)
 
 
+def resolver_capex_expansao_padrao(
+    metadados: dict[str, Any],
+    raiz_projeto: Path,
+    padrao_global: float,
+) -> tuple[float, str]:
+    """Default do split expansao: subtipo (setores.json) > parametro global."""
+    subtipo = metadados.get("subtipo")
+    if subtipo:
+        caminho_setores = raiz_projeto / "config" / "setores.json"
+        if caminho_setores.exists():
+            setores = carregar_json(caminho_setores)
+            defaults = (
+                setores.get("subtipos", {})
+                .get(str(subtipo), {})
+                .get("premissas_default", {})
+            )
+            valor = defaults.get(CAMPO_CAPEX_EXPANSAO_PCT)
+            if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+                if 0 <= valor <= 1:
+                    return float(valor), f"default_do_subtipo_{subtipo}"
+    return padrao_global, "parametro_global"
+
+
 def carregar_capex_expansao_pcts(
     premissas: dict[str, Any],
     padrao: float,
@@ -248,24 +254,18 @@ def projetar_linhas_ppe(
     capex_expansao_pcts: dict[int, float],
     imobilizado_ano0: float,
     intangivel_ano0: float,
-    vida_util: float,
-    vida_util_intangivel: float,
+    taxa_depreciacao: float,
 ) -> dict[str, dict[str, float | str]]:
-    """Projeta CAPEX, D&A POR SAFRA e PP&E de ano1 a ano8 (Prompt 8.2).
+    """Projeta CAPEX, D&A e PP&E de ano1 a ano8 (modelo simples, D-047).
 
-    D&A do imobilizado = depreciacao do estoque EXISTENTE (linear ate zerar) +
-    depreciacao das SAFRAS de capex (meia-quota no ano da safra, ``MIN(quota,
-    saldo)`` nos anos seguintes — para quando a safra zera). Intangivel:
-    amortizacao linear do saldo do Ano 0. Capex split expansao x manutencao.
+    CAPEX = % da receita (premissa anual); D&A do imobilizado = taxa unica
+    (1/vida da config) sobre o PP&E de ABERTURA. O intangivel NAO amortiza
+    (``da_intangivel = 0``; saldo do Ano 0 constante, linha propria do
+    balanco). Capex split expansao x manutencao e informativo (nao muda o
+    capex total). A D&A do direito de uso e RECLASSIFICADA depois pelo
+    schedule de leasing, dentro do mesmo total (D-042).
     """
     linhas = {}
-    quota_existente = imobilizado_ano0 / vida_util if vida_util > 0 else 0.0
-    saldo_existente = imobilizado_ano0
-    quota_intangivel = (
-        intangivel_ano0 / vida_util_intangivel if vida_util_intangivel > 0 else 0.0
-    )
-    saldo_intangivel = intangivel_ano0
-    safras: list[dict[str, float]] = []
     imobilizado_anterior = imobilizado_ano0
 
     for ano in range(1, HORIZONTE_PROJECAO + 1):
@@ -281,28 +281,12 @@ def projetar_linhas_ppe(
         capex = capex_receita * receita_liquida
         capex_abs = abs(capex)
 
-        # Estoque existente do Ano 0: linear ate zerar (MIN(quota, saldo)).
-        dep_existente = min(quota_existente, saldo_existente)
-        saldo_existente = max(saldo_existente - dep_existente, 0.0)
-
-        # Safras anteriores: quota cheia, parando no saldo remanescente.
-        dep_safras = 0.0
-        for safra in safras:
-            quota_dep = min(safra["quota"], safra["saldo"])
-            safra["saldo"] = max(safra["saldo"] - quota_dep, 0.0)
-            dep_safras += quota_dep
-
-        # Safra NOVA deste ano: meia-depreciacao (Smartfit L344).
-        quota_nova = capex_abs / vida_util if vida_util > 0 else 0.0
-        dep_nova = min(quota_nova / 2, capex_abs)
-        safras.append({"quota": quota_nova, "saldo": max(capex_abs - dep_nova, 0.0)})
-        dep_safras += dep_nova
-
-        da_imobilizado = dep_existente + dep_safras
-
-        # Intangivel: amortizacao linear do saldo do Ano 0.
-        da_intangivel = min(quota_intangivel, saldo_intangivel)
-        saldo_intangivel = max(saldo_intangivel - da_intangivel, 0.0)
+        # Formula: D&A_t = taxa x PP&E_(t-1), limitada a base disponivel.
+        da_imobilizado = calcular_depreciacao_amortizacao(
+            imobilizado_anterior=imobilizado_anterior,
+            capex=capex,
+            taxa_depreciacao=taxa_depreciacao,
+        )
 
         # Formula: PP&E_t = PP&E_(t-1) + |CAPEX_t| - D&A_imobilizado_t.
         imobilizado = max(imobilizado_anterior + capex_abs - da_imobilizado, 0.0)
@@ -319,15 +303,11 @@ def projetar_linhas_ppe(
             "capex_expansao_pct": exp_pct,
             "capex_expansao": capex_expansao,
             "capex_manutencao": capex_manutencao,
-            "da_imobilizado_existente": dep_existente,
-            "da_imobilizado_safras": dep_safras,
             "da_imobilizado": da_imobilizado,
-            "da_intangivel": da_intangivel,
-            # depreciacao_amortizacao aqui = imobilizado + intangivel; o
-            # schedule de leasing soma da_direito_uso depois (ordem do chain).
-            "depreciacao_amortizacao": da_imobilizado + da_intangivel,
+            "da_intangivel": 0.0,
+            "depreciacao_amortizacao": da_imobilizado,
             "imobilizado": imobilizado,
-            "intangivel": saldo_intangivel,
+            "intangivel": intangivel_ano0,
         }
         imobilizado_anterior = imobilizado
 
@@ -429,16 +409,14 @@ def projetar_ppe(
     )
     ano0_ppe = carregar_ano0_ppe(ticker_normalizado, raiz)
     modo_dre = str(conteudo.get("modo_dre", "legado"))
-    vida_util, origem_vida = derivar_vida_util(
-        imobilizado_ano0=float(ano0_ppe["imobilizado"]),
-        da_historica_ano0=float(ano0_ppe.get("da_historica", 0.0)),
-        parametros=parametros,
+    capex_expansao_padrao, origem_capex_expansao = resolver_capex_expansao_padrao(
+        metadados=metadados,
+        raiz_projeto=raiz,
+        padrao_global=parametros["capex_expansao_pct_padrao"],
     )
-    ano0_ppe["vida_util_ppe_derivada"] = vida_util
-    ano0_ppe["origem_vida_util"] = origem_vida
     capex_expansao_pcts = carregar_capex_expansao_pcts(
         premissas_completas,
-        parametros["capex_expansao_pct_padrao"],
+        capex_expansao_padrao,
     )
     ppe = projetar_linhas_ppe(
         dre=dre,
@@ -446,8 +424,7 @@ def projetar_ppe(
         capex_expansao_pcts=capex_expansao_pcts,
         imobilizado_ano0=float(ano0_ppe["imobilizado"]),
         intangivel_ano0=float(ano0_ppe.get("intangivel", 0.0)),
-        vida_util=vida_util,
-        vida_util_intangivel=vida_util,
+        taxa_depreciacao=parametros["taxa_depreciacao_ppe"],
     )
     atualizar_dre_com_depreciacao(
         dre=dre,
@@ -459,8 +436,7 @@ def projetar_ppe(
     return {
         "ticker": ticker_normalizado,
         "parametros_ppe": parametros,
-        "vida_util_derivada": vida_util,
-        "origem_vida_util": origem_vida,
+        "origem_capex_expansao_padrao": origem_capex_expansao,
         "ano0_ppe": ano0_ppe,
         "ppe": ppe,
         "dre": dre,

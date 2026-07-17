@@ -337,10 +337,6 @@
       "descricao": "Percentual do CAPEX total destinado a expansao",
       "sinal_esperado": "positivo"
     },
-    "vida_util_ppe_derivada": {
-      "descricao": "Vida util do imobilizado derivada do historico (imob/D&A), clampada",
-      "sinal_esperado": "positivo"
-    },
     "ativo_total": {
       "descricao": "Ativo Total (BP 1 historico e ativo total projetado)",
       "sinal_esperado": "positivo_ou_negativo"
