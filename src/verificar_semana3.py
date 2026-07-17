@@ -23,6 +23,7 @@ from src.projecao.schedule_divida import (  # noqa: E402
     obter_float_obrigatorio,
     projetar_divida,
 )
+from src.projecao.schedule_leasing import projetar_leasing  # noqa: E402
 from src.projecao.schedule_ppe import projetar_ppe  # noqa: E402
 from src.projecao.schedule_wk import projetar_wk  # noqa: E402
 from src.valuation.calculador_ev import calcular_ev  # noqa: E402
@@ -99,6 +100,7 @@ def executar_cadeia(ticker: str) -> None:
     projetar_dre(ticker)
     projetar_wk(ticker)
     projetar_ppe(ticker)
+    projetar_leasing(ticker)
     projetar_divida(ticker)
     calcular_fcff(ticker)
     calcular_wacc(ticker)

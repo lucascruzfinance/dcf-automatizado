@@ -15,6 +15,105 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 
 ---
 
+## 14/07/2026 — Prompt 8.2 (IFRS-16, D&A por safra, capex expansão×manutenção)
+
+> Sessão do **Claude Code**: modelagem do arrendamento (IFRS-16) como cidadão de
+> primeira classe, D&A do imobilizado POR SAFRA de CAPEX com vida derivada do
+> histórico, amortização do intangível e split de capex expansão×manutenção.
+> Novo módulo `src/projecao/schedule_leasing.py`; `schedule_ppe.py` reescrito;
+> `schedule_divida.py` e o bridge ajustados. Golden re-baseline EXPLICADO (D-045).
+
+### D-041 ⏳ — D&A do imobilizado POR SAFRA com vida útil DERIVADA do histórico
+
+- **Situação:** a v2/8.1 depreciava o imobilizado por uma taxa única global
+  (`1/vida_util_ppe_anos`, config = 10 anos), subestimando a D&A de empresas
+  com ativos de vida mais curta.
+- **Escolha:** `schedule_ppe.py` passa a depreciar POR SAFRA (Smartfit L339):
+  vida útil = `imobilizado_ano0 / |D&A_historica_ano0|` (do DFC), clamp [3,30];
+  o estoque existente deprecia linear até zerar (`MIN(quota, saldo)`), cada safra
+  de capex faz **meia-depreciação no ano da safra** e `MIN(quota, saldo)` depois.
+  Fallback: `vida_util_ppe_anos` da config. Amortização do intangível linear
+  sobre o saldo do Ano 0 (mesma vida). Split capex expansão (default 80%,
+  `config/parametros.json`) × manutenção — informativo, não muda o capex total.
+- **Alternativas:** manter a taxa única (subestima D&A e ignora a vida real);
+  exigir a vida como premissa obrigatória (quebra a automação).
+
+### D-042 ⏳ — D&A do direito de uso por RECLASSIFICAÇÃO proporcional (fallback 8.2.1)
+
+- **Situação:** na CVM o ativo de direito de uso (1.02.03.02) vem AGREGADO dentro
+  do imobilizado (1.02.03). Depreciar o direito de uso separadamente E manter o
+  imobilizado cheio DUPLICARIA a D&A.
+- **Escolha:** o `schedule_leasing.py` obtém `da_direito_uso` por reclassificação
+  proporcional da D&A do imobilizado (`proporção = direito_uso / imobilizado`) —
+  o fallback documentado do próprio Prompt 8.2.1. A D&A TOTAL não muda (só se abre
+  em imobilizado × direito de uso), logo **EBIT/EBITDA e FCFF não mudam com a
+  reclassificação**; apenas os **juros de arrendamento** (abaixo do EBIT) entram
+  no resultado financeiro e afetam LL/FCFE/caixa. Empresa com passivo de
+  arrendamento < 1% do ativo → bloco inteiro zera (sem erro).
+- **Alternativas:** subtrair o direito de uso do imobilizado e depreciar cada um
+  por safra (correto, mas exige desmembrar 1.02.03 na coleta/limpeza — ripple
+  amplo, fica para o backlog); ignorar leasing na D&A (perde a abertura).
+
+### D-043 ⏳ — Intangível vira linha própria (amortiza) para o balanço fechar
+
+- **Situação:** ao amortizar o intangível (novo em 8.2), o FCO devolvia a
+  amortização mas o balanço mantinha o intangível CONSTANTE dentro de
+  `outros_ativos` → o balanço deixava de fechar (diferença = amortização
+  acumulada; ex.: DIRR3 platô em 33.063 = intangível do Ano 0).
+- **Escolha:** o intangível passa a ser uma LINHA PRÓPRIA do balanço projetado
+  (declina pela amortização) e sai do residual `outros_ativos`. Com isso o
+  balanço volta a fechar por construção (dif ~0 nos 8 anos, verificado). O
+  DFC/BP aberto completo continua sendo do Prompt 8.3.
+- **Alternativas:** não amortizar intangível (contraria a D&A aberta do 8.2);
+  reconstruir o DFC/BP completo agora (é o Prompt 8.3).
+
+### D-044 ⏳ — Passivo de arrendamento SOMADO das sub-contas (fonte única do bridge)
+
+- **Situação:** `selecionar_ultimo_exercicio` devolve UMA linha (código mais
+  curto). O passivo de arrendamento vive em várias sub-contas (2.01.05.x CP +
+  2.02.02.x LP); a linha mais curta às vezes é zero → MGLU3/SMFT3 liam passivo
+  de arrendamento = 0 (subestimava a dívida líquida no bridge).
+- **Escolha:** novo helper `somar_ultimo_exercicio` soma TODAS as sub-contas do
+  mesmo exercício; usado no schedule de leasing E no `carregar_ano0_divida_balanco`
+  (bridge) — fonte única, sem dupla contagem. O bridge passa a subtrair o passivo
+  de arrendamento REAL (MGLU3 ~3,58 mi; SMFT3 ~6,27 mi; DIRR3 ~89 mil).
+- **Alternativas:** manter a leitura de uma sub-conta (subestima o net debt).
+
+### D-045 ⏳ — Regressão dourada da Semana 8.2 (mudanças EXPLICADAS de Target)
+
+- **Números (preço de mercado congelado, mesmo rf da golden):**
+  DIRR3 17,0418 → 16,8541 (−1,10%); MGLU3 8,1040 → 7,5200 (−7,21%);
+  SMFT3 12,3617 → 18,6259 (+50,67%). Balanço fecha nos 3 (dif ~0).
+- **Drivers, por ordem de materialidade:**
+  1. **D&A por safra com vida derivada** (D-041): a vida derivada (DIRR3 3,22;
+     MGLU3 3,98; SMFT3 7,22) é MENOR que a config (10) → D&A maior → mais tax
+     shield no FCFF (modo legado) ou mais D&A somada no FCFF (modo completo).
+  2. **Bridge com passivo de arrendamento somado** (D-044): reduz o equity
+     (MGLU3 −3,58 mi; SMFT3 −6,27 mi; DIRR3 −0,09 mi) → puxa o Target para baixo.
+  3. **Amortização do intangível** (D-043): novo componente de D&A (tax shield).
+  4. Juros de arrendamento (D-042): afetam LL/FCFE/caixa, NÃO o FCFF/Target.
+- **DIRR3 −1,1%** (leasing imaterial, imob pequeno): efeito líquido pequeno.
+  **MGLU3 −7,2%**: bridge do leasing domina. **SMFT3 +50,7%** ver D-046.
+
+### D-046 ⏳ — SMFT3 +50%: correção da D&A subestimada (modo completo) + premissas auto
+
+- **Situação:** SMFT3 salta 12,36 → 18,63 (+50,67%). É um caso de estresse
+  (leasing gigante, muita D&A, MODO COMPLETO, premissas AUTOMÁTICAS).
+- **Diagnóstico (não é bug):** no modo completo o EBIT sai das margens (D&A
+  embutida em CPV/SG&A) e o FCFF SOMA a D&A memo de volta. A 8.1 usava vida 10
+  (config) → D&A do estoque = 12,7 mi/10 = 1,27 mi, ABAIXO da D&A histórica real
+  (1,76 mi). A 8.2 deriva a vida (7,22 = imob/D&A histórica) → a D&A do estoque
+  REPRODUZ a histórica (1,76 mi) + safras de capex novo → FCFF maior. Ou seja, a
+  8.1 SUBESTIMAVA a D&A e a 8.2 corrige para a taxa real. O salto é a correção,
+  amplificada pela alavancagem FCFF→EV e por premissas de partida agressivas.
+- **Ação recomendada ao humano:** SMFT3 continua com `premissas_automaticas`
+  (REVISAR); o Target não é tese. Revisar crescimento/margens e, se quiser um
+  D&A menos "bull", informar `prazo_medio_leasing_anos`/margens na aba Premissas.
+- **Alternativas:** travar a vida na config (esconde a D&A real); só tax shield
+  no modo completo (contraria o desenho 8.1 de D&A como add-back).
+
+---
+
 ## 14/07/2026 — Prompt 8.1 (DRE completa) + descope do revolver formal
 
 > Sessão do **Claude Code** a pedido de Lucas: (1) retirar do `PROMPTS_FABLE.md`

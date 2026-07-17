@@ -176,6 +176,27 @@ def criar_ambiente_divida(tmp_path: Path, caixa_minimo_pct: float = 0.0) -> None
     criar_projecao_existente(tmp_path)
 
 
+def test_resultado_financeiro_inclui_juros_arrendamento(tmp_path: Path) -> None:
+    """Prompt 8.2: resultado financeiro = receita financeira - juros divida -
+    juros de arrendamento (IFRS-16), separados na DRE."""
+    criar_ambiente_divida(tmp_path)
+    caminho = tmp_path / "data" / "processed" / "TEST3_projecao.json"
+    projecao = json.loads(caminho.read_text(encoding="utf-8"))
+    for ano in range(1, 9):
+        projecao["dre"][f"ano{ano}"]["juros_arrendamento"] = 50.0
+    salvar_json(caminho, projecao)
+
+    resultado = projetar_divida("TEST3", raiz_projeto=tmp_path)
+    divida = resultado["divida"]
+    dre = resultado["dre"]
+
+    # juros divida ano1 = Kd x divida abertura (0,10 x 400 = 40);
+    # receita financeira = 0,05 x (caixa 500 + aplicacoes 100) = 30;
+    # resultado financeiro = 30 - 40 - 50 (arrendamento) = -60.
+    assert float(divida["ano1"]["juros_arrendamento"]) == pytest.approx(50.0)
+    assert float(dre["ano1"]["resultado_financeiro"]) == pytest.approx(-60.0)
+
+
 def test_amortizacao_juros_e_fechamento_v2(tmp_path: Path) -> None:
     """CP amortiza no ano 1, LP linear em 3 anos e o balanco fecha exato."""
     criar_ambiente_divida(tmp_path)

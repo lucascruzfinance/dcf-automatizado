@@ -48,8 +48,10 @@ try:
         resolver_raiz,
         salvar_json,
         selecionar_ultimo_exercicio,
+        somar_ultimo_exercicio,
         valor_numerico_obrigatorio,
     )
+    from src.projecao.schedule_leasing import projetar_leasing
     from src.projecao.schedule_ppe import projetar_ppe
     from src.projecao.schedule_wk import projetar_wk
 except ModuleNotFoundError as erro:
@@ -69,8 +71,10 @@ except ModuleNotFoundError as erro:
         resolver_raiz,
         salvar_json,
         selecionar_ultimo_exercicio,
+        somar_ultimo_exercicio,
         valor_numerico_obrigatorio,
     )
+    from schedule_leasing import projetar_leasing
     from schedule_ppe import projetar_ppe
     from schedule_wk import projetar_wk
 
@@ -315,8 +319,11 @@ def carregar_ano0_divida_balanco(ticker: str, raiz_projeto: Path) -> dict[str, A
             dados,
             "investimentos_coligadas",
         ),
+        # Passivo de arrendamento SOMADO das sub-contas (CP + LP), fonte unica
+        # do bridge e do schedule de leasing (Prompt 8.2) — o valor de uma
+        # unica sub-conta subestimava o saldo total (algumas sao zero).
         "passivo_arrendamento": abs(
-            _valor_opcional_ano0(dados, "passivo_arrendamento")
+            somar_ultimo_exercicio(dados, "passivo_arrendamento")
         ),
     }
 
@@ -345,6 +352,9 @@ def _residuais_balanco_ano0(
     estoques = float(ano0_wk.get("estoques") or 0.0)
     fornecedores = abs(float(ano0_wk.get("fornecedores") or 0.0))
     imobilizado = float(ano0_ppe.get("imobilizado") or 0.0)
+    # Intangivel passa a ser linha PROPRIA (amortiza no 8.2); sai do residual
+    # para o balanco refletir a queda do saldo e continuar fechando.
+    intangivel = float(ano0_ppe.get("intangivel") or 0.0)
 
     ativos_modelados = (
         float(ano0["caixa_equivalentes"])
@@ -352,6 +362,7 @@ def _residuais_balanco_ano0(
         + contas_receber
         + estoques
         + imobilizado
+        + intangivel
     )
     outros_ativos = ativo_total - ativos_modelados
 
@@ -480,12 +491,15 @@ def projetar_divida_balanco_dfc(
         # Formula: juros_t = Kd x divida de ABERTURA (captacao do ano nao
         # paga juros no proprio ano — convencao sem circularidade).
         juros = custo_divida_kd * divida_abertura
+        # Juros de arrendamento (IFRS-16) vem do schedule de leasing, SEPARADOS
+        # dos juros de divida; 0 quando nao ha leasing relevante.
+        juros_arrendamento = float(linha_dre.get("juros_arrendamento") or 0.0)
         # Formula: receita financeira_t = taxa x (caixa inicial + aplicacoes).
         receita_financeira = taxa_aplicacao * max(
             caixa_anterior + aplicacoes,
             0.0,
         )
-        resultado_financeiro = receita_financeira - juros
+        resultado_financeiro = receita_financeira - juros - juros_arrendamento
 
         # DRE recalculada com o resultado financeiro completo.
         linha_dre["resultado_financeiro"] = resultado_financeiro
@@ -574,9 +588,17 @@ def projetar_divida_balanco_dfc(
         estoques = obter_float_obrigatorio(linha_wk, "estoques", chave_ano)
         fornecedores = abs(obter_float_obrigatorio(linha_wk, "fornecedores", chave_ano))
         imobilizado = obter_float_obrigatorio(linha_ppe, "imobilizado", chave_ano)
+        # Intangivel projetado (amortiza no 8.2); linha propria no balanco.
+        intangivel = float(linha_ppe.get("intangivel") or 0.0)
 
         ativo_total = (
-            caixa + aplicacoes + contas_receber + estoques + imobilizado + outros_ativos
+            caixa
+            + aplicacoes
+            + contas_receber
+            + estoques
+            + imobilizado
+            + intangivel
+            + outros_ativos
         )
         passivo_total = fornecedores + divida_curto + divida_longo + outros_passivos
         passivo_patrimonio_liquido = passivo_total + patrimonio_liquido
@@ -597,6 +619,7 @@ def projetar_divida_balanco_dfc(
             "saldo_medio_divida": saldo_medio,
             "base_juros": "saldo_inicial_do_ano",
             "juros": juros,
+            "juros_arrendamento": juros_arrendamento,
             "receita_financeira_caixa": receita_financeira,
             "taxa_aplicacao_caixa": taxa_aplicacao,
             "resultado_financeiro": resultado_financeiro,
@@ -609,6 +632,7 @@ def projetar_divida_balanco_dfc(
             "contas_receber": contas_receber,
             "estoques": estoques,
             "imobilizado": imobilizado,
+            "intangivel": intangivel,
             "outros_ativos": outros_ativos,
             "ativo_total": ativo_total,
             "fornecedores": fornecedores,
@@ -863,6 +887,7 @@ def executar_validacao_padrao() -> None:
             projetar_dre(ticker)
             projetar_wk(ticker)
             projetar_ppe(ticker)
+            projetar_leasing(ticker)
             resultado = projetar_divida(ticker)
             imprimir_fechamento_balanco(resultado)
         except Exception as erro:

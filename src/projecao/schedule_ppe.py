@@ -76,8 +76,12 @@ def carregar_parametros_ppe(raiz_projeto: Path) -> dict[str, float]:
     return {
         "vida_util_ppe_anos": vida_util_anos,
         "taxa_depreciacao_ppe": 1 / vida_util_anos,
-        "vida_util_min_anos": float(safras.get("vida_util_min_anos", VIDA_UTIL_MIN_PADRAO)),
-        "vida_util_max_anos": float(safras.get("vida_util_max_anos", VIDA_UTIL_MAX_PADRAO)),
+        "vida_util_min_anos": float(
+            safras.get("vida_util_min_anos", VIDA_UTIL_MIN_PADRAO)
+        ),
+        "vida_util_max_anos": float(
+            safras.get("vida_util_max_anos", VIDA_UTIL_MAX_PADRAO)
+        ),
         "capex_expansao_pct_padrao": float(
             safras.get("capex_expansao_pct_padrao", CAPEX_EXPANSAO_PCT_PADRAO)
         ),
@@ -330,47 +334,40 @@ def projetar_linhas_ppe(
     return linhas
 
 
-def _da_memo_completa(linha_dre: dict[str, Any], depreciacao: float) -> float:
-    """D&A total do memo no modo completo = imobilizado + direito uso + intang.
-
-    No modo completo a D&A ja esta embutida em CPV/SG&A (o EBIT sai direto das
-    margens); esta funcao devolve a D&A TOTAL do memo, usando a depreciacao do
-    imobilizado recem-calculada pelo schedule PP&E e mantendo as demais
-    componentes (direito de uso, intangivel) como estao (zeradas ate o 8.2).
-    """
-    da_direito_uso = float(linha_dre.get("da_direito_uso") or 0.0)
-    da_intangivel = float(linha_dre.get("da_intangivel") or 0.0)
-    return depreciacao + da_direito_uso + da_intangivel
-
-
 def atualizar_dre_com_depreciacao(
     dre: dict[str, dict[str, Any]],
     ppe: dict[str, dict[str, float | str]],
     usa_ret: bool,
     modo_dre: str = "legado",
 ) -> None:
-    """Fecha a D&A da DRE com a serie do schedule PP&E.
+    """Fecha a D&A da DRE com o schedule PP&E (imobilizado + intangivel).
 
-    Modo LEGADO: EBIT = EBITDA - D&A e recalcula EBT/IR/LL (a D&A reduz o
-    lucro). Modo COMPLETO (Padrao Smartfit): a D&A ja esta embutida em
-    CPV/SG&A, entao o EBIT permanece fixo e apenas a D&A do imobilizado e o
-    EBITDA (= EBIT + D&A total) sao atualizados — EBT/IR/LL nao mudam aqui.
+    A D&A do direito de uso (``da_direito_uso``) e preservada como esta no
+    momento (0 quando o leasing ainda nao rodou; o schedule de leasing a
+    preenche e RE-TOTALIZA depois). D&A total = imobilizado + intangivel +
+    direito de uso. Modo LEGADO: EBIT = EBITDA - D&A total e recalcula
+    EBT/IR/LL. Modo COMPLETO: EBIT fixo (D&A embutida em CPV/SG&A); apenas
+    os componentes de D&A e o EBITDA (= EBIT + D&A total) sao atualizados.
     """
     for ano in range(1, HORIZONTE_PROJECAO + 1):
         chave_ano = f"ano{ano}"
         linha_dre = dre[chave_ano]
         linha_ppe = ppe[chave_ano]
-        depreciacao = obter_float_obrigatorio(
+        da_imobilizado = obter_float_obrigatorio(
             linha_ppe,
-            "depreciacao_amortizacao",
+            "da_imobilizado",
             chave_ano,
         )
+        da_intangivel = obter_float_obrigatorio(linha_ppe, "da_intangivel", chave_ano)
+        da_direito_uso = float(linha_dre.get("da_direito_uso") or 0.0)
+        da_total = da_imobilizado + da_intangivel + da_direito_uso
+
+        linha_dre["da_imobilizado"] = da_imobilizado
+        linha_dre["da_intangivel"] = da_intangivel
+        linha_dre["depreciacao_amortizacao"] = da_total
 
         if modo_dre == "completo":
             ebit = obter_float_obrigatorio(linha_dre, "ebit", chave_ano)
-            da_total = _da_memo_completa(linha_dre, depreciacao)
-            linha_dre["da_imobilizado"] = depreciacao
-            linha_dre["depreciacao_amortizacao"] = da_total
             # Formula: EBITDA = EBIT + D&A total (EBIT ja e apos D&A embutida).
             linha_dre["ebitda"] = ebit + da_total
             continue
@@ -387,10 +384,9 @@ def atualizar_dre_com_depreciacao(
             chave_ano,
         )
 
-        # Fecha o laco com o Prompt 1: a DRE deixa de usar o placeholder de
-        # D&A e passa a receber a serie calculada pelo schedule PP&E.
-        linha_dre["depreciacao_amortizacao"] = depreciacao
-        linha_dre["ebit"] = ebitda - depreciacao
+        # Formula: EBIT = EBITDA - D&A total; recalcula EBT/IR/LL (a D&A reduz
+        # o lucro no modo legado). O leasing e a divida refinam depois.
+        linha_dre["ebit"] = ebitda - da_total
         linha_dre["ebt"] = linha_dre["ebit"] + resultado_financeiro
         linha_dre["ir_csll"] = calcular_ir_csll(
             ebt=float(linha_dre["ebt"]),
@@ -433,11 +429,25 @@ def projetar_ppe(
     )
     ano0_ppe = carregar_ano0_ppe(ticker_normalizado, raiz)
     modo_dre = str(conteudo.get("modo_dre", "legado"))
+    vida_util, origem_vida = derivar_vida_util(
+        imobilizado_ano0=float(ano0_ppe["imobilizado"]),
+        da_historica_ano0=float(ano0_ppe.get("da_historica", 0.0)),
+        parametros=parametros,
+    )
+    ano0_ppe["vida_util_ppe_derivada"] = vida_util
+    ano0_ppe["origem_vida_util"] = origem_vida
+    capex_expansao_pcts = carregar_capex_expansao_pcts(
+        premissas_completas,
+        parametros["capex_expansao_pct_padrao"],
+    )
     ppe = projetar_linhas_ppe(
         dre=dre,
         taxas_capex_receita=taxas_capex_receita,
+        capex_expansao_pcts=capex_expansao_pcts,
         imobilizado_ano0=float(ano0_ppe["imobilizado"]),
-        taxa_depreciacao=parametros["taxa_depreciacao_ppe"],
+        intangivel_ano0=float(ano0_ppe.get("intangivel", 0.0)),
+        vida_util=vida_util,
+        vida_util_intangivel=vida_util,
     )
     atualizar_dre_com_depreciacao(
         dre=dre,
@@ -449,6 +459,8 @@ def projetar_ppe(
     return {
         "ticker": ticker_normalizado,
         "parametros_ppe": parametros,
+        "vida_util_derivada": vida_util,
+        "origem_vida_util": origem_vida,
         "ano0_ppe": ano0_ppe,
         "ppe": ppe,
         "dre": dre,

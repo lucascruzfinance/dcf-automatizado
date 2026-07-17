@@ -128,23 +128,31 @@ def test_projetar_ppe_atualiza_dre_e_persiste(tmp_path: Path) -> None:
     assert ppe["ano2"]["capex_receita"] == pytest.approx(0.20)
     assert ppe["ano1"]["capex"] == pytest.approx(100.0)
     assert ppe["ano2"]["capex"] == pytest.approx(200.0)
-    assert ppe["ano1"]["depreciacao_amortizacao"] == pytest.approx(100.0)
-    assert ppe["ano1"]["imobilizado"] == pytest.approx(500.0)
-    assert ppe["ano2"]["imobilizado"] == pytest.approx(600.0)
+    # D&A POR SAFRA (vida util config = 5, sem D&A historica -> fallback):
+    # ano1 = estoque existente (500/5=100) + meia-safra do capex 100 (100/5/2=10).
+    assert ppe["ano1"]["da_imobilizado"] == pytest.approx(110.0)
+    assert ppe["ano1"]["depreciacao_amortizacao"] == pytest.approx(110.0)
+    assert ppe["ano1"]["imobilizado"] == pytest.approx(490.0)
+    # ano2 = existente (100) + safra1 cheia (20) + meia-safra do capex 200 (20).
+    assert ppe["ano2"]["da_imobilizado"] == pytest.approx(140.0)
+    assert ppe["ano2"]["imobilizado"] == pytest.approx(550.0)
+    # Capex split expansao (80%) x manutencao (20%).
+    assert ppe["ano1"]["capex_expansao"] == pytest.approx(80.0)
+    assert ppe["ano1"]["capex_manutencao"] == pytest.approx(20.0)
 
     assert dre["ano1"]["depreciacao_amortizacao"] == pytest.approx(
         ppe["ano1"]["depreciacao_amortizacao"]
     )
-    assert dre["ano1"]["ebit"] == pytest.approx(200.0)
-    assert dre["ano1"]["ebt"] == pytest.approx(190.0)
-    assert dre["ano1"]["ir_csll"] == pytest.approx(-64.6)
-    assert dre["ano1"]["lucro_liquido"] == pytest.approx(125.4)
+    assert dre["ano1"]["ebit"] == pytest.approx(190.0)
+    assert dre["ano1"]["ebt"] == pytest.approx(180.0)
+    assert dre["ano1"]["ir_csll"] == pytest.approx(-61.2)
+    assert dre["ano1"]["lucro_liquido"] == pytest.approx(118.8)
 
     caminho = tmp_path / "data" / "processed" / "TEST3_projecao.json"
     persistido = json.loads(caminho.read_text(encoding="utf-8"))
     assert persistido["ano0"]["ppe"]["imobilizado"] == pytest.approx(500.0)
     assert persistido["ppe"]["ano1"]["capex"] == pytest.approx(100.0)
-    assert persistido["dre"]["ano1"]["depreciacao_amortizacao"] == pytest.approx(100.0)
+    assert persistido["dre"]["ano1"]["depreciacao_amortizacao"] == pytest.approx(110.0)
 
 
 def test_projetar_ppe_falha_sem_premissa_individual(tmp_path: Path) -> None:
@@ -210,17 +218,51 @@ def test_ppe_modo_completo_mantem_ebit_e_deriva_ebitda(tmp_path: Path) -> None:
     dre = resultado["dre"]
     ppe = resultado["ppe"]
 
-    # D&A do imobilizado = 20% x 500 = 100 (vida util 5 anos da fixture).
-    assert ppe["ano1"]["depreciacao_amortizacao"] == pytest.approx(100.0)
-    assert dre["ano1"]["da_imobilizado"] == pytest.approx(100.0)
-    assert dre["ano1"]["depreciacao_amortizacao"] == pytest.approx(100.0)
+    # D&A por safra (vida 5): existente 500/5=100 + meia-safra 100/5/2=10 = 110.
+    assert ppe["ano1"]["da_imobilizado"] == pytest.approx(110.0)
+    assert dre["ano1"]["da_imobilizado"] == pytest.approx(110.0)
+    assert dre["ano1"]["depreciacao_amortizacao"] == pytest.approx(110.0)
     # EBITDA = EBIT + D&A total; EBIT permanece fixo.
     assert dre["ano1"]["ebit"] == pytest.approx(250.0)
-    assert dre["ano1"]["ebitda"] == pytest.approx(350.0)
+    assert dre["ano1"]["ebitda"] == pytest.approx(360.0)
     # EBT/IR/LL nao sao recalculados pela D&A no modo completo.
     assert dre["ano1"]["ebt"] == pytest.approx(240.0)
     assert dre["ano1"]["ir_csll"] == pytest.approx(-81.6)
     assert dre["ano1"]["lucro_liquido"] == pytest.approx(158.4)
+
+
+def criar_dfc_da(raiz: Path, ticker: str = "TEST3", da: float = -200.0) -> None:
+    """DFC minimo com a D&A historica (base da vida util derivada)."""
+    salvar_json(
+        raiz / "data" / "raw" / "cvm" / f"{ticker}_dfc.json",
+        [
+            {
+                "ano_arquivo": 2025,
+                "DT_FIM_EXERC": "2025-12-31",
+                "ORDEM_EXERC": "ÚLTIMO",
+                "CD_CONTA": "6.01.01.02",
+                "nome_padronizado": "depreciacao_amortizacao",
+                "valor_padronizado": da,
+            }
+        ],
+    )
+
+
+def test_ppe_vida_util_derivada_do_historico(tmp_path: Path) -> None:
+    """Vida util = imobilizado / D&A historica, clampada (Prompt 8.2.3)."""
+    criar_parametros_ppe(tmp_path, vida_util=10.0)
+    criar_premissas_ppe(tmp_path)
+    criar_metadados(tmp_path)
+    criar_projecao_dre(tmp_path)
+    criar_base_historica_ppe(tmp_path, imobilizado=1000.0)
+    criar_dfc_da(tmp_path, da=-200.0)
+
+    resultado = projetar_ppe("TEST3", raiz_projeto=tmp_path)
+    # vida = 1000 / 200 = 5 (dentro do clamp [3, 30]); nao usa a config (10).
+    assert resultado["vida_util_derivada"] == pytest.approx(5.0)
+    assert resultado["origem_vida_util"] == "derivada_pp&e/d&a"
+    # ano1: existente 1000/5=200 + meia-safra do capex 100 (100/5/2=10) = 210.
+    assert resultado["ppe"]["ano1"]["da_imobilizado"] == pytest.approx(210.0)
 
 
 def test_capex_assinado_investe_pela_magnitude(tmp_path: Path) -> None:
@@ -238,10 +280,12 @@ def test_capex_assinado_investe_pela_magnitude(tmp_path: Path) -> None:
 
     # O capex persiste ASSINADO (saida de caixa)...
     assert ppe["ano1"]["capex"] == pytest.approx(-1000.0)
-    # ...mas o ativo cresce pela magnitude: 100 + 1000 - D&A (vida util da
-    # fixture = 5 anos -> taxa 20%: D&A = 20% x 100 = 20).
-    assert ppe["ano1"]["depreciacao_amortizacao"] == pytest.approx(20.0)
-    assert ppe["ano1"]["imobilizado"] == pytest.approx(1080.0)
-    # Sem capex no ano 2, deprecia sobre o saldo anterior (20% x 1080).
-    assert ppe["ano2"]["depreciacao_amortizacao"] == pytest.approx(216.0)
-    assert ppe["ano2"]["imobilizado"] == pytest.approx(864.0)
+    # ...mas o ativo cresce pela magnitude. D&A por safra (vida 5): existente
+    # 100/5=20 + meia-safra do capex 1000 (1000/5/2=100) = 120; imob = 100 +
+    # 1000 - 120 = 980.
+    assert ppe["ano1"]["da_imobilizado"] == pytest.approx(120.0)
+    assert ppe["ano1"]["imobilizado"] == pytest.approx(980.0)
+    # Ano 2 sem capex: existente (20) + safra1 cheia (1000/5=200) = 220;
+    # imob = 980 - 220 = 760.
+    assert ppe["ano2"]["da_imobilizado"] == pytest.approx(220.0)
+    assert ppe["ano2"]["imobilizado"] == pytest.approx(760.0)

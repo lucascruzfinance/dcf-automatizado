@@ -48,6 +48,7 @@ from src.projecao.projetor_dre import (  # noqa: E402
     salvar_json,
 )
 from src.projecao.schedule_divida import projetar_divida  # noqa: E402
+from src.projecao.schedule_leasing import projetar_leasing  # noqa: E402
 from src.projecao.schedule_ppe import projetar_ppe  # noqa: E402
 from src.projecao.schedule_wk import projetar_wk  # noqa: E402
 from src.valuation.calculador_ev import calcular_ev  # noqa: E402
@@ -301,6 +302,7 @@ def etapa_projecao(ticker: str) -> None:
     projetar_dre(ticker, RAIZ_PROJETO)
     projetar_wk(ticker, RAIZ_PROJETO)
     projetar_ppe(ticker, RAIZ_PROJETO)
+    projetar_leasing(ticker, RAIZ_PROJETO)
     projetar_divida(ticker, RAIZ_PROJETO)
     caminho_projecao = RAIZ_PROJETO / "data" / "processed" / f"{ticker}_projecao.json"
     projecao = carregar_json(caminho_projecao)

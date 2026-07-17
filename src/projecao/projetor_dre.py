@@ -230,6 +230,49 @@ def selecionar_ultimo_exercicio(
     return selecionado.iloc[0]
 
 
+def somar_ultimo_exercicio(dados: pd.DataFrame, nome_padronizado: str) -> float:
+    """Soma TODAS as sub-contas mapeadas para um nome no ultimo exercicio anual.
+
+    ``selecionar_ultimo_exercicio`` devolve UMA linha (a de codigo mais curto);
+    contas espalhadas em sub-contas — ex.: passivo de arrendamento em
+    2.01.05.x e 2.02.02.x — exigem SOMAR as sub-contas do mesmo exercicio para
+    obter a magnitude total. Devolve 0.0 quando a conta nao existe.
+    """
+    if dados.empty or "nome_padronizado" not in dados.columns:
+        return 0.0
+    if "valor_padronizado" not in dados.columns:
+        return 0.0
+
+    selecionado = dados[dados["nome_padronizado"] == nome_padronizado].copy()
+    selecionado = selecionado[selecionado["valor_padronizado"].notna()]
+    if "ORDEM_EXERC" in selecionado.columns:
+        ordem = selecionado["ORDEM_EXERC"].map(normalizar_texto)
+        selecionado = selecionado[ordem == "ultimo"]
+    if selecionado.empty:
+        return 0.0
+
+    if "DT_FIM_EXERC" in selecionado.columns:
+        datas = pd.to_datetime(selecionado["DT_FIM_EXERC"], errors="coerce")
+        anuais = selecionado[(datas.dt.month == 12) & (datas.dt.day == 31)]
+        if not anuais.empty:
+            selecionado = anuais.copy()
+    if "ano_arquivo" in selecionado.columns:
+        selecionado["_ano_num"] = pd.to_numeric(
+            selecionado["ano_arquivo"], errors="coerce"
+        )
+        selecionado = selecionado[
+            selecionado["_ano_num"] == selecionado["_ano_num"].max()
+        ]
+    if "DT_FIM_EXERC" in selecionado.columns:
+        selecionado["_data"] = pd.to_datetime(
+            selecionado["DT_FIM_EXERC"], errors="coerce"
+        )
+        selecionado = selecionado[selecionado["_data"] == selecionado["_data"].max()]
+    if "CD_CONTA" in selecionado.columns:
+        selecionado = selecionado.drop_duplicates(subset=["CD_CONTA"])
+    return float(selecionado["valor_padronizado"].sum())
+
+
 def extrair_receita_linha(linha: pd.Series, fonte: str) -> dict[str, Any]:
     """Extrai a receita liquida e metadados da linha historica selecionada."""
     return {

@@ -32,6 +32,7 @@ from src.projecao.projetor_dre import (
 )
 from src.projecao.projetor_financeiro import projetar_financeiro
 from src.projecao.schedule_divida import projetar_divida
+from src.projecao.schedule_leasing import projetar_leasing
 from src.projecao.schedule_ppe import projetar_ppe
 from src.projecao.schedule_wk import projetar_wk
 from src.valuation.calculador_ev import calcular_ev
@@ -98,10 +99,11 @@ def rodar_motor_valuation(
         _avisar(callback, "Valuation FCFE e valor terminal...")
         calcular_fcfe_financeira(ticker, raiz, preco_atual=preco)
     else:
-        _avisar(callback, "Projetando DRE, WK, PP&E e divida...")
+        _avisar(callback, "Projetando DRE, WK, PP&E, leasing e divida...")
         projetar_dre(ticker, raiz)
         projetar_wk(ticker, raiz)
         projetar_ppe(ticker, raiz)
+        projetar_leasing(ticker, raiz)
         projetar_divida(ticker, raiz)
         _avisar(callback, "FCFF, WACC, valor terminal e bridge...")
         calcular_fcff(ticker, raiz)

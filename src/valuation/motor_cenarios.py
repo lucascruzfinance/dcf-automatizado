@@ -32,6 +32,7 @@ from src.projecao.projetor_dre import (
 )
 from src.projecao.projetor_financeiro import projetar_financeiro
 from src.projecao.schedule_divida import projetar_divida
+from src.projecao.schedule_leasing import projetar_leasing
 from src.projecao.schedule_ppe import projetar_ppe
 from src.projecao.schedule_wk import projetar_wk
 from src.valuation.calculador_ev import calcular_ev
@@ -141,6 +142,7 @@ def _rodar_cadeia(
         projetar_dre(ticker, raiz)
         projetar_wk(ticker, raiz)
         projetar_ppe(ticker, raiz)
+        projetar_leasing(ticker, raiz)
         projetar_divida(ticker, raiz)
         calcular_fcff(ticker, raiz)
         calcular_wacc(ticker, raiz, rf_usd=rf)
