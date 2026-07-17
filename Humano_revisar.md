@@ -20,7 +20,30 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 > Sessão do **Claude Fable 5**. Lucas pediu para reescrever o `PROMPTS_FABLE.md`
 > inteiro contendo APENAS a Semana 9.0 (17→24/07), fundindo o que faltava do plano
 > (8.3 em diante até o fim da semana 9) com as instruções de automação/Excel que ele
-> deu no chat, dando PRECEDÊNCIA às instruções atuais.
+> deu no chat, dando PRECEDÊNCIA às instruções atuais. Depois, ao constatar que o
+> projeto tem "arquivos demais" e o Excel-núcleo está fraco, pediu para o plano
+> corrigir isso (D-051).
+
+### D-051 ⏳ — Semana 9.0 começa por ENXUGAR o projeto (Prompt 9.0.0)
+
+- **Situação (medida em 17/07/2026):** o projeto tem 54 módulos em `src/` (15 só em
+  `visualizacao`), 30 testes e 9 `.md` na raiz. O Excel gerado hoje tem a aba principal
+  com **40 linhas** (Direcional = 210), DRE ANTIGA (margem EBITDA) e **55% do ativo /
+  59% do passivo do DIRR3 em baldes "outros"**. Ou seja: muita periferia construída
+  antes do núcleo, e o núcleo (Excel DCF fiel à CVM) é a parte mais fraca. Lucas
+  reconheceu isso ("arquivos demais", "o Excel não tem ainda").
+- **Escolha:** o `PROMPTS_FABLE.md` ganhou um **Prompt 9.0.0 (Enxugamento)** como
+  primeira etapa da Semana 9.0: **congelar** (não apagar) a periferia — os 15 módulos de
+  visualização, comparáveis, watchlist, BI, retornos, cenários — para fora do caminho
+  crítico e do app/Excel, reduzindo o projeto ao núcleo (coleta → motor → Excel dos 3
+  demonstrativos + FCFF/FCFE). Docs consolidadas; `Roteiro DCF - Copia.md` a apagar
+  (cópia). A Seção 0.1 do plano foi reescrita com o diagnóstico honesto e os números
+  reais. Metas objetivas cravadas: residual < 5% (era 55%); Excel de 40 → ~200 linhas.
+- **Alternativas:** apagar a periferia de vez (mais radical; deixei como decisão do
+  humano — 9.0.0 só congela, reversível); seguir sem enxugar (mantém o inchaço que Lucas
+  reclamou). **A DECIDIR pelo humano:** se prefere apagar de vez o que o 9.0.0 congelar.
+
+### D-049 ⏳ — Plano da Semana 9.0: automação fiel à CVM + Excel "Modelo" ≥ Direcional
 
 ### D-049 ⏳ — Plano da Semana 9.0: automação fiel à CVM + Excel "Modelo" ≥ Direcional
 

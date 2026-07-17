@@ -12,7 +12,7 @@
 > foi reescrito do zero** para conter **APENAS a Semana 9.0 (17/07 → 24/07/2026)**. As
 > Semanas 10+ NÃO estão aqui — serão planejadas depois.
 >
-> **Como usar:** os prompts abaixo (9.0.1 → 9.0.5) são **progressivos e sequenciais**.
+> **Como usar:** os prompts abaixo (9.0.0 → 9.0.5) são **progressivos e sequenciais**.
 > Cada um só começa depois que o anterior fechou sua "Definição de Pronto" (DoD). Cada
 > prompt é auto-contido: reafirma o contexto, aponta as células do modelo de referência,
 > lista arquivos a criar/editar, especifica contratos e critérios objetivos de aceite.
@@ -21,12 +21,14 @@
 > **Calendário:**
 > | Semana | Período | Tema | Prompts |
 > |---|---|---|---|
-> | **9.0** | 17/07 → 24/07/2026 | Automação fiel dos 3 demonstrativos + Excel "Modelo" (≥ Direcional) com FCFF/FCFE | 9.0.1 … 9.0.5 |
+> | **9.0** | 17/07 → 24/07/2026 | Enxugar o projeto + automação fiel dos 3 demonstrativos + Excel "Modelo" (≥ Direcional) com FCFF/FCFE | 9.0.0 … 9.0.5 |
 >
 > Esta Semana 9.0 **absorve e substitui** o que faltava do plano anterior do 8.3 em
 > diante (DFC indireto, BP aberto, dívida, WK multi-driver, macro, retornos, front-end
 > guiado, Excel novo), **fundido** com as instruções de automação e Excel que Lucas deu
-> no chat de 17/07/2026.
+> no chat de 17/07/2026, e **começa cortando a gordura** (Prompt 9.0.0): o projeto tem
+> arquivos demais construídos ANTES do núcleo, e o núcleo — um Excel DCF fiel à CVM — é a
+> parte mais fraca. A Semana 9.0 conserta isso.
 
 ---
 
@@ -68,21 +70,39 @@
 
 ## 0. Contexto: onde estamos e o que a Semana 9.0 persegue
 
-### 0.1 Estado real do repositório (após o Prompt 8.2 + reversão de 17/07/2026)
+### 0.1 Estado real do repositório — o diagnóstico honesto (medido em 17/07/2026)
 
+> **Encare isto antes de programar.** O projeto construiu MUITA largura (periferia) e
+> pouca profundidade no NÚCLEO. O motor de valuation é sólido; a entrega que importa —
+> um **Excel DCF fiel à CVM** — é a parte mais fraca. Números reais medidos hoje:
+
+**O que FUNCIONA (o motor — não é "nada"):**
 - **Coleta universal:** qualquer ticker da B3 → CD_CVM → DFP/ITR/DVA mapeadas por
-  `CD_CONTA` → JSONs em `data/raw/cvm/<TICKER>_{dre,bp,dfc,dva}.json` + relatório de
-  qualidade.
+  `CD_CONTA` → JSONs em `data/raw/cvm/`.
 - **Motor por tipo:** não-financeiras FCFF/WACC; financeiras FCFE/Ke. DRE completa
-  (8.1: bruta→líquida, CPV/SG&A, imposto marginal/efetivo). Leasing IFRS-16 (8.2). D&A
-  = **modelo simples** (taxa única sobre PP&E de abertura; a safra foi revertida).
-  Balanço fecha (`Ativo = Passivo + PL`) por construção. Cenários Bear/Base/Bull.
-- **Front-end (`app.py`):** busca de ticker dispara o pipeline; premissas editáveis
-  (hoje: crescimento, **margem EBITDA**, capex/receita + escalares); salvar re-roda o
-  motor. **8 seções.**
-- **Excel (`exportador_excel.py`):** 7 abas no padrão legado (Receita → EBITDA → D&A →
-  EBIT). **NÃO** reflete a DRE completa, o BP aberto, o intangível/leasing nem o DFC
-  indireto. É o principal alvo da Semana 9.0.
+  (bruta→líquida, CPV/SG&A). Leasing IFRS-16. D&A = **modelo simples** (taxa única sobre
+  PP&E de abertura). Balanço fecha por construção. FCFF → WACC (CAPM Brasil real) → VT →
+  bridge → Target Price. Cenários Bear/Base/Bull. **Isso está certo e é o alicerce.**
+
+**O que está QUEBRADO ou inchado (o alvo da Semana 9.0):**
+- **O Excel — a entrega central — está pela metade.** O `DIRR3_dcf.xlsx` gerado hoje
+  tem a aba principal ("Modelo Integrado") com **apenas 40 linhas** (a Direcional de
+  referência tem **210**). A DRE do Excel é a **versão ANTIGA** (Receita → margem EBITDA
+  → D&A → EBIT) — a DRE completa que o motor calcula **não aparece**. E o balanço:
+  **55% do ativo e 59% do passivo do DIRR3 caem em dois baldes "Outros ativos" e "Outros
+  passivos"** (R$ 7,2 bi e R$ 7,9 bi) — mais da metade do BP **não bate linha a linha com
+  a CVM/RI**. DFC "simplificado". Sem aba de FCFE.
+- **Arquivos demais construídos antes do núcleo:** **54 módulos** em `src/`, **30 testes**,
+  **9 documentos .md** na raiz. O maior inchaço é `src/visualizacao` com **15 módulos**
+  (football field, tornado, waterfall, 3 de sensibilidade, heatmaps, dashboard, comparação,
+  roic/roiic…). Comparáveis com yfinance ao vivo, watchlist, exportador de BI, cenários —
+  tudo periférico, feito **antes** de fechar o Excel dos 3 demonstrativos.
+- **Front-end (`app.py`):** **8 seções** (abas demais). Premissas editáveis hoje só:
+  crescimento, **margem EBITDA** (não margem bruta/SG&A/alíquota/WACC), capex/receita.
+
+**Conclusão que guia a Semana 9.0:** cortar a periferia do caminho crítico (Prompt
+9.0.0), tornar o histórico 100% fiel à CVM (9.0.1), e construir o Excel `Modelo` de
+verdade (9.0.5). O motor não se reescreve — se ajusta (9.0.2) e se apresenta.
 
 ### 0.2 O benchmark desta semana: o Excel REAL da Direcional
 
@@ -124,15 +144,21 @@ Brasil) e WACC; Data Table de sensibilidade.
 
 ### 0.3 O que a Semana 9.0 entrega (essencial → precede tudo)
 
-1. **Histórico dos 3 demonstrativos batendo EXATAMENTE com a CVM** (Prompt 9.0.1).
+0. **Enxugar:** tirar a periferia (15 módulos de gráfico, comparáveis/tornado/football
+   field/BI/watchlist) do caminho crítico e do app, reduzindo o projeto ao núcleo:
+   coleta fiel → motor → Excel dos 3 demonstrativos + FCFF/FCFE (Prompt 9.0.0).
+1. **Histórico dos 3 demonstrativos batendo EXATAMENTE com a CVM** — acabar com os baldes
+   "outros" que hoje engolem 55%+ do balanço (Prompt 9.0.1).
 2. **Motor "padrão Direcional":** DRE com margens pré-D&A, **D&A = %PP&E**, **CAPEX =
    %receita**, alíquota anual, WACC como input direto opcional; **WK expandido** (contas
    a receber, estoques, fornecedores, **obrigações sociais/trabalhistas**, **impostos a
    recuperar**); DFC indireto completo; BP aberto com check (Prompt 9.0.2).
-3. **FCFF e FCFE** sobre o novo motor + macro anual + retornos (Prompt 9.0.3).
-4. **Front-end guiado** com as 6 premissas de Lucas (Prompt 9.0.4).
-5. **Excel "Modelo" ≥ Direcional** com histórico=azul / premissa=verde / fórmula=preto,
-   fórmulas nativas reproduzindo o motor, FCFF + FCFE ao final (Prompt 9.0.5).
+3. **FCFF e FCFE** sobre o novo motor + macro anual (retornos = opcional) (Prompt 9.0.3).
+4. **Front-end guiado enxuto** (4 etapas, sem as 8 abas soltas) com as 6 premissas de
+   Lucas (Prompt 9.0.4).
+5. **Excel "Modelo" ≥ Direcional** (de 40 → ~200 linhas) com histórico=azul /
+   premissa=verde / fórmula=preto, fórmulas nativas reproduzindo o motor, **FCFF e FCFE
+   em abas separadas** (Prompt 9.0.5).
 
 ### 0.4 O que fica DE FORA da Semana 9.0
 
@@ -191,6 +217,99 @@ Brasil) e WACC; Data Table de sensibilidade.
 ---
 ---
 
+# PROMPT 9.0.0 — Enxugamento: reduzir o projeto ao núcleo (coleta → motor → Excel dos 3 demonstrativos)
+
+## Papel e contexto
+
+Você é o **Claude Fable 5**. Antes de construir qualquer coisa nova, **corte a gordura**.
+O projeto tem 54 módulos em `src/`, 30 testes e 9 documentos `.md` na raiz; boa parte foi
+construída como periferia (gráficos, comparáveis, BI, watchlist) ANTES do núcleo — e o
+núcleo (um Excel DCF fiel à CVM) é a parte mais fraca. Leia `CONTEXT.md`, `app.py`, a
+árvore de `src/`, e a Seção 0.1 acima. Esta é a **primeira etapa da Semana 9.0**.
+
+## Objetivo
+
+Deixar o repositório com **um caminho crítico claro e curto**: coleta CVM → motor
+(3 demonstrativos + FCFF/FCFE) → Excel `Modelo` + app enxuto. Nada é **apagado** sem
+ordem do humano; o que sai do núcleo é **congelado** (movido para fora do caminho crítico,
+marcado como não-mantido, removido do app e do Excel), de forma reversível.
+
+## Especificação técnica detalhada
+
+### 9.0.0.1 Definir o NÚCLEO (o que fica e é mantido)
+
+- **Coleta:** `coletor_cvm`, `mapeador_contas`, `classificador_empresa`, `resolvedor_ticker`,
+  `coletor_macro`, `coletor_mercado`, `limpeza`, `relatorio_qualidade` + o novo
+  `auditor_cvm` (9.0.1).
+- **Métricas:** `metricas_historicas` (âncoras das premissas), `qualidade_lucro`.
+- **Projeção:** `projetor_dre`, `schedule_ppe`, `schedule_wk`, `schedule_divida`,
+  `schedule_leasing`, `dfc_indireto` (novo), `gerador_premissas`, `projetor_financeiro`.
+- **Valuation:** `calculador_fcff`, `calculador_fcfe`, `calculador_wacc`, `calculador_vt`,
+  `calculador_ev`, `checklist`.
+- **Exportação:** `exportador_excel` (reescrito no 9.0.5).
+- **App:** `app.py` reduzido ao fluxo guiado (9.0.4).
+
+### 9.0.0.2 Congelar a periferia (o que sai do caminho crítico)
+
+- **`src/visualizacao/` (15 módulos):** manter só o mínimo que o Excel/app do núcleo
+  usa (se algum). Football field, tornado, waterfall, heatmaps de sensibilidade,
+  comparação de empresas, dashboard, roic/roiic PNG, tabela de comparáveis → mover para
+  `src/_congelado/visualizacao/` (ou marcar no topo do arquivo: `# CONGELADO v2.1 — fora
+  do núcleo; ver Prompt 9.0.0`) e **remover as chamadas** no `app.py` e no
+  `exportador_excel`.
+- **Comparáveis (`comparaveis.py`, `tabela_comparaveis.py`), watchlist, `motor_cenarios`,
+  `exportador_bi.py`, `calculador_retornos` (se não for usado no Excel):** congelar do
+  mesmo jeito. Cenários Bear/Base/Bull podem ficar como um bloco simples no motor, mas
+  **saem do caminho crítico do Excel**.
+- Cada módulo congelado: remover do `import` dos orquestradores (`pipeline.py`, `main.py`,
+  `verificar_semana*.py`), mas **manter os testes correspondentes** rodando (ou marcá-los
+  `@pytest.mark.skip(reason="congelado 9.0.0")`) para não quebrar a suíte. Registrar a
+  lista exata do que foi congelado em `Humano_revisar.md`.
+
+### 9.0.0.3 Enxugar a documentação
+
+- Consolidar os `.md` da raiz: manter `README.md`, `CONTEXT.md`, `CLAUDE.md`,
+  `PROMPTS_FABLE.md`, `Humano_revisar.md`. Mover `ROTEIRO.md`, `Roteiro DCF - Copia.md`,
+  `CHANGELOG.md`, `CONTRIBUTING.md` para `docs/` (ou marcar como histórico). **Apagar
+  `Roteiro DCF - Copia.md`** (é cópia duplicada — confirmar que não é referenciado).
+
+### 9.0.0.4 Pipeline enxuto
+
+- `pipeline.py` e `main.py` passam a ter um caminho principal curto: coleta → motor →
+  Excel, com as etapas periféricas removidas ou atrás de flags opcionais desligadas por
+  default (`--com-comparaveis`, `--com-graficos`). O fluxo default entrega o Excel.
+
+## Contratos de interface
+
+- Nenhuma mudança de fórmula/valuation (Target Price INALTERADO).
+- Nada apagado sem registro; o que sai vira `_congelado/` reversível.
+
+## Definição de Pronto (DoD)
+
+- `git status` mostra a periferia movida/marcada; `pipeline.py`/`main.py`/`app.py`
+  importam só o núcleo; o pipeline default roda DIRR3 e gera o Excel **sem** os passos
+  periféricos.
+- **Regressão dourada:** DIRR3/MGLU3/SMFT3 com Target Price idêntico (nada de cálculo
+  mudou).
+- `pytest tests -q` verde (testes de módulos congelados marcados skip com motivo);
+  `black --workers 1`/`flake8` limpos.
+- `Humano_revisar.md` lista exatamente o que foi congelado e onde, para o humano decidir
+  depois se apaga de vez.
+
+## O que NÃO fazer
+
+- NÃO apagar módulos definitivamente (só congelar) sem ordem explícita do humano.
+- NÃO tocar no motor de cálculo nem no valuation aqui.
+- NÃO remover testes — marcá-los skip com motivo, para a suíte seguir verde.
+
+## Ao final
+
+`CONTEXT.md` (sessão datada — Semana 9.0, Prompt 9.0.0) + `Humano_revisar.md` (lista do
+congelado). Próxima tarefa: Prompt 9.0.1.
+
+---
+---
+
 # PROMPT 9.0.1 — Fidelidade à CVM: BP, DRE e DFC históricos batem EXATAMENTE com DFP/ITR
 
 ## Papel e contexto
@@ -207,10 +326,12 @@ Esta é a **primeira e mais importante etapa da Semana 9.0**.
 
 Garantir que **todo dado histórico dos três demonstrativos (Balanço Patrimonial, DRE e
 DFC) que o sistema persiste e vai mostrar no Excel bate, linha a linha, com o que a
-empresa divulgou na CVM (DFP anual / ITR)**. Hoje parte das contas cai em residuais
-agregados (`outros_ativos`/`outros_passivos`) e não casa com o balanço publicado — isso
-precisa acabar. Este prompt NÃO projeta nada novo: ele **audita e amplia a fidelidade da
-base histórica** que alimenta tudo depois.
+empresa divulgou na CVM (DFP anual / ITR)**. **Estado atual medido (17/07/2026):** no
+DIRR3, **55% do ativo e 59% do passivo caem em `outros_ativos`/`outros_passivos`** (R$ 7,2
+bi e R$ 7,9 bi jogados em baldes anônimos). Isso torna o balanço do Excel **incomparável
+com o RI da empresa** — e é o problema nº 1 a resolver. **Meta desta etapa: residual < 5%
+do total do ativo/passivo em cada empresa do lote.** Este prompt NÃO projeta nada novo:
+ele **audita e amplia a fidelidade da base histórica** que alimenta tudo depois.
 
 ## Especificação técnica detalhada
 
@@ -267,8 +388,10 @@ O auditor **nunca derruba o pipeline** — reporta OK/AVISO/ERRO e persiste. Um 
 ## Definição de Pronto (DoD)
 
 - `python -m src.coleta.auditor_cvm --ticker DIRR3` (e MGLU3, SMFT3, VALE3, WEGE3) →
-  balanço histórico fecha em todos os exercícios; residual < 5% do ativo (ou aviso
-  justificado); DFC amarra ao caixa do BP.
+  balanço histórico fecha em todos os exercícios; **residual < 5% do ativo** (DIRR3 sai
+  dos 55%/59% de hoje para < 5% — critério objetivo de aceite); DFC amarra ao caixa do BP.
+- Conferência manual pontual: abrir a DFP/ITR de 1 empresa no site da CVM/RI e bater 5-6
+  linhas do BP contra o que o sistema persiste (documentar no `CONTEXT.md`).
 - **Regressão dourada:** DIRR3/MGLU3/SMFT3 com Target Price **idêntico** ao de antes do
   prompt (este prompt não toca o motor de projeção; se mudar, é bug — investigar).
 - `pytest tests -q` verde; `black --workers 1`/`flake8` limpos.
@@ -632,12 +755,14 @@ cores), `tests/test_exportador_excel.py`, e — **obrigatório** — a aba `Mode
 
 ## Objetivo
 
-Reescrever o exportador para gerar, para QUALQUER não-financeira, um Excel **no mínimo
-igual ao da Direcional**, cuja peça central é a aba **`Modelo`** (nome exato) com os 3
-demonstrativos históricos + projetados, e **FCFF e FCFE em abas SEPARADAS** (uma aba
-`FCFF` e uma aba `FCFE`), ambas usando a aba `Modelo` como fonte. **Exceção ao
-Direcional:** a receita é projetada por **crescimento % anual** (sem o build-up VGV×POC
-nem as abas de unit economics).
+Reescrever o exportador **do zero**. O Excel de hoje é o principal fracasso do projeto:
+a aba "Modelo Integrado" tem **40 linhas** com a DRE ANTIGA (margem EBITDA) e o balanço
+com 55%+ em "outros" — inutilizável. O novo Excel gera, para QUALQUER não-financeira, um
+arquivo **no mínimo igual ao da Direcional** (aba `Modelo` de ~200 linhas), cuja peça
+central é a aba **`Modelo`** (nome exato) com os 3 demonstrativos abertos, históricos +
+projetados, e **FCFF e FCFE em abas SEPARADAS** (uma aba `FCFF` e uma aba `FCFE`), ambas
+usando a aba `Modelo` como fonte. **Exceção ao Direcional:** a receita é projetada por
+**crescimento % anual** (sem o build-up VGV×POC nem as abas de unit economics).
 
 ## Layout das abas (ordem fixa)
 
@@ -773,7 +898,7 @@ mesmo prompt.
 
 ## Apêndice D — O que o HUMANO precisa fazer na Semana 9.0 (checklist do Lucas)
 
-1. **Colar um prompt por vez** (9.0.1 → 9.0.5) no Fable e conferir o DoD antes do próximo.
+1. **Colar um prompt por vez** (9.0.0 → 9.0.5, começando pelo enxugamento) no Fable e conferir o DoD antes do próximo.
 2. **Commitar** ao final de cada prompt (mensagem sugerida: `claude semana 9.0.N`).
 3. **Revisar `Humano_revisar.md`** ao fim da semana (decisões D-047+ e as novas).
 4. **Conferir a fidelidade à CVM** (Prompt 9.0.1) em 1-2 empresas que você conheça,
