@@ -15,6 +15,49 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 
 ---
 
+## 17/07/2026 — Reescrita do PROMPTS_FABLE.md para a Semana 9.0 (automação + Excel)
+
+> Sessão do **Claude Fable 5**. Lucas pediu para reescrever o `PROMPTS_FABLE.md`
+> inteiro contendo APENAS a Semana 9.0 (17→24/07), fundindo o que faltava do plano
+> (8.3 em diante até o fim da semana 9) com as instruções de automação/Excel que ele
+> deu no chat, dando PRECEDÊNCIA às instruções atuais.
+
+### D-049 ⏳ — Plano da Semana 9.0: automação fiel à CVM + Excel "Modelo" ≥ Direcional
+
+- **Situação:** o plano antigo (8.3/9.1/9.2/9.3/10.x) seguia o "Padrão Smartfit" (D&A
+  por safra, D&A embutida nas margens, Excel de 9 abas, cores WSP). O pedido atual de
+  Lucas muda o alvo para o **modelo da Direcional** (verificado no xlsx real): D&A =
+  %PP&E, CAPEX = %receita, margens PRÉ-D&A (D&A como linha própria), aba única
+  `Modelo` com os 3 demonstrativos, FCFF + FCFE, e a prioridade nº 1 é o histórico
+  bater EXATAMENTE com a CVM/DFP/ITR.
+- **Escolha:** `PROMPTS_FABLE.md` reescrito do zero com 5 prompts (9.0.1 fidelidade
+  CVM; 9.0.2 motor pré-D&A + D&A%PP&E + WK expandido + DFC indireto + BP aberto;
+  9.0.3 FCFF+FCFE+macro+retornos; 9.0.4 front-end das 6 premissas; 9.0.5 Excel
+  `Modelo` ≥ Direcional). Uma "Regra de Precedência" no topo diz que a instrução
+  atual vence o plano antigo em 6 pontos (D&A simples; margens pré-D&A; fidelidade
+  CVM; Excel ≥ Direcional; cores; receita = crescimento %). Semanas 10+ ficaram FORA
+  (Lucas pediu só a 9.0); a auditoria dupla e a universalização viraram Apêndice C.
+- **Alternativas:** manter o plano Smartfit (contraria o pedido e reintroduz o
+  descasamento D&A×margens que quebrou o SMFT3); planejar até a semana 10 (Lucas pediu
+  explicitamente só a 9.0).
+
+### D-050 ⏳ — Convenção de cores do Excel: histórico=AZUL, premissa=VERDE, fórmula=PRETO
+
+- **Situação:** Lucas especificou no chat: histórico em azul, premissas (que o usuário
+  escolhe) em verde, resultados de fórmula em preto. O Excel REAL da Direcional usa a
+  convenção WSP oposta em parte: **azul = input/premissa**, **verde = link para outra
+  aba**, preto = fórmula (verificado célula a célula: margem bruta G6 = azul; link
+  histórico F19 = verde).
+- **Escolha:** seguir a convenção de LUCAS no novo Excel (histórico azul, premissa
+  verde, fórmula preto), por precedência da instrução atual. Registrado por divergir do
+  benchmark que o próprio plano manda "no mínimo igualar". O Princípio 11 do
+  `PROMPTS_FABLE.md` foi atualizado para essa convenção.
+- **Alternativas:** usar a convenção WSP/Direcional (azul=input, verde=link) — é o
+  padrão de mercado e o que o arquivo de referência faz, mas contraria o pedido
+  explícito. Se Lucas preferir o padrão de mercado, é só reverter esta decisão.
+
+---
+
 ## 17/07/2026 — Simplificação da D&A (pedido de Lucas: reverter D&A por safra)
 
 > Sessão do **Claude Fable 5**. Pedido explícito de Lucas no meio do Prompt 8.2:
