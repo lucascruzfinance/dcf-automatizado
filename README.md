@@ -52,7 +52,7 @@ Este projeto adota uma filosofia deliberada de **profundidade antes de amplitude
 
 A **arquitetura de duas trilhas** (não-financeira via FCFF/WACC e financeira via FCFE/Ke) é construída e documentada na v1.0, mas a trilha financeira só é validada contra dados reais na v1.5. Isso mantém o sistema honesto: o que está no repositório como "funciona" foi de fato testado contra uma fonte pública, não apenas escrito.
 
-O detalhamento semana a semana da construção está no arquivo [`ROTEIRO.md`](ROTEIRO.md).
+O detalhamento semana a semana da construção está no arquivo [`docs/ROTEIRO.md`](docs/ROTEIRO.md).
 
 ---
 
@@ -266,9 +266,13 @@ dcf-automatizado/
 │
 ├── CONTEXT.md                          # Documento central de contexto para sessões de IA
 ├── README.md                           # Este arquivo
-├── ROTEIRO.md                          # Plano de desenvolvimento semana a semana
-├── CHANGELOG.md                        # Histórico de versões e entregas por semana
-├── CONTRIBUTING.md                     # Convenções de código e fluxo de desenvolvimento
+├── CLAUDE.md                           # Guia operacional do repositório (Claude Code)
+├── PROMPTS_FABLE.md                    # Plano vigente em prompts progressivos (Semana 9.0)
+├── Humano_revisar.md                   # Decisões autônomas da IA aguardando revisão
+├── docs/                               # Documentação histórica/consolidada
+│   ├── ROTEIRO.md                      # Plano de desenvolvimento semana a semana (spec v1.0)
+│   ├── CHANGELOG.md                    # Histórico de versões e entregas por semana
+│   └── CONTRIBUTING.md                 # Convenções de código e fluxo de desenvolvimento
 ├── LICENSE                             # Licença MIT
 ├── requirements.txt                    # Dependências Python
 ├── .env.example                        # Template de variáveis de ambiente

@@ -107,6 +107,9 @@ def test_excel_preview_renderiza_7_abas() -> None:
     assert len(app.main.dataframe) >= 7
 
 
+@pytest.mark.skip(
+    reason="Secao Comparaveis saiu do app enxuto (congelado 9.0.0 — D-053)"
+)
 def test_secao_comparaveis_renderiza_triangulacao() -> None:
     """Comparaveis mostra DCF vs faixa por multiplos com veredito textual."""
     app = _abrir_secao("Comparaveis")
@@ -117,6 +120,9 @@ def test_secao_comparaveis_renderiza_triangulacao() -> None:
     assert any("multiplos" in rotulo for rotulo in rotulos)
 
 
+@pytest.mark.skip(
+    reason="Secao Comparar/watchlist saiu do app enxuto (congelado 9.0.0 — D-053)"
+)
 def test_secao_comparar_mostra_3_ou_mais_empresas() -> None:
     """Comparar renderiza o painel lado a lado com 3+ empresas analisadas."""
     app = _abrir_secao("Comparar")
@@ -128,6 +134,9 @@ def test_secao_comparar_mostra_3_ou_mais_empresas() -> None:
     assert len(app.main.dataframe) >= 1
 
 
+@pytest.mark.skip(
+    reason="Seletor de cenarios saiu do Overview enxuto (congelado 9.0.0 — D-053)"
+)
 def test_overview_tem_seletor_de_cenarios() -> None:
     """Overview expoe o radio Bear/Base/Bull do motor de cenarios."""
     app = _abrir_secao("Overview")

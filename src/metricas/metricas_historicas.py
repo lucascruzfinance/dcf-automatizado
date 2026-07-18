@@ -144,16 +144,68 @@ def _aliquota_efetiva(ir_csll: float | None, ebt: float | None) -> float | None:
     return abs(ir_csll) / ebt
 
 
+# Series adicionais do BP aberto (Prompt 9.0.1): totais/subtotais oficiais e
+# as contas de nivel 3-4 mapeadas por codigo, para a coluna historica do
+# Excel vir 1:1 da CVM via esta funcao (fonte unica, sem numero inventado).
+SERIES_BP_ABERTO = (
+    "ativo_total",
+    "ativo_circulante",
+    "ativo_nao_circulante",
+    "ativos_biologicos",
+    "tributos_a_recuperar",
+    "despesas_antecipadas",
+    "outros_ativos_circulantes",
+    "ativo_realizavel_longo_prazo",
+    "aplicacoes_financeiras_lp",
+    "contas_receber_lp",
+    "estoques_lp",
+    "tributos_diferidos_ativo_lp",
+    "partes_relacionadas_ativo_lp",
+    "outros_ativos_nao_circulantes",
+    "investimentos_coligadas",
+    "passivo_total",
+    "passivo_circulante",
+    "passivo_nao_circulante",
+    "obrigacoes_fiscais",
+    "outras_obrigacoes_cp",
+    "outras_obrigacoes_lp",
+    "partes_relacionadas_passivo_cp",
+    "partes_relacionadas_passivo_lp",
+    "outros_passivos_circulantes",
+    "outros_passivos_nao_circulantes",
+    "provisoes_cp",
+    "provisoes_lp",
+    "tributos_diferidos_lp",
+    "participacao_nao_controladores",
+)
+
+SERIES_DFC = (
+    "fco",
+    "fci",
+    "fcf",
+    "variacao_cambial_caixa",
+    "variacao_caixa",
+    "caixa_inicial_dfc",
+    "caixa_final_dfc",
+)
+
+
 def montar_series_anuais(
     ticker: str,
     raiz: Path,
 ) -> dict[str, dict[int, float]]:
-    """Carrega todas as series anuais usadas pelas metricas."""
+    """Carrega todas as series anuais usadas pelas metricas e pelo Excel.
+
+    Alem das series das metricas, expoe o BP aberto (subtotais oficiais e
+    contas de nivel 3-4), os fluxos do DFC e a Receita Bruta da DVA — a
+    coluna historica do Excel (9.0.5) nasce daqui, 1:1 com a CVM.
+    """
     dre = _quadro_bruto(ticker, raiz, "dre")
     bp = _quadro_bruto(ticker, raiz, "bp")
     dfc = _quadro_bruto(ticker, raiz, "dfc")
+    dva = _quadro_bruto(ticker, raiz, "dva")
 
-    return {
+    series = {
         "receita_liquida": serie_anual_por_ano(dre, "receita_liquida"),
         "lucro_bruto": serie_anual_por_ano(dre, "lucro_bruto"),
         "cpv_cmv": serie_anual_por_ano(dre, "cpv_cmv"),
@@ -177,7 +229,13 @@ def montar_series_anuais(
         "caixa_equivalentes": serie_anual_por_ano(bp, "caixa_equivalentes"),
         "aplicacoes_financeiras": serie_anual_por_ano(bp, "aplicacoes_financeiras"),
         "patrimonio_liquido": serie_anual_por_ano(bp, "patrimonio_liquido"),
+        "receita_bruta": serie_anual_por_ano(dva, "receita_bruta"),
     }
+    for nome in SERIES_BP_ABERTO:
+        series[nome] = serie_anual_por_ano(bp, nome)
+    for nome in SERIES_DFC:
+        series[nome] = serie_anual_por_ano(dfc, nome)
+    return series
 
 
 def calcular_metricas_por_ano(

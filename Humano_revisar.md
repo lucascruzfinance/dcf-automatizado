@@ -15,6 +15,288 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 
 ---
 
+## 18/07/2026 — Prompt 9.0.2 (Motor "padrão Direcional"): DRE pré-D&A, WK expandido, DFC indireto, BP aberto
+
+> Sessão do **Claude Fable 5**. A etapa mais densa da Semana 9.0: o modo completo
+> da DRE muda de paradigma (margens PRÉ-D&A, D&A linha própria), o WK ganha o modo
+> multi-driver com as contas de Lucas, a dívida aceita instrumentos opcionais, e
+> nascem o DFC indireto (`dfc_indireto.py`) e o BP aberto com check visível.
+> Golden triplo RE-BASELINE explicado em D-060.
+
+### D-059 ⏳ — Paradigma PRÉ-D&A + calibração do gerador (margem bruta += D&A%RL)
+
+- **Situação:** o 8.1 assumia D&A embutida em CPV/SG&A (padrão Smartfit) — o que
+  causou o colapso do SMFT3 (D-048). A Regra de Precedência do 9.0 manda margens
+  de NÍVEL EBITDA (pré-D&A) com D&A como linha própria (padrão Direcional).
+- **Escolha:** `projetar_linhas_dre_completa` reescrita: EBIT ex-Depreciação =
+  Lucro Bruto + SG&A + Outras + Equivalência (nível EBITDA); EBIT = ex-D&A −
+  D&A (schedule PP&E); EBITDA = ex-D&A (invariante). Cauda EBT → IR (RET sobre
+  RB projetada > vetor `aliquota_ir_ano1..8` NOVO > efetiva > marginal) →
+  minoritários → LL → LPA, recalculada nos schedules por UMA função
+  (`recalcular_cauda_dre_completa`, fonte única). **Gerador calibrado:** a margem
+  bruta histórica da CVM é PÓS-D&A; a âncora pré-D&A soma a D&A%RL inteira à
+  margem bruta — identidade exata: EBIT ex-D&A ano 1 = EBITDA histórico.
+  Aproximação consciente: D&A toda no CPV (padrão industrial); se o humano
+  preferir split CPV×SG&A, é premissa a ajustar.
+- **Modo legado byte a byte:** DIRR3/MGLU3 legados deram targets IDÊNTICOS ao
+  baseline pós-9.0.1 antes da regeneração de premissas (prova executada).
+
+### D-060 ⏳ — RE-BASELINE do golden triplo (padrão D-022; premissas regeneradas)
+
+- **Baseline pós-9.0.1 → pós-9.0.2:** DIRR3 16,9687 → **21,2560** (+25,3%);
+  MGLU3 2,6542 → **0,8430** (−68,2%); SMFT3 0,6361 → **−3,8481**.
+- **Drivers por ticker:**
+  - **DIRR3 (+25,3%):** driver dominante = premissas REGENERADAS (manuais de
+    teste: crescimento 1%/margem 10% → automáticas ancoradas: CAGR clamp 15%,
+    margem bruta pré-D&A da CVM, capex histórico) + modo legado → completo
+    pré-D&A (RET sobre a Receita Bruta projetada). WK segue ancorado
+    (construtora, sem mudança).
+  - **MGLU3 (−68%):** modo legado → completo pré-D&A + WK dias → multi-driver
+    (tributos a recuperar de 2,05 bi entram no giro) sobre um equity que é
+    RESÍDUO pequeno de bridge de ~12 bi (alavancagem do bridge, padrão D-048).
+    Premissas: as de TESTE manuais restauradas do git e COMPLEMENTADAS para o
+    modo novo (margem bruta 28% − SG&A 20% = margem EBITDA 8% original) — as
+    automáticas davam WACC 24-27% (ver D-063) e target negativo no gate E6.
+  - **SMFT3 (−3,85, REVISAR):** premissas automáticas 100% regeneradas: capex
+    de EXPANSÃO histórico −30%→−4% + Kd derivado ~19,9% + bridge real de 13,75
+    bi (dívida 7,48 + leasing 6,27, conferido linha a linha SEM dupla
+    contagem). **O colapso estrutural do D-048 SUMIU:** EBITDA ancorado no
+    histórico real (46,6% da RL), FCFF cresce 0,23 → 1,53 bi, margem bruta
+    bate por identidade. **Prova de sensibilidade:** capex de analista
+    (−15%→−4%) → target **+3,11**. É o padrão D-024 (premissa automática não é
+    tese; o analista revisa), não um bug do paradigma.
+- **Premissas do lote regeneradas (reversível):** DIRR3/VALE3/WEGE3/SMFT3 =
+  automáticas novas (pré-D&A completo + `modo_capital_giro: dias_multi_driver` +
+  vetor de alíquota anual + minoritários); MGLU3 = teste manual complementada. Os
+  arquivos antigos de DIRR3/MGLU3 estão no git (`git diff data/premissas/`).
+
+### D-061 ⏳ — WK multi-driver: salvaguardas de driver e agregação
+
+- **Escolha:** dias implícitos = saldo_ano0/driver_ano0×365 (premissa `dias_*`
+  sobrescreve). **Salvaguarda:** dias > 365 pelo driver nominal → recai para a
+  receita líquida (na MGLU3 o driver IR dava **2.307 dias** de tributos a
+  recuperar — varejo acumula ICMS/PIS/COFINS ligados à receita, não ao IR).
+  Adiantamento de clientes somado CP+LP (construtoras reportam a maior parte no
+  LP); obrigações sociais/trabalhistas com driver SG&A (fallback RL quando o
+  SG&A do Ano 0 não existe). Contas ausentes → dias 0 + aviso (Princípio 7).
+- **Modos antigos preservados:** `dias` (arquivos v2 com DSO/DIO/DPO seguem
+  byte a byte) e `percentual_receita` (construtoras) intactos; o gerador grava
+  `dias_multi_driver` para não-construtoras.
+
+### D-062 ⏳ — BP aberto: arrendamento como linha própria CONSTANTE; residuais menores
+
+- **Escolha:** o balanço projetado ganha as linhas do WK expandido (tributos a
+  recuperar, obrigações trabalhistas, adiantamentos — projetadas no modo
+  multi-driver; zero nos demais) e **`passivo_arrendamento` como linha própria
+  CONSTANTE no valor do Ano 0** (o rollforward do leasing segue informativo no
+  bloco `leasing`; integrar os fluxos de caixa do arrendamento ao DFC/BP é
+  backlog — mantê-lo constante preserva o fechamento por construção). Residuais
+  `outros_ativos`/`outros_passivos` agora EXCLUEM essas contas. Campo novo
+  `verificacao_balanco` = |Ativo − Passivo − PL| por ano (check da Direcional
+  L122). Com `instrumentos_divida`, a diferença entre a soma dos instrumentos e
+  a dívida do BP fica explícita em `outros_passivos` (aviso quando > 1%).
+- **DFC indireto (`dfc_indireto.py`):** abre o ΔWK linha a linha (contribuição
+  ao caixa = −Δsaldo assinado, unifica ativos e passivos); `dfc` vira SUPERSET
+  (campos legados intactos + linhas novas) e `dfc_simplificado` preserva o
+  contrato v2 até o Excel do 9.0.5 migrar. Amarração verificada: Σ variações =
+  −ΔNWC e caixa EoP = caixa do BP (dif < 1e-6 nos 5 tickers).
+
+### D-063 ⏳ — Beta de partida clampado [0,5; 1,8]; Kd derivado ALTO fica para revisão
+
+- **Situação:** o gerador clampava crescimento/margens/capex mas NÃO o beta; o
+  beta desalavancado histórico da MGLU3 (ação em colapso) saiu **2,27** → WACC
+  27,4% e target −9,98 (com o bug dos dias, −2,44 depois do fix D-061).
+- **Escolha:** clamp `LIMITES_BETA = (0.5, 1.8)` SÓ na premissa automática de
+  partida (o analista sobrescreve). **Pendência anotada para o humano/9.0.3:**
+  o `kd_historico` DERIVADO pelo calculador de WACC sai 46% (MGLU3) e 19,9%
+  (SMFT3) — distorce o WACC de nomes alavancados; o motor de valuation não foi
+  tocado neste prompt (vetado pelo escopo). Recomendo revisar a derivação (ou
+  preferir o Kd de premissa) no 9.0.3.
+
+### D-064 ⏳ — Minoritários: LL final único na cadeia (minoria como distribuída)
+
+- **Escolha:** `participacao_minoritarios = −pct × LL antes` (divide lucro E
+  prejuízo); o LL FINAL alimenta PL/FCO/dividendos — equivale a tratar a parcela
+  dos minoritários como distribuída (payout 100% da minoria). Alternativa
+  (equity consolidado retendo a minoria) exigiria abrir o PL em controladores ×
+  minoritários no balanço — backlog. Default 0 (nada muda sem a premissa);
+  âncora histórica = |3.11.02|/|3.11| do Ano 0, clamp [0, 50%].
+
+---
+
+## 17/07/2026 — Prompt 9.0.1 (Fidelidade à CVM): mapeamento expandido + auditor
+
+> Sessão do **Claude Fable 5**. Executado o Prompt 9.0.1: BP/DRE/DFC históricos
+> batendo com a DFP/ITR da CVM. Novo `src/coleta/auditor_cvm.py` (5 checagens +
+> remapeamento offline), `config/mapeamento_cvm.json` +25 entradas, e
+> `montar_series_anuais` ampliada (BP aberto + DFC + Receita Bruta). Motor e
+> valuation INTOCADOS; golden triplo idêntico (ver D-056 sobre o baseline).
+
+### D-055 ⏳ — Diagnóstico do "55% residual" e como foi fechado (meta < 5% ATINGIDA)
+
+- **Situação:** o plano dizia "55% do ativo / 59% do passivo do DIRR3 em baldes
+  outros". Medição real: o mapeamento bruto estava COMPLETO (0 contas não
+  mapeadas); o buraco era (a) a camada de extração (`montar_series_anuais` só
+  nomeava ~10 contas do BP) e (b) os baldes gigantes `1.02.01` (realizável LP =
+  50% do ativo da DIRR3: contas a receber LP + estoques/terrenos LP) e `2.02.02`
+  (outras obrigações LP = 50% do passivo: credores por imóveis 5,1 bi + cessão +
+  adiantamentos), que ficavam anônimos.
+- **Escolha:** (1) mapear por CD_CONTA as sub-contas PADRÃO de nível 4
+  (1.02.01.01–.10, 2.01.05.01/.02, 2.02.02.01/.02 — códigos estáveis 2019–2025,
+  verificado); (2) mapear por NOME as sub-contas recorrentes de nível 5
+  (adiantamento de clientes, dividendos/JCP a pagar, credores por imóveis —
+  cobrindo o typo "imóvies" da DFP da Direcional —, passivo de cessão, depósitos
+  judiciais, tributos a recuperar/recolher, contas a pagar, receitas diferidas,
+  participação nos lucros, derivativos, provisão para garantias); (3) os 4
+  residuais explícitos do prompt (`outros_ativos_circulantes` já existia;
+  `outros_ativos_nao_circulantes`, `outros_passivos_circulantes`,
+  `outros_passivos_nao_circulantes` = códigos 1.02.01.10, 2.01.05.02,
+  2.02.02.02). **Residual medido (último exercício): DIRR3 0,01%/0,11% (era
+  55%/59%); MGLU3 1,53%/3,58%; SMFT3 1,14%/0,03%; VALE3 2,61%/0,66%; WEGE3
+  2,40%/4,49% — todos < 5%.** Única exceção histórica: VALE3 2023 ativo 6,03%
+  (AVISO no laudo, "Outros" da própria Vale).
+- **Alternativas:** abrir por nome TODAS as sub-contas específicas de empresa
+  (ex.: "Parceiros e outros depósitos" da MGLU3, 3,6% — deixada como residual
+  explícito: criar campo por empresa não escala e o residual já é pequeno).
+
+### D-056 ⏳ — Remapeamento OFFLINE + prova de neutralidade do golden (novo baseline DIRR3)
+
+- **Situação:** expandir o mapeamento deixa defasados os `nome_padronizado`
+  persistidos na coleta original. Recoletar com rede seria lento e não
+  determinístico.
+- **Escolha:** `remapear_empresa` no auditor (`--remapear`): reaplica a cascata
+  ATUAL aos JSONs brutos já persistidos (sem rede) e atualiza o Parquet limpo.
+  **Prova de neutralidade:** MGLU3 2,6542154782645526 e SMFT3 0,6360724149230469
+  BYTE-IDÊNTICOS antes/depois do remap (diff 0.0). Os consumidores do motor leem
+  a linha CONSOLIDADA (código mais curto), cujos nomes não mudaram; os residuais
+  do balanço são aritméticos (total − nomeadas), não somas por nome.
+- **DIRR3 16,9029 → 16,9687 NÃO é o remap:** é o `rf_usd` vivo (4,541%)
+  refrescado pelo `main.py` do DoD do 9.0.0 (padrão D-011: o JSON de mercado é
+  atualizado na coleta). Novo baseline do golden triplo registrado:
+  **DIRR3 16,968729990248534 | MGLU3 2,6542154782645526 | SMFT3
+  0,6360724149230469** (verificado idêntico em reexecução dupla).
+
+### D-057 ⏳ — Identidade da DRE que fecha invertendo UM sinal vira AVISO explicado
+
+- **Situação:** a DFP 2022 da VALE divulga o CPV POSITIVO (+124,2 bi; todos os
+  outros anos divulgam negativo). A identidade `lucro_bruto = 3.01 + 3.02` dava
+  ERRO, mas `3.01 − 3.02` fecha exato — o furo é de CONVENÇÃO DE SINAL do
+  arquivo divulgado, não de aritmética.
+- **Escolha:** quando a identidade só fecha invertendo o sinal de UMA parcela, o
+  auditor reporta AVISO com a conta apontada ("sinal divulgado fora da convenção
+  CVM") em vez de ERRO. Nenhum número é inventado (o que NÃO fazer do prompt); o
+  problema do dado fica exposto e o laudo da VALE3 fecha com 0 ERRO.
+- **Alternativas:** manter ERRO (pune a empresa por quirk de arquivamento da
+  CVM e polui o gate de CI); normalizar o sinal silenciosamente (vetado).
+
+### D-058 ⏳ — Desambiguação AC×LP posicional; aproximações de nome registradas
+
+- **Situação:** sub-contas de nível 5 com o MESMO nome nos dois lados do BP
+  ("Tributos a Recuperar" no AC e no realizável LP) não são distinguíveis por
+  DS_CONTA no fallback por nome.
+- **Escolha:** reutilizar o nome existente (ex.: `tributos_a_recuperar`) — as
+  séries por nome pegam a linha consolidada (código mais curto, AC), e a
+  decomposição do auditor (`bp_aberto`) atribui POSICIONALMENTE pela árvore de
+  códigos, então cada seção fica correta. Aproximações conscientes: "provisão
+  para garantias" → `provisoes_cp` (WEGE3 reporta no circulante; se alguma
+  empresa reportar em LP, a linha aparece na seção certa da decomposição mas com
+  nome de CP); "participação nos lucros" → `obrigacoes_sociais_trabalhistas`
+  (natureza trabalhista).
+- **Reversível:** se o humano preferir campos distintos (`tributos_a_recuperar_lp`
+  etc.), basta trocar o nome no fallback e re-rodar `--remapear`.
+
+---
+
+## 17/07/2026 — Prompt 9.0.0 (Enxugamento): congelar a periferia, reduzir ao núcleo
+
+> Sessão do **Claude Fable 5**. Executado o Prompt 9.0.0 do `PROMPTS_FABLE.md`:
+> cortar a gordura ANTES de construir o Excel-núcleo. Nada apagado (exceto a
+> cópia duplicada de doc); a periferia foi CONGELADA de forma reversível. Motor
+> e valuation intocados. Regressão dourada neutra (ver nota abaixo).
+
+### D-053 ⏳ — Lista EXATA do que foi congelado (para o humano decidir apagar depois)
+
+- **Congelados** (banner `# CONGELADO v2.1 (Prompt 9.0.0 ...)` no topo do arquivo;
+  removidos dos `import` de `app.py`/`main.py`/`src/pipeline.py`; **arquivos NÃO
+  movidos nem apagados** — só marcados e desligados do caminho crítico):
+  - `src/visualizacao/football_field.py`
+  - `src/visualizacao/tornado.py`
+  - `src/visualizacao/waterfall_ev.py`
+  - `src/visualizacao/dashboard_final.py`
+  - `src/visualizacao/roic_roiic.py`
+  - `src/visualizacao/historico_vs_projetado.py`
+  - `src/visualizacao/comparacao_empresas.py`
+  - `src/visualizacao/tabela_comparaveis.py`
+  - `src/visualizacao/sensibilidade_wacc_g.py`
+  - `src/visualizacao/sensibilidade_receita_margem.py`
+  - `src/visualizacao/sensibilidade_setor.py`
+  - `src/visualizacao/apoio_heatmap.py`
+  - `src/valuation/comparaveis.py`
+  - `src/valuation/motor_cenarios.py`
+  - `src/exportacao/exportador_bi.py`
+- **Testes pulados** (com `pytest.mark.skip(reason="congelado 9.0.0 — ... (D-053)")`,
+  NÃO removidos): `tests/test_football_field.py`, `tests/test_roic_roiic.py`,
+  `tests/test_comparaveis.py`, `tests/test_motor_cenarios.py` (módulo inteiro); e
+  3 testes de `tests/test_app.py` (Comparáveis, Comparar/watchlist e seletor de
+  cenários do Overview — seções que saíram do app enxuto).
+- **Para reverter qualquer item:** remover o banner do módulo, restaurar o
+  `import` no orquestrador e tirar o `skip` do teste. **A DECIDIR pelo humano:**
+  se prefere apagar de vez algum desses (o 9.0.0 só congela).
+- **Alternativas:** mover para `src/_congelado/` (a spec permitia) — preferi
+  marcar-no-lugar porque os charts importam entre si e de `tema_institucional`/
+  `apoio_cenarios`; mover exigiria reescrever imports internos de código
+  não-mantido (mais risco, mesmo efeito de "fora do caminho crítico").
+
+### D-052 ⏳ — `apoio_cenarios` e `tema_institucional` RETIDOS; `exportador_excel` intocado no 9.0.0
+
+- **Situação/conflito:** o Prompt 9.0.0.2 manda "remover as chamadas no
+  `exportador_excel`", mas o `exportador_excel.py` (NÚCLEO) **importa**
+  `src.visualizacao.apoio_cenarios` (tabelas de sensibilidade) e
+  `src.visualizacao.tema_institucional` (cores/formatação) e **insere PNGs** dos
+  charts. Congelar esses dois helpers OU reescrever o exportador agora quebraria
+  o Excel-núcleo e contrariaria "NÃO tocar no motor/Excel" + "Excel reescrito no
+  9.0.5" + "Target Price INALTERADO".
+- **Escolha:** manter `tema_institucional.py` e `apoio_cenarios.py` como SUPORTE
+  RETIDO (banner `# RETIDO no nucleo`), não congelados, usados só pelo
+  `exportador_excel` legado até a reescrita do 9.0.5. `exportador_excel.py` fica
+  **intocado** (Excel idêntico; `_inserir_png` já degrada com aviso quando o PNG
+  não existe, então sem gráficos o Excel gera igual). Para o `app.py` NÃO
+  depender de `src/visualizacao/`, criei `src/apresentacao/formatacao.py` (núcleo)
+  com as funções de formatação BR + cores; `app.py` e `main.py` passaram a usar
+  esse módulo / leitura inline (zero import de `src/visualizacao/`).
+- **Desvio registrado:** é uma leitura conservadora do 9.0.0.2 (remover as
+  chamadas do exportador fica para o 9.0.5, que reescreve o Excel). Se o humano
+  preferir, dá para já cortar PNG+sensibilidade do exportador agora.
+- **Alternativas:** congelar os dois helpers e mutilar o exportador agora
+  (quebra a golden do Excel e o test_exportador_excel); mover os helpers para o
+  núcleo e reescrever os imports dos 12 charts congelados (churn em código
+  não-mantido).
+
+### D-054 ⏳ — Consolidação da documentação da raiz
+
+- **Escolha:** `git mv` de `ROTEIRO.md`, `CHANGELOG.md`, `CONTRIBUTING.md` para
+  `docs/`; **apagado** `Roteiro DCF - Copia.md` (cópia duplicada — confirmado por
+  `grep` que só o próprio plano e este arquivo a citavam, nenhuma referência
+  funcional). Raiz agora com 5 `.md`: `README.md`, `CONTEXT.md`, `CLAUDE.md`,
+  `PROMPTS_FABLE.md`, `Humano_revisar.md`. Referências a `ROTEIRO.md` atualizadas
+  em `README.md` (link + árvore) e `CLAUDE.md` (→ `docs/ROTEIRO.md`); os links
+  internos entre os docs movidos continuam válidos (relativos, mesma pasta).
+- **Alternativas:** manter na raiz "marcados como histórico" (não reduz o
+  inchaço que Lucas apontou).
+
+### Nota (sem decisão) — Golden estava DEFASADA; enxugamento é neutro
+
+- Os JSONs em `data/processed/` (ignorados pelo git) estavam no estado **8.2/
+  D-045** (DIRR3 16,8618; MGLU3 7,5128; SMFT3 18,6259) — **nunca regenerados após
+  a simplificação da D&A (D-047/D-048)**. Re-rodar o motor (sem tocar em nada do
+  motor) os atualizou para o estado ATUAL do código, **D-048**, determinístico em
+  2 execuções: **DIRR3 16,90289543726421; MGLU3 2,65421547826455; SMFT3
+  0,63607241492305** (idêntico aos números já registrados na D-048). Ou seja: a
+  diferença é a defasagem dos dados persistidos, **não** o enxugamento — `git
+  diff` confirma que nenhum arquivo de motor/valuation foi tocado.
+
+---
+
 ## 17/07/2026 — Reescrita do PROMPTS_FABLE.md para a Semana 9.0 (automação + Excel)
 
 > Sessão do **Claude Fable 5**. Lucas pediu para reescrever o `PROMPTS_FABLE.md`

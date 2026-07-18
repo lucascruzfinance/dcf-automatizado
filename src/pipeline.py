@@ -23,6 +23,7 @@ from src.coleta.relatorio_qualidade import gerar_relatorio_qualidade
 from src.metricas.metricas_historicas import calcular_metricas_historicas
 from src.metricas.qualidade_lucro import calcular_qualidade_lucro
 from src.processamento.limpeza import limpar_empresa
+from src.projecao.dfc_indireto import projetar_dfc_indireto
 from src.projecao.gerador_premissas import gerar_premissas_automaticas
 from src.projecao.projetor_dre import (
     carregar_json,
@@ -40,10 +41,12 @@ from src.valuation.calculador_fcfe import calcular_fcfe_financeira
 from src.valuation.calculador_fcff import calcular_fcff
 from src.valuation.calculador_vt import calcular_valor_terminal
 from src.valuation.calculador_wacc import calcular_ke, calcular_wacc
-from src.exportacao.exportador_bi import exportar_fato_comparaveis
 from src.valuation.checklist import executar_checklist
-from src.valuation.comparaveis import gerar_comparaveis
-from src.valuation.motor_cenarios import executar_cenarios
+
+# NOTA (Prompt 9.0.0 — Enxugamento): comparaveis, cenarios e export BI foram
+# CONGELADOS (fora do nucleo). Nao sao mais importados no topo; entram apenas
+# quando o chamador liga as flags opcionais (import tardio dentro da funcao),
+# para o caminho critico ser coleta -> motor -> Excel. Ver Humano_revisar.md.
 
 logger = logging.getLogger(__name__)
 
@@ -99,12 +102,13 @@ def rodar_motor_valuation(
         _avisar(callback, "Valuation FCFE e valor terminal...")
         calcular_fcfe_financeira(ticker, raiz, preco_atual=preco)
     else:
-        _avisar(callback, "Projetando DRE, WK, PP&E, leasing e divida...")
+        _avisar(callback, "Projetando DRE, WK, PP&E, leasing, divida e DFC...")
         projetar_dre(ticker, raiz)
         projetar_wk(ticker, raiz)
         projetar_ppe(ticker, raiz)
         projetar_leasing(ticker, raiz)
         projetar_divida(ticker, raiz)
+        projetar_dfc_indireto(ticker, raiz)
         _avisar(callback, "FCFF, WACC, valor terminal e bridge...")
         calcular_fcff(ticker, raiz)
         calcular_wacc(ticker, raiz, rf_usd=rf)
@@ -119,15 +123,18 @@ def rodar_pipeline_universal(
     ticker: str,
     raiz_projeto: Path | None = None,
     forcar_recoleta: bool = False,
-    com_cenarios: bool = True,
-    com_comparaveis: bool = True,
+    com_cenarios: bool = False,
+    com_comparaveis: bool = False,
     callback_status: CallbackStatus | None = None,
 ) -> dict[str, Any]:
-    """Executa o pipeline completo para QUALQUER ticker da B3.
+    """Executa o pipeline do nucleo para QUALQUER ticker da B3.
 
-    Reusa dados coletados quando existem (``forcar_recoleta=False``);
-    comparaveis e cenarios sao opcionais e suas falhas NAO derrubam o
-    pipeline (viram avisos no resumo). Devolve um resumo com as etapas.
+    Caminho critico (default): coleta -> limpeza -> metricas -> premissas ->
+    motor de valuation. ``com_cenarios`` e ``com_comparaveis`` sao etapas
+    PERIFERICAS congeladas no 9.0.0 (default DESLIGADAS); quando ligadas,
+    importam sob demanda os modulos congelados e suas falhas NAO derrubam o
+    pipeline (viram avisos no resumo). Reusa dados coletados quando existem
+    (``forcar_recoleta=False``). Devolve um resumo com as etapas.
     """
     raiz = resolver_raiz(raiz_projeto)
     ticker_normalizado = normalizar_ticker(ticker)
@@ -200,21 +207,27 @@ def rodar_pipeline_universal(
     )
     # Ordem deliberada: cenarios ANTES dos comparaveis, para a triangulacao
     # ler o ev_equity final (o motor_cenarios re-grava o caso base ao fim).
+    # Ambos CONGELADOS (9.0.0): import tardio, so quando explicitamente ligados.
     if com_cenarios:
+        from src.valuation.motor_cenarios import executar_cenarios
+
         etapa(
-            "Cenarios Bear/Base/Bull",
+            "Cenarios Bear/Base/Bull (congelado)",
             lambda: executar_cenarios(ticker_normalizado, raiz),
             opcional=True,
         )
     if com_comparaveis:
+        from src.exportacao.exportador_bi import exportar_fato_comparaveis
+        from src.valuation.comparaveis import gerar_comparaveis
+
         etapa(
-            "Comparaveis (peers reais)",
+            "Comparaveis (peers reais, congelado)",
             lambda: gerar_comparaveis(ticker_normalizado, raiz),
             opcional=True,
         )
         # Export BI nasce junto com os comparaveis (fonte -> uso completo).
         etapa(
-            "Export BI (fato_comparaveis)",
+            "Export BI (fato_comparaveis, congelado)",
             lambda: exportar_fato_comparaveis(ticker_normalizado, raiz),
             opcional=True,
         )
@@ -256,12 +269,24 @@ def main() -> None:
     )
     parser.add_argument("tickers", nargs="+")
     parser.add_argument("--forcar-recoleta", action="store_true")
+    parser.add_argument(
+        "--com-cenarios",
+        action="store_true",
+        help="Liga a etapa CONGELADA de cenarios Bear/Base/Bull (fora do nucleo).",
+    )
+    parser.add_argument(
+        "--com-comparaveis",
+        action="store_true",
+        help="Liga as etapas CONGELADAS de comparaveis + export BI (fora do nucleo).",
+    )
     argumentos = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
     for ticker in argumentos.tickers:
         resumo = rodar_pipeline_universal(
             ticker,
             forcar_recoleta=argumentos.forcar_recoleta,
+            com_cenarios=argumentos.com_cenarios,
+            com_comparaveis=argumentos.com_comparaveis,
         )
         target = resumo.get("target_price")
         print(

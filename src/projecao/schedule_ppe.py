@@ -25,8 +25,10 @@ try:
         empresa_usa_ret,
         formatar_numero,
         formatar_percentual,
+        montar_contexto_ir_completo,
         normalizar_ticker,
         normalizar_valor_json,
+        recalcular_cauda_dre_completa,
         resolver_raiz,
         salvar_json,
         selecionar_ultimo_exercicio,
@@ -43,8 +45,10 @@ except ModuleNotFoundError as erro:
         empresa_usa_ret,
         formatar_numero,
         formatar_percentual,
+        montar_contexto_ir_completo,
         normalizar_ticker,
         normalizar_valor_json,
+        recalcular_cauda_dre_completa,
         resolver_raiz,
         salvar_json,
         selecionar_ultimo_exercicio,
@@ -89,6 +93,47 @@ def carregar_parametros_ppe(raiz_projeto: Path) -> dict[str, float]:
             capex_split.get("capex_expansao_pct_padrao", CAPEX_EXPANSAO_PCT_PADRAO)
         ),
     }
+
+
+def resolver_vida_util_ppe(
+    premissas: dict[str, Any],
+    metadados: dict[str, Any],
+    raiz_projeto: Path,
+    vida_util_config: float,
+) -> tuple[float, str]:
+    """Vida util do PP&E: premissa da empresa > subtipo > config global.
+
+    Decisao D-047 preservada: a vida NUNCA e derivada do historico — a taxa
+    usada vem sempre de premissa/config (a D&A% historica fica so como
+    informacao exibivel, Direcional ``Modelo`` L202).
+    """
+    valor = premissas.get(CAMPO_VIDA_UTIL_PPE)
+    if (
+        isinstance(valor, (int, float))
+        and not isinstance(valor, bool)
+        and float(valor) > 0
+    ):
+        return float(valor), "premissa_da_empresa"
+
+    subtipo = metadados.get("subtipo")
+    if subtipo:
+        caminho_setores = raiz_projeto / "config" / "setores.json"
+        if caminho_setores.exists():
+            setores = carregar_json(caminho_setores)
+            defaults = (
+                setores.get("subtipos", {})
+                .get(str(subtipo), {})
+                .get("premissas_default", {})
+            )
+            valor_subtipo = defaults.get(CAMPO_VIDA_UTIL_PPE)
+            if (
+                isinstance(valor_subtipo, (int, float))
+                and not isinstance(valor_subtipo, bool)
+                and float(valor_subtipo) > 0
+            ):
+                return float(valor_subtipo), f"default_do_subtipo_{subtipo}"
+
+    return vida_util_config, "parametro_global"
 
 
 def carregar_premissas_ppe(ticker: str, raiz_projeto: Path) -> dict[int, float]:
@@ -185,6 +230,11 @@ def carregar_ano0_ppe(ticker: str, raiz_projeto: Path) -> dict[str, Any]:
         "imobilizado": imobilizado,
         "intangivel": intangivel,
         "da_historica": da_historica,
+        # INFORMATIVO (Direcional ``Modelo`` L202): D&A% historica implicita.
+        # A taxa USADA e sempre a da premissa/config (D-047 — nunca derivada).
+        "da_pct_ppe_historica": (
+            da_historica / imobilizado if imobilizado > 0 else None
+        ),
     }
 
 
@@ -319,6 +369,7 @@ def atualizar_dre_com_depreciacao(
     ppe: dict[str, dict[str, float | str]],
     usa_ret: bool,
     modo_dre: str = "legado",
+    contexto_ir_completo: dict[str, Any] | None = None,
 ) -> None:
     """Fecha a D&A da DRE com o schedule PP&E (imobilizado + intangivel).
 
@@ -326,8 +377,10 @@ def atualizar_dre_com_depreciacao(
     momento (0 quando o leasing ainda nao rodou; o schedule de leasing a
     preenche e RE-TOTALIZA depois). D&A total = imobilizado + intangivel +
     direito de uso. Modo LEGADO: EBIT = EBITDA - D&A total e recalcula
-    EBT/IR/LL. Modo COMPLETO: EBIT fixo (D&A embutida em CPV/SG&A); apenas
-    os componentes de D&A e o EBITDA (= EBIT + D&A total) sao atualizados.
+    EBT/IR/LL. Modo COMPLETO (PRE-D&A, Prompt 9.0.2): EBIT = EBIT
+    ex-Depreciacao - D&A total (a D&A e linha PROPRIA, nao esta nas
+    margens); EBITDA = EBIT ex-Depreciacao (invariante); recalcula
+    EBT -> IR (aliquota anual/RET) -> minoritarios -> LL -> LPA.
     """
     for ano in range(1, HORIZONTE_PROJECAO + 1):
         chave_ano = f"ano{ano}"
@@ -347,9 +400,23 @@ def atualizar_dre_com_depreciacao(
         linha_dre["depreciacao_amortizacao"] = da_total
 
         if modo_dre == "completo":
-            ebit = obter_float_obrigatorio(linha_dre, "ebit", chave_ano)
-            # Formula: EBITDA = EBIT + D&A total (EBIT ja e apos D&A embutida).
-            linha_dre["ebitda"] = ebit + da_total
+            ebit_ex_depreciacao = obter_float_obrigatorio(
+                linha_dre,
+                "ebit_ex_depreciacao",
+                chave_ano,
+            )
+            # Formula: EBIT = EBIT ex-Depreciacao - D&A total (linha propria).
+            linha_dre["ebit"] = ebit_ex_depreciacao - da_total
+            # Memo: EBITDA = EBIT ex-Depreciacao (nao muda com a D&A).
+            linha_dre["ebitda"] = ebit_ex_depreciacao
+            resultado_financeiro = float(linha_dre.get("resultado_financeiro") or 0.0)
+            linha_dre["ebt"] = float(linha_dre["ebit"]) + resultado_financeiro
+            recalcular_cauda_dre_completa(
+                linha_dre,
+                chave_ano,
+                usa_ret,
+                contexto_ir_completo or {},
+            )
             continue
 
         receita_liquida = obter_float_obrigatorio(
@@ -409,6 +476,16 @@ def projetar_ppe(
     )
     ano0_ppe = carregar_ano0_ppe(ticker_normalizado, raiz)
     modo_dre = str(conteudo.get("modo_dre", "legado"))
+    # Vida util com override (9.0.2): premissa > subtipo > config global.
+    vida_util, origem_vida_util = resolver_vida_util_ppe(
+        premissas=premissas_completas,
+        metadados=metadados,
+        raiz_projeto=raiz,
+        vida_util_config=parametros["vida_util_ppe_anos"],
+    )
+    parametros["vida_util_ppe_anos"] = vida_util
+    parametros["taxa_depreciacao_ppe"] = 1 / vida_util
+    parametros["origem_vida_util"] = origem_vida_util
     capex_expansao_padrao, origem_capex_expansao = resolver_capex_expansao_padrao(
         metadados=metadados,
         raiz_projeto=raiz,
@@ -431,6 +508,7 @@ def projetar_ppe(
         ppe=ppe,
         usa_ret=empresa_usa_ret(premissas_completas, metadados),
         modo_dre=modo_dre,
+        contexto_ir_completo=montar_contexto_ir_completo(conteudo),
     )
     atualizar_projecao_ppe(caminho_projecao, conteudo, ano0_ppe, ppe)
     return {

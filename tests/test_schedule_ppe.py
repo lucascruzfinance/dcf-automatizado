@@ -182,7 +182,7 @@ def test_projetar_ppe_falha_sem_premissa_individual(tmp_path: Path) -> None:
 
 
 def criar_projecao_dre_completa(raiz: Path, ticker: str = "TEST3") -> None:
-    """Cria projecao no modo COMPLETO: EBIT fixo, D&A embutida em CPV/SG&A."""
+    """Cria projecao no modo COMPLETO PRE-D&A (9.0.2): margens nivel EBITDA."""
     dre = {}
     for ano in range(1, 9):
         dre[f"ano{ano}"] = {
@@ -195,15 +195,18 @@ def criar_projecao_dre_completa(raiz: Path, ticker: str = "TEST3") -> None:
             "sgna": -150.0,
             "outras_receitas_despesas": 0.0,
             "equivalencia_patrimonial": 0.0,
-            "ebit": 250.0,
+            "ebit_ex_depreciacao": 250.0,
             "da_direito_uso": 0.0,
             "da_imobilizado": 0.0,
             "da_intangivel": 0.0,
             "depreciacao_amortizacao": 0.0,
+            "ebit": 250.0,
             "ebitda": 250.0,
             "resultado_financeiro": -10.0,
             "ebt": 240.0,
             "ir_csll": -81.6,
+            "ll_antes_minoritarios": 158.4,
+            "participacao_minoritarios": 0.0,
             "lucro_liquido": 158.4,
         }
     salvar_json(
@@ -219,9 +222,10 @@ def criar_projecao_dre_completa(raiz: Path, ticker: str = "TEST3") -> None:
     )
 
 
-def test_ppe_modo_completo_mantem_ebit_e_deriva_ebitda(tmp_path: Path) -> None:
-    """Modo completo: a D&A do PP&E entra em da_imobilizado e o EBITDA vira
-    EBIT + D&A; EBIT/EBT/IR/LL NAO mudam (a D&A ja esta embutida em CPV/SG&A)."""
+def test_ppe_modo_completo_pre_da_recalcula_ebit(tmp_path: Path) -> None:
+    """Modo completo PRE-D&A (9.0.2): a D&A do PP&E e LINHA PROPRIA — EBIT =
+    EBIT ex-Depreciacao - D&A; EBITDA = EBIT ex-Depreciacao (invariante); a
+    cauda EBT -> IR -> LL e RECALCULADA (a D&A nao esta nas margens)."""
     criar_parametros_ppe(tmp_path)
     criar_premissas_ppe(tmp_path)
     criar_metadados(tmp_path)
@@ -236,13 +240,14 @@ def test_ppe_modo_completo_mantem_ebit_e_deriva_ebitda(tmp_path: Path) -> None:
     assert ppe["ano1"]["da_imobilizado"] == pytest.approx(100.0)
     assert dre["ano1"]["da_imobilizado"] == pytest.approx(100.0)
     assert dre["ano1"]["depreciacao_amortizacao"] == pytest.approx(100.0)
-    # EBITDA = EBIT + D&A total; EBIT permanece fixo.
-    assert dre["ano1"]["ebit"] == pytest.approx(250.0)
-    assert dre["ano1"]["ebitda"] == pytest.approx(350.0)
-    # EBT/IR/LL nao sao recalculados pela D&A no modo completo.
-    assert dre["ano1"]["ebt"] == pytest.approx(240.0)
-    assert dre["ano1"]["ir_csll"] == pytest.approx(-81.6)
-    assert dre["ano1"]["lucro_liquido"] == pytest.approx(158.4)
+    # EBIT = EBIT ex-D&A - D&A = 250 - 100; EBITDA = EBIT ex-D&A = 250.
+    assert dre["ano1"]["ebit"] == pytest.approx(150.0)
+    assert dre["ano1"]["ebitda"] == pytest.approx(250.0)
+    # Cauda recalculada: EBT = 150 - 10; IR = -34% x 140; LL = 140 - 47,6.
+    assert dre["ano1"]["ebt"] == pytest.approx(140.0)
+    assert dre["ano1"]["ir_csll"] == pytest.approx(-47.6)
+    assert dre["ano1"]["lucro_liquido"] == pytest.approx(92.4)
+    assert dre["ano1"]["ll_antes_minoritarios"] == pytest.approx(92.4)
 
 
 def criar_dfc_da(raiz: Path, ticker: str = "TEST3", da: float = -200.0) -> None:

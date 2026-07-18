@@ -148,6 +148,13 @@ CAMPOS_COMPLETOS = (
     "da_intangivel",
     "modo_dre",
     "modo_aliquota",
+    # Campos novos do padrao Direcional PRE-D&A (Prompt 9.0.2).
+    "ebit_ex_depreciacao",
+    "aliquota_ir_ano",
+    "ll_antes_minoritarios",
+    "participacao_minoritarios",
+    "minoritarios_pct_ll",
+    "lpa",
 )
 
 
@@ -218,8 +225,8 @@ def criar_premissas_completas(
 
 
 def test_dre_completa_bruta_liquida_cpv_sgna(tmp_path: Path) -> None:
-    """Modo completo: receita bruta->liquida, CPV por margem bruta, SG&A e
-    EBITDA derivado = EBIT + D&A (D&A ainda 0 no projetor puro)."""
+    """Cascata PRE-D&A (9.0.2): margens de nivel EBITDA geram o EBIT
+    ex-Depreciacao; EBIT = ex-D&A - D&A (linha propria); EBITDA = ex-D&A."""
     criar_mapeamento_completo(tmp_path)
     criar_parametros_dre_completa(tmp_path)
     criar_base_historica_minima(tmp_path)
@@ -233,18 +240,70 @@ def test_dre_completa_bruta_liquida_cpv_sgna(tmp_path: Path) -> None:
     assert a1["receita_liquida"] == pytest.approx(1100.0)
     assert a1["receita_bruta"] == pytest.approx(1100.0 / 0.9)
     assert a1["deducoes"] == pytest.approx(1100.0 - 1100.0 / 0.9)
-    # CPV = -(RL x (1 - margem_bruta)); Lucro Bruto = RL x margem_bruta.
+    # CPV PRE-D&A = -(RL x (1 - margem_bruta)); Lucro Bruto = RL x margem.
     assert a1["cpv_cmv"] == pytest.approx(-(1100.0 * 0.6))
     assert a1["lucro_bruto"] == pytest.approx(1100.0 * 0.4)
     assert a1["sgna"] == pytest.approx(-(1100.0 * 0.15))
-    # EBIT = Lucro Bruto + SG&A + Outras + Equivalencia.
-    ebit_esperado = 1100.0 * 0.4 - 1100.0 * 0.15
-    assert a1["ebit"] == pytest.approx(ebit_esperado)
-    # EBITDA = EBIT + D&A total (D&A = 0 no projetor puro).
-    assert a1["ebitda"] == pytest.approx(a1["ebit"] + a1["depreciacao_amortizacao"])
+    # EBIT ex-Depreciacao = Lucro Bruto + SG&A + Outras + Equivalencia
+    # (nivel EBITDA — nenhuma D&A embutida nas margens).
+    ebit_ex_esperado = 1100.0 * 0.4 - 1100.0 * 0.15
+    assert a1["ebit_ex_depreciacao"] == pytest.approx(ebit_ex_esperado)
+    # EBIT = EBIT ex-D&A - D&A (linha propria; 0 no projetor puro).
+    assert a1["ebit"] == pytest.approx(
+        a1["ebit_ex_depreciacao"] - a1["depreciacao_amortizacao"]
+    )
+    # Memo: EBITDA = EBIT ex-Depreciacao (invariante sob a D&A).
+    assert a1["ebitda"] == pytest.approx(a1["ebit_ex_depreciacao"])
     # Imposto marginal 34% sobre EBT positivo.
     assert a1["ir_csll"] == pytest.approx(-(a1["ebt"] * 0.34))
-    assert a1["lucro_liquido"] == pytest.approx(a1["ebt"] + a1["ir_csll"])
+    # Sem minoritarios (default 0): LL = LL antes de minoritarios.
+    assert a1["ll_antes_minoritarios"] == pytest.approx(a1["ebt"] + a1["ir_csll"])
+    assert a1["participacao_minoritarios"] == pytest.approx(0.0)
+    assert a1["lucro_liquido"] == pytest.approx(a1["ll_antes_minoritarios"])
+
+
+def test_dre_completa_aliquota_anual_vence_escalar(tmp_path: Path) -> None:
+    """Vetor aliquota_ir_ano1..8 VENCE o modo escalar (efetiva/marginal)."""
+    criar_mapeamento_completo(tmp_path)
+    criar_parametros_dre_completa(tmp_path)
+    criar_base_historica_minima(tmp_path)
+    criar_premissas_completas(
+        tmp_path,
+        modo_aliquota="efetiva_historica",
+        aliquota_efetiva=0.40,
+    )
+    caminho = tmp_path / "data" / "premissas" / "TEST3_premissas.json"
+    premissas = json.loads(caminho.read_text(encoding="utf-8"))
+    for ano in range(1, 9):
+        premissas[f"aliquota_ir_ano{ano}"] = 0.20
+    salvar_json(caminho, premissas)
+
+    resultado = projetar_dre("TEST3", raiz_projeto=tmp_path)
+    a1 = resultado["dre"]["ano1"]
+    # O vetor anual (20%) vence a efetiva escalar (40%).
+    assert a1["aliquota_ir_ano"] == pytest.approx(0.20)
+    assert a1["ir_csll"] == pytest.approx(-(a1["ebt"] * 0.20))
+
+
+def test_dre_completa_minoritarios_e_lpa(tmp_path: Path) -> None:
+    """Minoritarios = -pct x LL antes; LL final = LL antes x (1-pct);
+    LPA = LL final / acoes fully diluted."""
+    criar_mapeamento_completo(tmp_path)
+    criar_parametros_dre_completa(tmp_path)
+    criar_base_historica_minima(tmp_path)
+    criar_premissas_completas(tmp_path)
+    caminho = tmp_path / "data" / "premissas" / "TEST3_premissas.json"
+    premissas = json.loads(caminho.read_text(encoding="utf-8"))
+    premissas["minoritarios_pct_ll"] = 0.10
+    premissas["acoes_fully_diluted"] = 100.0
+    salvar_json(caminho, premissas)
+
+    resultado = projetar_dre("TEST3", raiz_projeto=tmp_path)
+    a1 = resultado["dre"]["ano1"]
+    ll_antes = float(a1["ll_antes_minoritarios"])
+    assert a1["participacao_minoritarios"] == pytest.approx(-0.10 * ll_antes)
+    assert a1["lucro_liquido"] == pytest.approx(0.90 * ll_antes)
+    assert a1["lpa"] == pytest.approx(float(a1["lucro_liquido"]) / 100.0)
 
 
 def test_dre_completa_aliquota_efetiva_com_clamp(tmp_path: Path) -> None:

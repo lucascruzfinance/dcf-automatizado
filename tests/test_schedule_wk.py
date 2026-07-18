@@ -215,3 +215,207 @@ def test_salvaguarda_trunca_delta_nwc_ano1(tmp_path: Path) -> None:
     assert abs(delta_ano1) <= limite
     assert delta_ano1 == pytest.approx(-limite)
     assert resultado["wk"]["ano1"]["nwc"] == pytest.approx(4950.0)
+
+
+# ---------------------------------------------------------------------------
+# Modo MULTI-DRIVER (WK expandido — Prompt 9.0.2.3, padrao Direcional)
+# ---------------------------------------------------------------------------
+
+
+def criar_ambiente_multi_driver(raiz: Path, ir_ano0: float = -100.0) -> None:
+    """Ambiente do WK expandido: BP com as contas novas + DRE com drivers.
+
+    Numeros redondos em estado estacionario (RL constante = ano0) para os
+    dias implicitos reproduzirem exatamente os saldos do Ano 0.
+    """
+    criar_mapeamento_wk_minimo(raiz)
+    salvar_json(
+        raiz / "data" / "premissas" / "TEST3_premissas.json",
+        {
+            "ticker": "TEST3",
+            "setor": "varejo",
+            "tipo": "nao_financeira",
+            "modo_capital_giro": "dias_multi_driver",
+        },
+    )
+    criar_meta_wk(raiz)
+    base = {
+        "ano_arquivo": 2025,
+        "DT_FIM_EXERC": "2025-12-31",
+        "ORDEM_EXERC": "ÚLTIMO",
+    }
+    bp = [
+        {
+            **base,
+            "CD_CONTA": "1.01.03",
+            "nome_padronizado": "contas_receber",
+            "valor_padronizado": 100.0,
+        },
+        {
+            **base,
+            "CD_CONTA": "1.01.04",
+            "nome_padronizado": "estoques",
+            "valor_padronizado": 80.0,
+        },
+        {
+            **base,
+            "CD_CONTA": "1.01.06",
+            "nome_padronizado": "tributos_a_recuperar",
+            "valor_padronizado": 50.0,
+        },
+        {
+            **base,
+            "CD_CONTA": "2.01.02",
+            "nome_padronizado": "fornecedores",
+            "valor_padronizado": -60.0,
+        },
+        {
+            **base,
+            "CD_CONTA": "2.01.01",
+            "nome_padronizado": "obrigacoes_sociais_trabalhistas",
+            "valor_padronizado": -30.0,
+        },
+        {
+            **base,
+            "CD_CONTA": "2.01.05.02.04",
+            "nome_padronizado": "adiantamento_clientes",
+            "valor_padronizado": -20.0,
+        },
+    ]
+    salvar_json(raiz / "data" / "raw" / "cvm" / "TEST3_bp.json", bp)
+    dre_raw = [
+        {
+            **base,
+            "CD_CONTA": "3.01",
+            "nome_padronizado": "receita_liquida",
+            "valor_padronizado": 1000.0,
+        },
+        {
+            **base,
+            "CD_CONTA": "3.02",
+            "nome_padronizado": "cpv_cmv",
+            "valor_padronizado": -400.0,
+        },
+        {
+            **base,
+            "CD_CONTA": "3.08",
+            "nome_padronizado": "ir_csll",
+            "valor_padronizado": ir_ano0,
+        },
+        {
+            **base,
+            "CD_CONTA": "3.04.01",
+            "nome_padronizado": "despesas_vendas",
+            "valor_padronizado": -80.0,
+        },
+        {
+            **base,
+            "CD_CONTA": "3.04.02",
+            "nome_padronizado": "despesas_gerais_administrativas",
+            "valor_padronizado": -40.0,
+        },
+    ]
+    salvar_json(raiz / "data" / "raw" / "cvm" / "TEST3_dre.json", dre_raw)
+    dre_projetada = {}
+    for ano in range(1, 9):
+        dre_projetada[f"ano{ano}"] = {
+            "ano_projecao": f"ano{ano}",
+            "receita_liquida": 1000.0,
+            "cpv_cmv": -400.0,
+            "ir_csll": -100.0,
+            "sgna": -120.0,
+        }
+    salvar_json(
+        raiz / "data" / "processed" / "TEST3_projecao.json",
+        {
+            "ticker": "TEST3",
+            "tipo": "nao_financeira",
+            "setor": "varejo",
+            "modo_dre": "completo",
+            "ano0": {"receita_liquida": 1000.0},
+            "dre": dre_projetada,
+        },
+    )
+
+
+def test_multi_driver_projeta_as_contas_novas_com_drivers_corretos(
+    tmp_path: Path,
+) -> None:
+    """WK expandido: 6 contas, cada uma pelo SEU driver (dias implicitos).
+
+    Estado estacionario: os saldos projetados reproduzem o Ano 0 e o
+    delta_nwc e zero em todos os anos.
+    """
+    criar_ambiente_multi_driver(tmp_path)
+
+    resultado = projetar_wk("TEST3", raiz_projeto=tmp_path)
+    assert resultado["modo_capital_giro"] == "dias_multi_driver"
+    dias = resultado["dias_multi_driver"]
+
+    # Drivers nominais corretos (Direcional Modelo L144-L180).
+    assert dias["contas_receber"]["driver"] == "receita_liquida"
+    assert dias["estoques"]["driver"] == "cpv"
+    assert dias["tributos_a_recuperar"]["driver"] == "ir_csll"
+    assert dias["fornecedores"]["driver"] == "cpv"
+    assert dias["obrigacoes_sociais_trabalhistas"]["driver"] == "sgna"
+    assert dias["adiantamento_clientes"]["driver"] == "receita_liquida"
+
+    a1 = resultado["wk"]["ano1"]
+    # Estado estacionario: saldos = Ano 0 (dias implicitos exatos).
+    assert a1["contas_receber"] == pytest.approx(100.0)
+    assert a1["estoques"] == pytest.approx(80.0)
+    assert a1["tributos_a_recuperar"] == pytest.approx(50.0)
+    assert a1["fornecedores"] == pytest.approx(-60.0)
+    assert a1["obrigacoes_sociais_trabalhistas"] == pytest.approx(-30.0)
+    assert a1["adiantamento_clientes"] == pytest.approx(-20.0)
+    # NWC = (100 + 80 + 50) - (60 + 30 + 20) = 120; delta = 0.
+    assert a1["nwc"] == pytest.approx(120.0)
+    for ano in range(1, 9):
+        assert resultado["wk"][f"ano{ano}"]["delta_nwc"] == pytest.approx(0.0)
+
+
+def test_multi_driver_premissa_de_dias_sobrescreve_historico(
+    tmp_path: Path,
+) -> None:
+    """Premissa dias_* explicita vence a media historica implicita."""
+    criar_ambiente_multi_driver(tmp_path)
+    caminho = tmp_path / "data" / "premissas" / "TEST3_premissas.json"
+    premissas = json.loads(caminho.read_text(encoding="utf-8"))
+    premissas["dias_impostos_recuperar"] = 36.5
+    salvar_json(caminho, premissas)
+
+    resultado = projetar_wk("TEST3", raiz_projeto=tmp_path)
+    dias = resultado["dias_multi_driver"]["tributos_a_recuperar"]
+    assert dias["origem"] == "premissa_da_empresa"
+    # 36,5 dias de IR (100/ano) => saldo = 36,5/365 x 100 = 10.
+    assert resultado["wk"]["ano1"]["tributos_a_recuperar"] == pytest.approx(10.0)
+
+
+def test_multi_driver_fallback_para_receita_quando_driver_instavel(
+    tmp_path: Path,
+) -> None:
+    """Dias implicitos > 365 pelo driver nominal caem para a receita liquida
+    (salvaguarda: tributos de varejo sao ICMS/PIS/COFINS, nao IR)."""
+    criar_ambiente_multi_driver(tmp_path, ir_ano0=-5.0)
+
+    resultado = projetar_wk("TEST3", raiz_projeto=tmp_path)
+    dias = resultado["dias_multi_driver"]["tributos_a_recuperar"]
+    # 50 / 5 x 365 = 3.650 dias > 365 => driver vira receita (18,25 dias).
+    assert dias["driver"] == "receita_liquida"
+    assert dias["origem"] == "fallback_driver_instavel_para_receita"
+    assert dias["dias"] == pytest.approx(18.25)
+    # Saldo pelo driver receita: 18,25/365 x 1000 = 50 (reproduz o Ano 0).
+    assert resultado["wk"]["ano1"]["tributos_a_recuperar"] == pytest.approx(50.0)
+
+
+def test_modos_antigos_nao_exigem_dias_novos(tmp_path: Path) -> None:
+    """Arquivo v2 (so DSO/DIO/DPO, sem modo) segue no modo dias byte a byte."""
+    criar_mapeamento_wk_minimo(tmp_path)
+    criar_premissas_wk(tmp_path)
+    criar_meta_wk(tmp_path)
+    criar_projecao_dre(tmp_path, receitas=[1000.0] * 8)
+    criar_base_historica_wk(tmp_path)
+
+    resultado = projetar_wk("TEST3", raiz_projeto=tmp_path)
+    assert resultado["modo_capital_giro"] == "dias"
+    assert "tributos_a_recuperar" not in resultado["wk"]["ano1"]

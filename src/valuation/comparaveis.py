@@ -1,3 +1,6 @@
+# CONGELADO v2.1 (Prompt 9.0.0 - Enxugamento): fora do nucleo, nao-mantido.
+# Removido do caminho critico (app/pipeline/main); reversivel. Ver a lista
+# do congelado em Humano_revisar.md (D-053).
 """Comparaveis / CCA: multiplos de peers reais e triangulacao (v2.0, Onda 3).
 
 Para o subtipo da empresa (lido do ``_meta.json``), le a lista de ``peers``

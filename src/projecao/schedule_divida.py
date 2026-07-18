@@ -37,14 +37,15 @@ try:
     from src.projecao.projetor_dre import (
         HORIZONTE_PROJECAO,
         calcular_ir_csll,
-        calcular_ir_csll_completo,
         carregar_json,
         carregar_metadados,
         empresa_usa_ret,
         formatar_numero,
+        montar_contexto_ir_completo,
         normalizar_ticker,
         normalizar_valor_json,
         projetar_dre,
+        recalcular_cauda_dre_completa,
         resolver_raiz,
         salvar_json,
         selecionar_ultimo_exercicio,
@@ -60,14 +61,15 @@ except ModuleNotFoundError as erro:
     from projetor_dre import (
         HORIZONTE_PROJECAO,
         calcular_ir_csll,
-        calcular_ir_csll_completo,
         carregar_json,
         carregar_metadados,
         empresa_usa_ret,
         formatar_numero,
+        montar_contexto_ir_completo,
         normalizar_ticker,
         normalizar_valor_json,
         projetar_dre,
+        recalcular_cauda_dre_completa,
         resolver_raiz,
         salvar_json,
         selecionar_ultimo_exercicio,
@@ -328,16 +330,26 @@ def carregar_ano0_divida_balanco(ticker: str, raiz_projeto: Path) -> dict[str, A
     }
 
 
+def _wk_tem_multi_driver(wk: dict[str, dict[str, Any]]) -> bool:
+    """True quando o schedule WK projetou as contas expandidas (9.0.2)."""
+    linha = wk.get("ano1", {})
+    return "tributos_a_recuperar" in linha
+
+
 def _residuais_balanco_ano0(
     ano0: dict[str, Any],
     conteudo: dict[str, Any],
+    wk_multi_driver: bool,
 ) -> tuple[float, float]:
-    """Residuais do BP real do Ano 0 (constantes na projecao).
+    """Residuais do BP real do Ano 0 (constantes e EXPLICITOS na projecao).
 
-    outros_ativos_0 = Ativo Total real - (caixa + aplicacoes + CR + estoques
-    + imobilizado modelados). outros_passivos_0 = (Ativo Total real - PL) -
-    fornecedores - divida bruta. Com esses residuais constantes e caixa via
-    DFC, o balanco fecha por construcao (verificado, nao plugado).
+    outros_ativos_0 = Ativo Total real - linhas de ativo MODELADAS (caixa,
+    aplicacoes, CR, estoques, imobilizado, intangivel e, no WK expandido,
+    tributos a recuperar). outros_passivos_0 = passivo exigivel real -
+    fornecedores - divida bruta - passivo de arrendamento (linha propria
+    constante, 9.0.2) - contas do WK expandido quando projetadas. Com os
+    residuais constantes e caixa via DFC, o balanco fecha por construcao
+    (verificado, nao plugado).
     """
     ano0_wk = conteudo.get("ano0", {}).get("wk", {})
     ano0_ppe = conteudo.get("ano0", {}).get("ppe", {})
@@ -352,8 +364,7 @@ def _residuais_balanco_ano0(
     estoques = float(ano0_wk.get("estoques") or 0.0)
     fornecedores = abs(float(ano0_wk.get("fornecedores") or 0.0))
     imobilizado = float(ano0_ppe.get("imobilizado") or 0.0)
-    # Intangivel passa a ser linha PROPRIA (amortiza no 8.2); sai do residual
-    # para o balanco refletir a queda do saldo e continuar fechando.
+    # Intangivel e linha PROPRIA do balanco (D-043); fora do residual.
     intangivel = float(ano0_ppe.get("intangivel") or 0.0)
 
     ativos_modelados = (
@@ -364,68 +375,207 @@ def _residuais_balanco_ano0(
         + imobilizado
         + intangivel
     )
-    outros_ativos = ativo_total - ativos_modelados
+    passivos_modelados = fornecedores + float(ano0["divida_bruta"])
+    # Passivo de arrendamento vira linha PROPRIA constante do BP aberto
+    # (9.0.2); sai do residual sem alterar o total.
+    passivos_modelados += abs(float(ano0.get("passivo_arrendamento") or 0.0))
+    if wk_multi_driver:
+        ativos_modelados += abs(float(ano0_wk.get("tributos_a_recuperar") or 0.0))
+        passivos_modelados += abs(
+            float(ano0_wk.get("obrigacoes_sociais_trabalhistas") or 0.0)
+        ) + abs(float(ano0_wk.get("adiantamento_clientes") or 0.0))
 
+    outros_ativos = ativo_total - ativos_modelados
     passivo_exigivel = ativo_total - float(ano0["patrimonio_liquido"])
-    outros_passivos = passivo_exigivel - fornecedores - float(ano0["divida_bruta"])
+    outros_passivos = passivo_exigivel - passivos_modelados
     return outros_ativos, outros_passivos
+
+
+def carregar_instrumentos_divida(
+    premissas: dict[str, Any],
+) -> list[dict[str, Any]] | None:
+    """Tabela OPCIONAL ``instrumentos_divida`` das premissas (Prompt 9.0.2.4).
+
+    Cada item: ``{"nome", "saldo"`` (BRL, ja convertido), ``"taxa"`` (a.a.
+    decimal; ausente usa o Kd), ``"indexador"`` (texto informativo),
+    ``"ano_vencimento"`` (1..8, bullet) OU ``"curva_amortizacao"``
+    ({"ano1": pct, ...}, soma <= 100%; o resto permanece devedor)``}``.
+    Sem a tabela devolve None e o perfil CP/LP agregado v2 continua.
+    """
+    instrumentos = premissas.get("instrumentos_divida")
+    if not isinstance(instrumentos, list) or not instrumentos:
+        return None
+    validados: list[dict[str, Any]] = []
+    for indice, item in enumerate(instrumentos):
+        if not isinstance(item, dict):
+            raise ValueError(f"instrumentos_divida[{indice}] precisa ser objeto.")
+        saldo = item.get("saldo")
+        if isinstance(saldo, bool) or not isinstance(saldo, (int, float)) or saldo < 0:
+            raise ValueError(
+                f"instrumentos_divida[{indice}].saldo invalido (BRL >= 0)."
+            )
+        validados.append(item)
+    return validados
+
+
+def _cronograma_do_instrumento(
+    instrumento: dict[str, Any],
+    prazo_lp: int,
+) -> dict[int, float]:
+    """Cronograma absoluto de amortizacao (ano -> R$) de um instrumento.
+
+    ``curva_amortizacao`` (percentuais do saldo) > ``ano_vencimento`` (bullet)
+    > linear em ``prazo_lp`` anos (fallback do perfil agregado).
+    """
+    saldo = float(instrumento["saldo"])
+    curva = instrumento.get("curva_amortizacao")
+    if isinstance(curva, dict) and curva:
+        cronograma: dict[int, float] = {}
+        for ano in range(1, HORIZONTE_PROJECAO + 1):
+            pct = curva.get(f"ano{ano}", 0.0)
+            if isinstance(pct, bool) or not isinstance(pct, (int, float)):
+                pct = 0.0
+            cronograma[ano] = saldo * max(float(pct), 0.0)
+        return cronograma
+    vencimento = instrumento.get("ano_vencimento")
+    if (
+        isinstance(vencimento, (int, float))
+        and not isinstance(vencimento, bool)
+        and 1 <= int(vencimento) <= HORIZONTE_PROJECAO
+    ):
+        return {int(vencimento): saldo}
+    return {ano: saldo / prazo_lp for ano in range(1, prazo_lp + 1)}
 
 
 def _montar_tranches_iniciais(
     ano0: dict[str, Any],
     prazo_lp: int,
-) -> list[dict[str, float | int]]:
+    custo_divida_kd: float,
+    instrumentos: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """Tranches de amortizacao do estoque de divida do Ano 0.
 
-    CP do Ano 0 vence integralmente no ano 1; LP amortiza linearmente em
-    ``prazo_lp`` anos.
+    SEM instrumentos (perfil agregado v2): CP do Ano 0 vence no ano 1; LP
+    amortiza linearmente em ``prazo_lp`` anos; juros por Kd unico. COM a
+    tabela ``instrumentos_divida``: uma tranche por instrumento, com taxa e
+    cronograma proprios (o saldo total substitui o CP/LP agregado).
     """
-    tranches: list[dict[str, float | int]] = []
+    if instrumentos:
+        tranches: list[dict[str, Any]] = []
+        for instrumento in instrumentos:
+            saldo = float(instrumento["saldo"])
+            if saldo <= 0:
+                continue
+            taxa = instrumento.get("taxa")
+            if isinstance(taxa, bool) or not isinstance(taxa, (int, float)):
+                taxa = custo_divida_kd
+            tranches.append(
+                {
+                    "nome": str(instrumento.get("nome", "instrumento")),
+                    "saldo": saldo,
+                    "parcela": 0.0,
+                    "carencia": 0,
+                    "taxa": float(taxa),
+                    "cronograma": _cronograma_do_instrumento(instrumento, prazo_lp),
+                    "ano_corrente": 1,
+                }
+            )
+        return tranches
+
+    tranches = []
     divida_cp = float(ano0["divida_curto_prazo"])
     if divida_cp > 0:
-        tranches.append({"saldo": divida_cp, "parcela": divida_cp, "carencia": 0})
+        tranches.append(
+            {
+                "saldo": divida_cp,
+                "parcela": divida_cp,
+                "carencia": 0,
+                "taxa": custo_divida_kd,
+            }
+        )
     divida_lp = float(ano0["divida_longo_prazo"])
     if divida_lp > 0:
         tranches.append(
-            {"saldo": divida_lp, "parcela": divida_lp / prazo_lp, "carencia": 0}
+            {
+                "saldo": divida_lp,
+                "parcela": divida_lp / prazo_lp,
+                "carencia": 0,
+                "taxa": custo_divida_kd,
+            }
         )
     return tranches
 
 
-def _amortizacao_do_ano(tranches: list[dict[str, float | int]]) -> float:
+def _parcela_da_tranche(tranche: dict[str, Any]) -> float:
+    """Parcela devida no ano corrente (cronograma proprio ou parcela fixa)."""
+    cronograma = tranche.get("cronograma")
+    if isinstance(cronograma, dict):
+        return float(cronograma.get(int(tranche.get("ano_corrente", 1)), 0.0))
+    return float(tranche["parcela"])
+
+
+def _amortizacao_do_ano(tranches: list[dict[str, Any]]) -> float:
     """Amortizacao devida no ano corrente (tranches fora de carencia)."""
     total = 0.0
     for tranche in tranches:
         if tranche["carencia"] > 0:
             continue
-        total += min(float(tranche["parcela"]), float(tranche["saldo"]))
+        total += min(_parcela_da_tranche(tranche), float(tranche["saldo"]))
     return total
 
 
-def _aplicar_amortizacao(tranches: list[dict[str, float | int]]) -> None:
+def _juros_do_ano(
+    tranches: list[dict[str, Any]],
+    custo_divida_kd: float,
+    usa_instrumentos: bool,
+    divida_abertura: float,
+) -> float:
+    """Juros do ano sobre os saldos de ABERTURA (convencao D-015).
+
+    Perfil agregado: formula v2 intacta (Kd x divida de abertura). Com
+    instrumentos: soma taxa_i x saldo_abertura_i de cada tranche.
+    """
+    if not usa_instrumentos:
+        # Formula: juros_t = Kd x divida de ABERTURA (byte-igual a v2).
+        return custo_divida_kd * divida_abertura
+    return sum(
+        float(t.get("taxa", custo_divida_kd)) * float(t["saldo"]) for t in tranches
+    )
+
+
+def _aplicar_amortizacao(tranches: list[dict[str, Any]]) -> None:
     """Baixa as parcelas do ano e reduz a carencia das tranches novas."""
     for tranche in tranches:
         if tranche["carencia"] > 0:
             tranche["carencia"] = int(tranche["carencia"]) - 1
+            if "ano_corrente" in tranche:
+                tranche["ano_corrente"] = int(tranche["ano_corrente"]) + 1
             continue
-        pago = min(float(tranche["parcela"]), float(tranche["saldo"]))
+        pago = min(_parcela_da_tranche(tranche), float(tranche["saldo"]))
         tranche["saldo"] = float(tranche["saldo"]) - pago
+        if "ano_corrente" in tranche:
+            tranche["ano_corrente"] = int(tranche["ano_corrente"]) + 1
     # Remove tranches quitadas para manter o schedule enxuto.
     tranches[:] = [t for t in tranches if float(t["saldo"]) > 1e-9]
 
 
-def _saldo_total(tranches: list[dict[str, float | int]]) -> float:
+def _saldo_total(tranches: list[dict[str, Any]]) -> float:
     """Saldo devedor total das tranches vivas."""
     return sum(float(t["saldo"]) for t in tranches)
 
 
-def _cp_reclassificado(tranches: list[dict[str, float | int]]) -> float:
+def _cp_reclassificado(tranches: list[dict[str, Any]]) -> float:
     """CP no fechamento = amortizacao programada para o ANO SEGUINTE."""
     total = 0.0
     for tranche in tranches:
         if tranche["carencia"] > 1:
             continue
-        total += min(float(tranche["parcela"]), float(tranche["saldo"]))
+        cronograma = tranche.get("cronograma")
+        if isinstance(cronograma, dict):
+            proxima = float(cronograma.get(int(tranche.get("ano_corrente", 1)), 0.0))
+        else:
+            proxima = float(tranche["parcela"])
+        total += min(proxima, float(tranche["saldo"]))
     return total
 
 
@@ -449,22 +599,52 @@ def projetar_divida_balanco_dfc(
     parametros: dict[str, float],
     modo_dre: str = "legado",
     contexto_ir_completo: dict[str, Any] | None = None,
+    instrumentos: list[dict[str, Any]] | None = None,
 ) -> tuple[
     dict[str, dict[str, float | str]],
     dict[str, dict[str, float | str]],
     dict[str, dict[str, float | str]],
 ]:
-    """Projeta divida, balanco e DFC integrados ano a ano (v2.0).
+    """Projeta divida, balanco e DFC integrados ano a ano (v2.0 + 9.0.2).
 
     Ordem dentro de cada ano (convencao de saldo inicial): juros e receita
-    financeira sobre os saldos de abertura -> DRE (EBT, IR, LL) ->
-    dividendos -> FCO/FCI -> teste do caixa minimo -> captacao (fim do ano)
-    -> FCF -> caixa de fechamento via DFC -> balanco verificado.
+    financeira sobre os saldos de abertura -> DRE (EBT, IR, LL, minoritarios)
+    -> dividendos -> FCO/FCI -> teste do caixa minimo -> captacao (fim do
+    ano) -> FCF -> caixa de fechamento via DFC -> balanco ABERTO verificado
+    (contas do WK expandido + passivo de arrendamento como linha propria).
     """
     prazo_lp = int(parametros["prazo_amortizacao_lp_anos"])
     pct_caixa_minimo = float(parametros["caixa_minimo_pct_receita"])
-    tranches = _montar_tranches_iniciais(ano0, prazo_lp)
-    outros_ativos, outros_passivos = _residuais_balanco_ano0(ano0, conteudo)
+    usa_instrumentos = bool(instrumentos)
+    tranches = _montar_tranches_iniciais(
+        ano0,
+        prazo_lp,
+        custo_divida_kd,
+        instrumentos,
+    )
+    if usa_instrumentos:
+        # Com a tabela de instrumentos, o estoque inicial e o dos proprios
+        # instrumentos (ja em BRL). A troca acontece ANTES dos residuais:
+        # qualquer diferenca para a divida do BP real fica EXPLICITA em
+        # outros_passivos (o balanco segue fechando por construcao).
+        ano0 = dict(ano0)
+        saldo_instrumentos = _saldo_total(tranches)
+        divida_bp = float(ano0["divida_bruta"])
+        if divida_bp > 0 and abs(saldo_instrumentos - divida_bp) > 0.01 * divida_bp:
+            logger.warning(
+                "instrumentos_divida somam %.0f vs divida bruta do BP %.0f "
+                "(diferenca vai para outros_passivos).",
+                saldo_instrumentos,
+                divida_bp,
+            )
+        ano0["divida_bruta"] = saldo_instrumentos
+    wk_multi_driver = _wk_tem_multi_driver(wk)
+    outros_ativos, outros_passivos = _residuais_balanco_ano0(
+        ano0,
+        conteudo,
+        wk_multi_driver,
+    )
+    passivo_arrendamento_0 = abs(float(ano0.get("passivo_arrendamento") or 0.0))
 
     divida: dict[str, dict[str, float | str]] = {}
     balanco: dict[str, dict[str, float | str]] = {}
@@ -489,8 +669,14 @@ def projetar_divida_balanco_dfc(
         ebit = obter_float_obrigatorio(linha_dre, "ebit", chave_ano)
 
         # Formula: juros_t = Kd x divida de ABERTURA (captacao do ano nao
-        # paga juros no proprio ano — convencao sem circularidade).
-        juros = custo_divida_kd * divida_abertura
+        # paga juros no proprio ano — convencao sem circularidade). Com a
+        # tabela de instrumentos, juros = soma(taxa_i x saldo_abertura_i).
+        juros = _juros_do_ano(
+            tranches,
+            custo_divida_kd,
+            usa_instrumentos,
+            divida_abertura,
+        )
         # Juros de arrendamento (IFRS-16) vem do schedule de leasing, SEPARADOS
         # dos juros de divida; 0 quando nao ha leasing relevante.
         juros_arrendamento = float(linha_dre.get("juros_arrendamento") or 0.0)
@@ -505,25 +691,15 @@ def projetar_divida_balanco_dfc(
         linha_dre["resultado_financeiro"] = resultado_financeiro
         linha_dre["ebt"] = ebit + resultado_financeiro
         if modo_dre == "completo":
-            # Modo completo: RET sobre a Receita BRUTA PROJETADA ano a ano;
-            # demais empresas seguem o modo de aliquota (marginal/efetiva) da
-            # DRE completa. A D&A ja esta embutida no EBIT (nao recalcula).
-            contexto = contexto_ir_completo or {}
-            receita_bruta = obter_float_obrigatorio(
+            # Cauda PRE-D&A (9.0.2): RET sobre a Receita BRUTA projetada >
+            # vetor de aliquota ANUAL > efetiva > marginal; depois
+            # minoritarios e LPA — mesma regra do projetor (fonte unica).
+            recalcular_cauda_dre_completa(
                 linha_dre,
-                "receita_bruta",
                 chave_ano,
+                usa_ret,
+                contexto_ir_completo or {},
             )
-            ir_csll, aliquota_usada = calcular_ir_csll_completo(
-                ebt=float(linha_dre["ebt"]),
-                receita_bruta=receita_bruta,
-                usa_ret=usa_ret,
-                modo_aliquota=str(contexto.get("modo_aliquota", "marginal")),
-                aliquota_efetiva=contexto.get("aliquota_efetiva"),
-                aliquota_marginal=float(contexto.get("aliquota_marginal", 0.34)),
-            )
-            linha_dre["ir_csll"] = ir_csll
-            linha_dre["aliquota_efetiva_usada"] = aliquota_usada
         else:
             linha_dre["ir_csll"] = calcular_ir_csll(
                 ebt=float(linha_dre["ebt"]),
@@ -531,7 +707,7 @@ def projetar_divida_balanco_dfc(
                 usa_ret=usa_ret,
                 razao_receita_bruta=razao_receita_bruta,
             )
-        linha_dre["lucro_liquido"] = linha_dre["ebt"] + linha_dre["ir_csll"]
+            linha_dre["lucro_liquido"] = linha_dre["ebt"] + linha_dre["ir_csll"]
         lucro_liquido = float(linha_dre["lucro_liquido"])
 
         depreciacao = obter_float_obrigatorio(
@@ -563,11 +739,14 @@ def projetar_divida_balanco_dfc(
 
         _aplicar_amortizacao(tranches)
         if captacao > 0:
+            # Captacao automatica v2: tranche linear com carencia de 1 ano,
+            # sempre ao Kd (mesmo com tabela de instrumentos).
             tranches.append(
                 {
                     "saldo": captacao,
                     "parcela": captacao / prazo_lp,
                     "carencia": 1,
+                    "taxa": custo_divida_kd,
                 }
             )
 
@@ -588,19 +767,38 @@ def projetar_divida_balanco_dfc(
         estoques = obter_float_obrigatorio(linha_wk, "estoques", chave_ano)
         fornecedores = abs(obter_float_obrigatorio(linha_wk, "fornecedores", chave_ano))
         imobilizado = obter_float_obrigatorio(linha_ppe, "imobilizado", chave_ano)
-        # Intangivel projetado (amortiza no 8.2); linha propria no balanco.
+        # Intangivel projetado (linha propria, D-043; constante pos-D-047).
         intangivel = float(linha_ppe.get("intangivel") or 0.0)
+        # Contas do WK EXPANDIDO (9.0.2): projetadas no modo multi-driver;
+        # zero nos demais modos (os saldos do Ano 0 ficam nos residuais).
+        tributos_a_recuperar = abs(float(linha_wk.get("tributos_a_recuperar") or 0.0))
+        obrigacoes_trabalhistas = abs(
+            float(linha_wk.get("obrigacoes_sociais_trabalhistas") or 0.0)
+        )
+        adiantamento_clientes = abs(float(linha_wk.get("adiantamento_clientes") or 0.0))
 
         ativo_total = (
             caixa
             + aplicacoes
             + contas_receber
             + estoques
+            + tributos_a_recuperar
             + imobilizado
             + intangivel
             + outros_ativos
         )
-        passivo_total = fornecedores + divida_curto + divida_longo + outros_passivos
+        # Passivo de arrendamento: linha PROPRIA constante do Ano 0 (9.0.2;
+        # rollforward informativo vive no bloco ``leasing`` — a integracao
+        # dos fluxos de caixa do leasing e backlog).
+        passivo_total = (
+            fornecedores
+            + obrigacoes_trabalhistas
+            + adiantamento_clientes
+            + divida_curto
+            + divida_longo
+            + passivo_arrendamento_0
+            + outros_passivos
+        )
         passivo_patrimonio_liquido = passivo_total + patrimonio_liquido
         # Verificacao (nao plug): com residuais do Ano 0 constantes e caixa
         # via DFC, a diferenca deve ser ~0 por construcao.
@@ -631,18 +829,24 @@ def projetar_divida_balanco_dfc(
             "aplicacoes_financeiras": aplicacoes,
             "contas_receber": contas_receber,
             "estoques": estoques,
+            "tributos_a_recuperar": tributos_a_recuperar,
             "imobilizado": imobilizado,
             "intangivel": intangivel,
             "outros_ativos": outros_ativos,
             "ativo_total": ativo_total,
             "fornecedores": fornecedores,
+            "obrigacoes_sociais_trabalhistas": obrigacoes_trabalhistas,
+            "adiantamento_clientes": adiantamento_clientes,
             "divida_curto_prazo": divida_curto,
             "divida_longo_prazo": divida_longo,
+            "passivo_arrendamento": passivo_arrendamento_0,
             "outros_passivos": outros_passivos,
             "passivo_total": passivo_total,
             "patrimonio_liquido": patrimonio_liquido,
             "passivo_patrimonio_liquido": passivo_patrimonio_liquido,
             "diferenca_balanco": diferenca,
+            # Check visivel (Direcional ``Modelo`` L122): |Ativo - Passivo-PL|.
+            "verificacao_balanco": abs(diferenca),
             "politica_caixa": POLITICA_CAIXA,
         }
         dfc[chave_ano] = {
@@ -775,15 +979,9 @@ def projetar_divida(
     razao_receita_bruta = _numero_ou_none(razao_receita_bruta)
 
     modo_dre = str(conteudo.get("modo_dre", "legado"))
-    politicas_dre = conteudo.get("politicas_projecao", {}).get("dre", {})
-    contexto_ir_completo = {
-        "modo_aliquota": politicas_dre.get("modo_aliquota", "marginal"),
-        "aliquota_efetiva": _numero_ou_none(
-            politicas_dre.get("aliquota_efetiva_disponivel")
-        ),
-        "aliquota_marginal": _numero_ou_none(politicas_dre.get("aliquota_marginal"))
-        or 0.34,
-    }
+    # Contexto tributario/minoritarios da DRE completa (fonte unica, 9.0.2).
+    contexto_ir_completo = montar_contexto_ir_completo(conteudo)
+    instrumentos = carregar_instrumentos_divida(premissas_completas)
 
     payout, origem_payout = resolver_payout(
         premissas_completas,
@@ -811,11 +1009,18 @@ def projetar_divida(
         parametros=parametros,
         modo_dre=modo_dre,
         contexto_ir_completo=contexto_ir_completo,
+        instrumentos=instrumentos,
     )
     fechamento_ok = validar_fechamento_balanco(balanco)
     politicas = {
         "politica_divida": POLITICA_DIVIDA,
         "politica_caixa": POLITICA_CAIXA,
+        "instrumentos_divida": (
+            f"{len(instrumentos)} instrumentos da premissa (taxa/cronograma "
+            "proprios; captacao automatica ao Kd)"
+            if instrumentos
+            else "perfil_cp_lp_agregado"
+        ),
         "payout_dividendos": payout,
         "origem_payout": origem_payout,
         "taxa_aplicacao_caixa": taxa_aplicacao,

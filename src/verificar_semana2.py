@@ -20,6 +20,7 @@ from src.projecao.projetor_dre import (  # noqa: E402
     selecionar_ultimo_exercicio,
 )
 from src.projecao.schedule_divida import projetar_divida  # noqa: E402
+from src.projecao.dfc_indireto import projetar_dfc_indireto  # noqa: E402
 from src.projecao.schedule_leasing import projetar_leasing  # noqa: E402
 from src.projecao.schedule_ppe import projetar_ppe  # noqa: E402
 from src.projecao.schedule_wk import projetar_wk  # noqa: E402
@@ -74,6 +75,7 @@ def verificar_ticker(ticker: str) -> bool:
     projetar_ppe(ticker)
     projetar_leasing(ticker)
     resultado = projetar_divida(ticker)
+    projetar_dfc_indireto(ticker)
 
     anos_com_desvio = []
     cabecalho = (

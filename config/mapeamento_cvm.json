@@ -44,6 +44,16 @@
       "1.01.08": "outros_ativos_circulantes",
       "1.02": "ativo_nao_circulante",
       "1.02.01": "ativo_realizavel_longo_prazo",
+      "1.02.01.01": "aplicacoes_financeiras_lp",
+      "1.02.01.02": "aplicacoes_financeiras_lp",
+      "1.02.01.03": "aplicacoes_financeiras_lp",
+      "1.02.01.04": "contas_receber_lp",
+      "1.02.01.05": "estoques_lp",
+      "1.02.01.06": "ativos_biologicos_lp",
+      "1.02.01.07": "tributos_diferidos_ativo_lp",
+      "1.02.01.08": "despesas_antecipadas_lp",
+      "1.02.01.09": "partes_relacionadas_ativo_lp",
+      "1.02.01.10": "outros_ativos_nao_circulantes",
       "1.02.02": "investimentos_coligadas",
       "1.02.03": "imobilizado",
       "1.02.04": "intangivel"
@@ -58,12 +68,16 @@
       "2.01.04.01": "divida_curto_prazo",
       "2.01.04.02": "divida_curto_prazo",
       "2.01.05": "outras_obrigacoes_cp",
+      "2.01.05.01": "partes_relacionadas_passivo_cp",
+      "2.01.05.02": "outros_passivos_circulantes",
       "2.01.06": "provisoes_cp",
       "2.02": "passivo_nao_circulante",
       "2.02.01": "divida_longo_prazo",
       "2.02.01.01": "divida_longo_prazo",
       "2.02.01.02": "divida_longo_prazo",
       "2.02.02": "outras_obrigacoes_lp",
+      "2.02.02.01": "partes_relacionadas_passivo_lp",
+      "2.02.02.02": "outros_passivos_nao_circulantes",
       "2.02.03": "tributos_diferidos_lp",
       "2.02.04": "provisoes_lp",
       "2.03": "patrimonio_liquido",
@@ -74,7 +88,9 @@
       "6.02": "fci",
       "6.03": "fcf",
       "6.04": "variacao_cambial_caixa",
-      "6.05": "variacao_caixa"
+      "6.05": "variacao_caixa",
+      "6.05.01": "caixa_inicial_dfc",
+      "6.05.02": "caixa_final_dfc"
     },
     "dva": {
       "7.01": "dva_receitas",
@@ -108,8 +124,51 @@
         "receita liquida de vendas e servicos"
       ]
     },
+    "bp_ativo": {
+      "depositos_judiciais": ["depositos judiciais", "deposito judicial"],
+      "tributos_a_recuperar": ["tributos a recuperar", "impostos a recuperar"],
+      "partes_relacionadas_ativo": [
+        "partes relacionadas",
+        "creditos com coligadas"
+      ],
+      "despesas_antecipadas": ["despesas antecipadas"],
+      "creditos_diversos": ["creditos diversos"],
+      "derivativos_ativo": [
+        "instrumentos financeiros derivativos",
+        "instrumentos derivativos"
+      ]
+    },
     "bp_passivo": {
-      "passivo_arrendamento": ["arrendament"]
+      "passivo_arrendamento": ["arrendament"],
+      "dividendos_a_pagar": [
+        "dividendos e jcp",
+        "dividendos propostos",
+        "dividendos a pagar",
+        "juros sobre capital proprio a pagar"
+      ],
+      "adiantamento_clientes": [
+        "adiantamento de cliente",
+        "adiantamentos de cliente"
+      ],
+      "credores_por_imoveis": ["credores por imo"],
+      "passivo_cessao": ["passivo de cessao"],
+      "contas_a_pagar_diversas": ["contas a pagar"],
+      "receitas_diferidas": [
+        "receitas diferidas",
+        "receitas a apropriar",
+        "faturamento para entrega futura"
+      ],
+      "obrigacoes_sociais_trabalhistas": ["participacao nos lucros"],
+      "obrigacoes_fiscais": [
+        "tributos a recolher",
+        "impostos a recolher",
+        "obrigacoes tributarias"
+      ],
+      "provisoes_cp": ["provisao para garantias"],
+      "derivativos_passivo": [
+        "instrumentos financeiros derivativos",
+        "instrumentos derivativos"
+      ]
     },
     "dfc": {
       "depreciacao_amortizacao": ["deprecia"],
@@ -266,8 +325,32 @@
       "sinal_esperado": "negativo"
     },
     "sgna": {
-      "descricao": "Despesas com Vendas, Gerais e Administrativas projetadas (SG&A)",
+      "descricao": "Despesas com Vendas, Gerais e Administrativas projetadas (SG&A, PRE-D&A a partir do 9.0.2)",
       "sinal_esperado": "negativo"
+    },
+    "ebit_ex_depreciacao": {
+      "descricao": "EBIT ex-Depreciacao (nivel EBITDA, margens pre-D&A — padrao Direcional, 9.0.2)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "aliquota_ir_ano": {
+      "descricao": "Aliquota de IR/CSLL efetivamente usada no ano (vetor anual > efetiva > marginal; None no RET)",
+      "sinal_esperado": "positivo"
+    },
+    "ll_antes_minoritarios": {
+      "descricao": "Lucro Liquido antes da participacao de minoritarios (DRE 9.0.2)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "participacao_minoritarios": {
+      "descricao": "Participacao de minoritarios projetada = -pct x LL antes (DRE 9.0.2)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "minoritarios_pct_ll": {
+      "descricao": "Premissa: participacao de minoritarios como % do LL (default 0)",
+      "sinal_esperado": "positivo"
+    },
+    "lpa": {
+      "descricao": "Lucro por acao projetado = LL / acoes fully diluted (None sem acoes)",
+      "sinal_esperado": "positivo_ou_negativo"
     },
     "outras_receitas_despesas": {
       "descricao": "Outras Receitas/Despesas Operacionais projetadas (DRE completa)",
@@ -385,6 +468,58 @@
       "descricao": "Outros Ativos Circulantes",
       "sinal_esperado": "positivo"
     },
+    "aplicacoes_financeiras_lp": {
+      "descricao": "Aplicacoes Financeiras do Realizavel a Longo Prazo (BP 1.02.01.01-03)",
+      "sinal_esperado": "positivo"
+    },
+    "contas_receber_lp": {
+      "descricao": "Contas a Receber de Longo Prazo (BP 1.02.01.04)",
+      "sinal_esperado": "positivo"
+    },
+    "estoques_lp": {
+      "descricao": "Estoques de Longo Prazo, ex.: terrenos de construtora (BP 1.02.01.05)",
+      "sinal_esperado": "positivo"
+    },
+    "ativos_biologicos_lp": {
+      "descricao": "Ativos Biologicos de Longo Prazo (BP 1.02.01.06)",
+      "sinal_esperado": "positivo"
+    },
+    "tributos_diferidos_ativo_lp": {
+      "descricao": "Tributos Diferidos Ativos, ex.: IR/CS diferido (BP 1.02.01.07)",
+      "sinal_esperado": "positivo"
+    },
+    "despesas_antecipadas_lp": {
+      "descricao": "Despesas Antecipadas de Longo Prazo (BP 1.02.01.08)",
+      "sinal_esperado": "positivo"
+    },
+    "partes_relacionadas_ativo_lp": {
+      "descricao": "Creditos com Partes Relacionadas no Realizavel LP (BP 1.02.01.09)",
+      "sinal_esperado": "positivo"
+    },
+    "outros_ativos_nao_circulantes": {
+      "descricao": "Outros Ativos Nao Circulantes — residual explicito do ANC (BP 1.02.01.10)",
+      "sinal_esperado": "positivo"
+    },
+    "depositos_judiciais": {
+      "descricao": "Depositos Judiciais (sub-conta do realizavel LP, mapeada por nome)",
+      "sinal_esperado": "positivo"
+    },
+    "partes_relacionadas_ativo": {
+      "descricao": "Creditos com Partes Relacionadas no ativo (sub-conta, por nome)",
+      "sinal_esperado": "positivo"
+    },
+    "creditos_diversos": {
+      "descricao": "Creditos Diversos (sub-conta de outros ativos, por nome)",
+      "sinal_esperado": "positivo"
+    },
+    "derivativos_ativo": {
+      "descricao": "Instrumentos Financeiros Derivativos no ativo (por nome)",
+      "sinal_esperado": "positivo"
+    },
+    "derivativos_passivo": {
+      "descricao": "Instrumentos Financeiros Derivativos no passivo (por nome)",
+      "sinal_esperado": "negativo"
+    },
     "investimentos_coligadas": {
       "descricao": "Investimentos (inclui coligadas; bridge EV->Equity)",
       "sinal_esperado": "positivo"
@@ -443,6 +578,46 @@
     },
     "passivo_arrendamento": {
       "descricao": "Passivo de Arrendamento (leasing IFRS16)",
+      "sinal_esperado": "negativo"
+    },
+    "partes_relacionadas_passivo_cp": {
+      "descricao": "Passivos com Partes Relacionadas de Curto Prazo (BP 2.01.05.01)",
+      "sinal_esperado": "negativo"
+    },
+    "partes_relacionadas_passivo_lp": {
+      "descricao": "Passivos com Partes Relacionadas de Longo Prazo (BP 2.02.02.01)",
+      "sinal_esperado": "negativo"
+    },
+    "outros_passivos_circulantes": {
+      "descricao": "Outros Passivos Circulantes — residual explicito do PC (BP 2.01.05.02)",
+      "sinal_esperado": "negativo"
+    },
+    "outros_passivos_nao_circulantes": {
+      "descricao": "Outros Passivos Nao Circulantes — residual explicito do PNC (BP 2.02.02.02)",
+      "sinal_esperado": "negativo"
+    },
+    "adiantamento_clientes": {
+      "descricao": "Adiantamento de Clientes (sub-conta de Outras Obrigacoes, por nome)",
+      "sinal_esperado": "negativo"
+    },
+    "dividendos_a_pagar": {
+      "descricao": "Dividendos e JCP a Pagar (sub-conta de Outras Obrigacoes, por nome)",
+      "sinal_esperado": "negativo"
+    },
+    "credores_por_imoveis": {
+      "descricao": "Credores por Imoveis Compromissados (construtoras, por nome)",
+      "sinal_esperado": "negativo"
+    },
+    "passivo_cessao": {
+      "descricao": "Passivo de Cessao de Recebiveis (construtoras, por nome)",
+      "sinal_esperado": "negativo"
+    },
+    "contas_a_pagar_diversas": {
+      "descricao": "Contas a Pagar diversas (sub-conta de Outras Obrigacoes, por nome)",
+      "sinal_esperado": "negativo"
+    },
+    "receitas_diferidas": {
+      "descricao": "Receitas Diferidas / a Apropriar (sub-conta, por nome)",
       "sinal_esperado": "negativo"
     },
     "divida_curto_prazo": {
@@ -517,6 +692,46 @@
       "descricao": "Passivo mais Patrimonio Liquido Projetado",
       "sinal_esperado": "positivo_ou_negativo"
     },
+    "verificacao_balanco": {
+      "descricao": "Check do balanco projetado: |Ativo - (Passivo + PL)| por ano (Direcional Modelo L122)",
+      "sinal_esperado": "positivo"
+    },
+    "variacao_contas_receber": {
+      "descricao": "DFC indireto: (aumento)/reducao em contas a receber (contribuicao ao caixa)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "variacao_estoques": {
+      "descricao": "DFC indireto: (aumento)/reducao em estoques (contribuicao ao caixa)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "variacao_tributos_a_recuperar": {
+      "descricao": "DFC indireto: (aumento)/reducao em tributos a recuperar (contribuicao ao caixa)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "variacao_fornecedores": {
+      "descricao": "DFC indireto: aumento/(reducao) em fornecedores (contribuicao ao caixa)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "variacao_obrigacoes_sociais_trabalhistas": {
+      "descricao": "DFC indireto: aumento/(reducao) em obrigacoes sociais/trabalhistas (contribuicao ao caixa)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "variacao_adiantamento_clientes": {
+      "descricao": "DFC indireto: aumento/(reducao) em adiantamento de clientes (contribuicao ao caixa)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "caixa_inicial": {
+      "descricao": "DFC indireto: caixa e equivalentes de abertura do ano (Caixa BoP)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "delta_emprestimos": {
+      "descricao": "DFC indireto: captacoes - amortizacoes de emprestimos no ano",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "fcfin": {
+      "descricao": "DFC indireto: fluxo de caixa de financiamento (= fcf legado: captacao - amortizacao - dividendos)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
     "diferenca_balanco": {
       "descricao": "Diferenca de Fechamento do Balanco",
       "sinal_esperado": "positivo_ou_negativo"
@@ -555,6 +770,14 @@
     },
     "variacao_caixa": {
       "descricao": "Aumento/Reducao de Caixa (DFC 6.05)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "caixa_inicial_dfc": {
+      "descricao": "Saldo Inicial de Caixa e Equivalentes (DFC 6.05.01)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "caixa_final_dfc": {
+      "descricao": "Saldo Final de Caixa e Equivalentes (DFC 6.05.02) — amarra ao caixa do BP",
       "sinal_esperado": "positivo_ou_negativo"
     },
     "dva_receitas": {

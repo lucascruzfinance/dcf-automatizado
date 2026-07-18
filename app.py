@@ -1,15 +1,16 @@
-"""Front-end institucional do DCF Automatizado (Streamlit) — v2.0 Onda 4.
+"""Front-end institucional do DCF Automatizado (Streamlit) — nucleo enxuto.
 
-Estacao de trabalho de analista MULTI-EMPRESA: qualquer ticker da B3 entra
-pela sidebar (o app dispara o pipeline universal com feedback de progresso),
-e as secoes apresentam os JSONs persistidos pelo motor — Overview com
-cenarios, Historico por tipo (metricas bancarias para financeiras),
-Premissas editaveis em tabela, Valuation por metodo (FCFF/WACC ou FCFE/Ke),
-Comparaveis com triangulacao, Analise com tornado e sensibilidades vivas,
-Comparar (2-5 empresas + watchlist) e Excel Preview.
+Prompt 9.0.0 (Enxugamento): o app foi reduzido ao NUCLEO. Sao 5 secoes, todas
+apresentando os JSONs persistidos pelo motor Python (fonte unica de verdade):
+Overview (decisao), Historico (metricas por tipo), Premissas (editaveis, com
+validacao em tempo real), Valuation (WACC/Ke, VT e checklist) e Excel Preview.
+
+As secoes que dependiam da periferia CONGELADA (graficos Plotly, comparaveis,
+motor de cenarios, football field, tornado, sensibilidades, comparar/watchlist)
+sairam do app neste enxugamento; o fluxo guiado rico volta no Prompt 9.0.4.
 
 Regra dura: o app NUNCA recalcula valuation — edita premissas e dispara o
-motor Python (fonte unica de verdade).
+motor Python.
 """
 
 from __future__ import annotations
@@ -26,6 +27,13 @@ RAIZ_PROJETO = Path(__file__).resolve().parent
 if str(RAIZ_PROJETO) not in sys.path:
     sys.path.insert(0, str(RAIZ_PROJETO))
 
+from src.apresentacao.formatacao import (  # noqa: E402
+    COR_TEXTO_SECUNDARIO,
+    COR_VERDE_UPSIDE,
+    COR_VERMELHO_DOWNSIDE,
+    formatar_moeda_brl,
+    formatar_percentual_br,
+)
 from src.exportacao.exportador_excel import (  # noqa: E402
     NOMES_ABAS,
     caminho_excel,
@@ -44,46 +52,6 @@ from src.projecao.projetor_dre import (  # noqa: E402
     carregar_json,
     salvar_json,
 )
-from src.valuation.comparaveis import (  # noqa: E402
-    ROTULOS_MULTIPLOS,
-    carregar_comparaveis,
-    gerar_comparaveis,
-)
-from src.visualizacao.apoio_cenarios import (  # noqa: E402
-    carregar_metricas,
-    recalcular_cenario,
-)
-from src.visualizacao.comparacao_empresas import (  # noqa: E402
-    gerar_comparacao_empresas,
-    montar_painel_comparacao,
-)
-from src.visualizacao.dashboard_final import gerar_dashboard_final  # noqa: E402
-from src.visualizacao.football_field import gerar_football_field  # noqa: E402
-from src.visualizacao.historico_vs_projetado import (  # noqa: E402
-    gerar_historico_vs_projetado,
-)
-from src.visualizacao.roic_roiic import gerar_roic_roiic  # noqa: E402
-from src.visualizacao.sensibilidade_receita_margem import (  # noqa: E402
-    gerar_sensibilidade_receita_margem,
-)
-from src.visualizacao.sensibilidade_setor import (  # noqa: E402
-    gerar_sensibilidade_setor,
-)
-from src.visualizacao.sensibilidade_wacc_g import (  # noqa: E402
-    gerar_sensibilidade_wacc_g,
-)
-from src.visualizacao.tabela_comparaveis import (  # noqa: E402
-    gerar_tabela_comparaveis,
-)
-from src.visualizacao.tornado import gerar_tornado  # noqa: E402
-from src.visualizacao.waterfall_ev import gerar_waterfall_ev  # noqa: E402
-from src.visualizacao.tema_institucional import (  # noqa: E402
-    COR_TEXTO_SECUNDARIO,
-    COR_VERDE_UPSIDE,
-    COR_VERMELHO_DOWNSIDE,
-    formatar_moeda_brl,
-    formatar_percentual_br,
-)
 
 TICKERS_REFERENCIA = ("DIRR3", "MGLU3")
 SECOES = (
@@ -91,13 +59,9 @@ SECOES = (
     "Historico",
     "Premissas",
     "Valuation",
-    "Comparaveis",
-    "Analise",
-    "Comparar",
     "Excel Preview",
 )
 LIMITE_ALERTA_MARGEM_PP = 0.05
-CAMINHO_WATCHLIST = RAIZ_PROJETO / "data" / "watchlist.json"
 
 VETORES_NAO_FINANCEIRA = (
     ("crescimento_receita", "Crescimento da receita"),
@@ -165,9 +129,21 @@ def empresa_financeira(ticker: str, conteudo: dict[str, Any] | None) -> bool:
     return bool(conteudo and str(conteudo.get("tipo")) == "financeira")
 
 
+def _carregar_metricas(ticker: str) -> dict[str, Any]:
+    """Le as metricas historicas persistidas; vazio se nao existirem.
+
+    Inline no nucleo (9.0.0): antes vinha de
+    ``src.visualizacao.apoio_cenarios``, agora fora do caminho critico.
+    """
+    caminho = RAIZ_PROJETO / "data" / "processed" / f"{ticker}_metricas.json"
+    if not caminho.exists():
+        return {}
+    return carregar_json(caminho)
+
+
 def obter_metricas(ticker: str) -> dict[str, Any]:
     """Metricas historicas persistidas; calcula na primeira execucao."""
-    metricas = carregar_metricas(ticker, RAIZ_PROJETO)
+    metricas = _carregar_metricas(ticker)
     if not metricas.get("metricas_por_ano"):
         try:
             metricas = calcular_metricas_historicas(ticker, RAIZ_PROJETO)
@@ -176,34 +152,10 @@ def obter_metricas(ticker: str) -> dict[str, Any]:
     return metricas
 
 
-def carregar_watchlist() -> dict[str, Any]:
-    """Watchlist persistida em data/watchlist.json."""
-    if not CAMINHO_WATCHLIST.exists():
-        return {"tickers": {}}
-    return carregar_json(CAMINHO_WATCHLIST)
-
-
-def atualizar_watchlist(ticker: str, remover: bool = False) -> None:
-    """Adiciona/remove o ticker na watchlist com o ultimo resultado."""
-    watchlist = carregar_watchlist()
-    if remover:
-        watchlist["tickers"].pop(ticker, None)
-    else:
-        conteudo = carregar_projecao_app(ticker) or {}
-        ev_equity = conteudo.get("ev_equity", {})
-        watchlist["tickers"][ticker] = {
-            "target_price": ev_equity.get("target_price"),
-            "recomendacao": ev_equity.get("recomendacao"),
-            "upside": ev_equity.get("upside"),
-            "atualizado_em": datetime.now().isoformat(timespec="seconds"),
-        }
-    salvar_json(CAMINHO_WATCHLIST, watchlist)
-
-
 def executar_pipeline_com_status(ticker: str, forcar: bool) -> None:
     """Roda o pipeline universal exibindo o progresso por etapa."""
     with st.status(
-        f"Analisando {ticker} — pipeline universal...", expanded=True
+        f"Analisando {ticker} — pipeline do nucleo...", expanded=True
     ) as status:
         try:
             resumo = rodar_pipeline_universal(
@@ -233,44 +185,31 @@ def executar_pipeline_com_status(ticker: str, forcar: bool) -> None:
     st.rerun()
 
 
-URL_FONTES_INSTITUCIONAIS = (
-    "https://fonts.googleapis.com/css2"
-    "?family=IBM+Plex+Mono:wght@400;600"
-    "&family=Inter:wght@400;600;700&display=swap"
-)
-
-
 def aplicar_estilo_institucional() -> None:
     """Injeta tipografia monoespacada nos numeros (padrao institucional)."""
     st.markdown(
-        f"""
+        """
         <style>
-        @import url('{URL_FONTES_INSTITUCIONAIS}');
-        html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
-        [data-testid="stMetricValue"], [data-testid="stMetricDelta"] {{
-            font-family: 'IBM Plex Mono', monospace;
-        }}
-        [data-testid="stSidebar"] {{ border-right: 1px solid #1E3350; }}
-        div[data-testid="stDataFrame"] * {{
+        [data-testid="stMetricValue"], [data-testid="stMetricDelta"] {
+            font-family: 'IBM Plex Mono', Consolas, monospace;
+        }
+        [data-testid="stSidebar"] { border-right: 1px solid #1E3350; }
+        div[data-testid="stDataFrame"] * {
             font-variant-numeric: tabular-nums;
-        }}
+        }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
 
-def painel_decisao(
-    conteudo: dict[str, Any],
-    cenario: dict[str, Any] | None = None,
-) -> None:
-    """Faixa de decisao: Target, Upside e Recomendacao (cenario opcional)."""
+def painel_decisao(conteudo: dict[str, Any]) -> None:
+    """Faixa de decisao: Target, Upside, Recomendacao, taxa e g do caso base."""
     ev_equity = conteudo["ev_equity"]
     financeira = str(conteudo.get("tipo")) == "financeira"
-    fonte = cenario if cenario else ev_equity
-    target = float(fonte["target_price"])
-    upside = float(fonte.get("upside") or 0.0)
-    recomendacao = str(fonte.get("recomendacao", "n/d"))
+    target = float(ev_equity["target_price"])
+    upside = float(ev_equity.get("upside") or 0.0)
+    recomendacao = str(ev_equity.get("recomendacao", "n/d"))
     preco = float(ev_equity.get("preco_atual") or 0.0)
 
     if financeira:
@@ -280,11 +219,6 @@ def painel_decisao(
         taxa = float(conteudo.get("wacc", {}).get("wacc") or 0.0)
         rotulo_taxa = "WACC"
     g = float(conteudo.get("valor_terminal", {}).get("g") or 0.0)
-    if cenario:
-        if cenario.get("taxa_desconto") is not None:
-            taxa = float(cenario["taxa_desconto"])
-        if cenario.get("g") is not None:
-            g = float(cenario["g"])
 
     colunas = st.columns(5)
     colunas[0].metric("Target Price", formatar_moeda_brl(target))
@@ -320,22 +254,26 @@ def _aviso_premissas_automaticas(ticker: str) -> None:
         )
 
 
+def _resumo_valuation(conteudo: dict[str, Any]) -> None:
+    """Tabela compacta com a espinha do valuation (EV, VT, perpetuidade)."""
+    ev_equity = conteudo.get("ev_equity", {})
+    linhas = [
+        ("Soma VP(FCFF)", ev_equity.get("soma_vp_fcff")),
+        ("VP(VT)", ev_equity.get("vp_vt")),
+        ("Enterprise Value", ev_equity.get("ev")),
+        ("Equity Value", ev_equity.get("equity_value")),
+    ]
+    tabela = []
+    for rotulo, valor in linhas:
+        texto = formatar_moeda_brl(float(valor), 0) if valor is not None else "n/d"
+        tabela.append({"Componente": rotulo, "Valor": texto})
+    st.subheader("Espinha do valuation (motor)")
+    st.dataframe(pd.DataFrame(tabela), hide_index=True, width="stretch")
+
+
 def secao_overview(ticker: str, conteudo: dict[str, Any]) -> None:
-    """Capa viva: KPIs de decisao, cenarios e qualidade dos dados."""
-    cenarios = conteudo.get("cenarios", {})
-    cenario_ativo = None
-    if cenarios:
-        rotulos = {"Bear": "bear", "Base": "base", "Bull": "bull"}
-        escolha = st.radio(
-            "Cenario (motor de cenarios — pipeline completo por cenario)",
-            list(rotulos),
-            index=1,
-            horizontal=True,
-        )
-        cenario_ativo = cenarios.get(rotulos[escolha])
-        if escolha != "Base" and cenario_ativo:
-            st.caption(f"Cenario {escolha}: ajustes {cenario_ativo.get('ajustes', {})}")
-    painel_decisao(conteudo, cenario_ativo if cenario_ativo else None)
+    """Capa: KPIs de decisao, qualidade dos dados e espinha do valuation."""
+    painel_decisao(conteudo)
 
     meta = carregar_meta(ticker)
     checklist = conteudo.get("checklist", {})
@@ -364,12 +302,9 @@ def secao_overview(ticker: str, conteudo: dict[str, Any]) -> None:
                 ].style.format("{:,.0f}"),
                 width="stretch",
             )
-        resultado_football = gerar_football_field(ticker, RAIZ_PROJETO)
-        st.plotly_chart(resultado_football["figura"], width="stretch")
         return
 
-    resultado = gerar_dashboard_final(ticker, RAIZ_PROJETO)
-    st.plotly_chart(resultado["figura"], width="stretch")
+    _resumo_valuation(conteudo)
 
 
 def _historico_financeira(ticker: str) -> None:
@@ -414,7 +349,7 @@ def _historico_financeira(ticker: str) -> None:
 
 
 def secao_historico(ticker: str, financeira: bool) -> None:
-    """Metricas historicas por tipo de empresa."""
+    """Metricas historicas por tipo de empresa (tabelas, sem graficos)."""
     if financeira:
         _historico_financeira(ticker)
         return
@@ -467,9 +402,6 @@ def secao_historico(ticker: str, financeira: bool) -> None:
             texto = f"{float(valor):.2f}"
         coluna.metric(rotulo, texto)
 
-    resultado = gerar_historico_vs_projetado(ticker, RAIZ_PROJETO)
-    st.plotly_chart(resultado["figura"], width="stretch")
-
 
 def _editor_vetores(
     premissas: dict[str, Any],
@@ -477,9 +409,8 @@ def _editor_vetores(
 ) -> dict[str, float]:
     """Tabela EDITAVEL dos vetores anuais (8 valores individuais por linha).
 
-    st.data_editor nativo no lugar do streamlit-aggrid (decisao D-005 do
-    Humano_revisar.md: testavel via AppTest e alinhado ao tema). Editar uma
-    celula NAO recalcula em JS — o botao Salvar dispara o motor Python.
+    st.data_editor nativo (decisao D-005): testavel via AppTest e alinhado ao
+    tema. Editar uma celula NAO recalcula — o botao Salvar dispara o motor.
     """
     linhas = {}
     for campo_base, rotulo in vetores:
@@ -720,8 +651,24 @@ def secao_premissas(
         _premissas_nao_financeira(ticker, premissas, conteudo)
 
 
+def _tabela_checklist(conteudo: dict[str, Any]) -> None:
+    """Tabela do checklist persistido com status final."""
+    st.subheader("Checklist de consistencia")
+    checklist = conteudo.get("checklist", {})
+    itens = checklist.get("itens", [])
+    if not itens:
+        st.info("Checklist ainda nao executado para este ticker.")
+        return
+    quadro = pd.DataFrame(itens)[["id", "descricao", "status", "valor", "limite"]]
+    st.dataframe(quadro, hide_index=True, width="stretch")
+    if checklist.get("aprovado") is True:
+        st.success("Checklist APROVADO (nenhum item em ERRO).")
+    else:
+        st.error("Checklist REPROVADO — verifique os itens em ERRO.")
+
+
 def _valuation_financeira(ticker: str, conteudo: dict[str, Any]) -> None:
-    """Decomposicao do Ke, FCFE e checklist da trilha financeira."""
+    """Decomposicao do Ke, VT e checklist da trilha financeira."""
     painel_decisao(conteudo)
     st.subheader("Decomposicao do Ke (CAPM Brasil, beta alavancado)")
     ke = conteudo.get("ke", {})
@@ -769,26 +716,7 @@ def _valuation_financeira(ticker: str, conteudo: dict[str, Any]) -> None:
             1,
         ),
     )
-
-    resultado_football = gerar_football_field(ticker, RAIZ_PROJETO)
-    st.plotly_chart(resultado_football["figura"], width="stretch")
     _tabela_checklist(conteudo)
-
-
-def _tabela_checklist(conteudo: dict[str, Any]) -> None:
-    """Tabela do checklist persistido com status final."""
-    st.subheader("Checklist de consistencia")
-    checklist = conteudo.get("checklist", {})
-    itens = checklist.get("itens", [])
-    if not itens:
-        st.info("Checklist ainda nao executado para este ticker.")
-        return
-    quadro = pd.DataFrame(itens)[["id", "descricao", "status", "valor", "limite"]]
-    st.dataframe(quadro, hide_index=True, width="stretch")
-    if checklist.get("aprovado") is True:
-        st.success("Checklist APROVADO (nenhum item em ERRO).")
-    else:
-        st.error("Checklist REPROVADO — verifique os itens em ERRO.")
 
 
 def secao_valuation(
@@ -796,7 +724,7 @@ def secao_valuation(
     conteudo: dict[str, Any],
     financeira: bool,
 ) -> None:
-    """Decomposicao do custo de capital, VT, bridge e checklist."""
+    """Decomposicao do custo de capital, VT e checklist (tabelas, sem graficos)."""
     if financeira:
         _valuation_financeira(ticker, conteudo)
         return
@@ -852,244 +780,8 @@ def secao_valuation(
         f"{float(multiplo):.2f}x" if multiplo is not None else "n/d",
     )
 
-    resultado_waterfall = gerar_waterfall_ev(ticker, RAIZ_PROJETO)
-    st.plotly_chart(resultado_waterfall["figura"], width="stretch")
-
-    resultado_football = gerar_football_field(ticker, RAIZ_PROJETO)
-    st.plotly_chart(resultado_football["figura"], width="stretch")
+    _resumo_valuation(conteudo)
     _tabela_checklist(conteudo)
-
-
-def secao_comparaveis(ticker: str, conteudo: dict[str, Any] | None) -> None:
-    """Comparaveis reais (CCA) e triangulacao DCF vs multiplos."""
-    comparaveis = carregar_comparaveis(ticker, RAIZ_PROJETO)
-    if st.button("Atualizar comparaveis (coleta peers via yfinance)"):
-        with st.spinner("Coletando multiplos dos peers..."):
-            try:
-                gerar_comparaveis(ticker, RAIZ_PROJETO)
-                st.rerun()
-            except RuntimeError as erro:
-                st.error(f"Falha nos comparaveis: {erro}")
-    if not comparaveis:
-        st.info(
-            "Comparaveis ainda nao gerados para este ticker — use o botao "
-            "acima (exige rede)."
-        )
-        return
-
-    triangulacao = comparaveis.get("triangulacao", {})
-    faixa = triangulacao.get("faixa_multiplos")
-    colunas = st.columns(3)
-    target = triangulacao.get("target_dcf")
-    colunas[0].metric(
-        "DCF (base)",
-        formatar_moeda_brl(float(target)) if target else "n/d",
-    )
-    colunas[1].metric(
-        "Faixa por multiplos (Q1-Q3)",
-        (
-            # dois "$" na mesma string viram math inline no markdown do
-            # st.metric — escapar para exibir "R$" literal nas duas pontas
-            (
-                f"{formatar_moeda_brl(float(faixa['minimo']))} - "
-                f"{formatar_moeda_brl(float(faixa['maximo']))}"
-            ).replace("$", "\\$")
-            if faixa
-            else "n/d"
-        ),
-    )
-    preco = triangulacao.get("preco_atual")
-    colunas[2].metric(
-        "Preco atual",
-        formatar_moeda_brl(float(preco)) if preco else "n/d",
-    )
-    veredito = str(triangulacao.get("veredito", ""))
-    if "DENTRO" in veredito:
-        st.success(f"Triangulacao: {veredito}")
-    elif "ACIMA" in veredito or "ABAIXO" in veredito:
-        st.warning(f"Triangulacao: {veredito}")
-    else:
-        st.info(f"Triangulacao: {veredito}")
-
-    resultado_tabela = gerar_tabela_comparaveis(ticker, RAIZ_PROJETO)
-    st.plotly_chart(resultado_tabela["figura"], width="stretch")
-
-    precos_implicitos = comparaveis.get("precos_implicitos", {})
-    if precos_implicitos:
-        quadro = pd.DataFrame(precos_implicitos).T
-        quadro.index = [ROTULOS_MULTIPLOS.get(nome, nome) for nome in quadro.index]
-        st.subheader("Preco implicito por multiplo (Q1 / mediana / Q3)")
-        st.dataframe(quadro.style.format("R$ {:,.2f}"), width="stretch")
-
-    avisos = comparaveis.get("avisos", [])
-    if avisos or comparaveis.get("peers_excluidos"):
-        with st.expander("Avisos e peers excluidos"):
-            for aviso in avisos:
-                st.write(f"- {aviso}")
-            for excluido in comparaveis.get("peers_excluidos", []):
-                st.write(f"- {excluido['peer']}: {excluido['motivo']}")
-
-
-def _sensibilidade_viva(conteudo: dict[str, Any]) -> None:
-    """Sliders vivos: recalculo instantaneo do Target sob choques."""
-    st.subheader("Sensibilidade viva (derivada do caso base do motor)")
-    colunas = st.columns(4)
-    delta_wacc = colunas[0].slider("Δ WACC (pp)", -3.0, 3.0, 0.0, 0.25) / 100
-    delta_g = colunas[1].slider("Δ g (pp)", -1.5, 1.5, 0.0, 0.25) / 100
-    delta_crescimento = (
-        colunas[2].slider("Δ crescimento (pp/ano)", -5.0, 5.0, 0.0, 0.5) / 100
-    )
-    delta_margem = colunas[3].slider("Δ margem (pp)", -5.0, 5.0, 0.0, 0.5) / 100
-
-    cenario = recalcular_cenario(
-        conteudo,
-        delta_wacc=delta_wacc,
-        delta_g=delta_g,
-        delta_crescimento_pp=delta_crescimento,
-        delta_margem_pp=delta_margem,
-    )
-    base = float(conteudo["ev_equity"]["target_price"])
-    if cenario is None:
-        st.error("Combinacao bloqueada: g >= WACC no cenario simulado.")
-        return
-    target = float(cenario["target_price"])
-    colunas = st.columns(3)
-    colunas[0].metric(
-        "Target simulado",
-        formatar_moeda_brl(target),
-        delta=formatar_percentual_br(target / base - 1),
-    )
-    upside = cenario.get("upside")
-    colunas[1].metric(
-        "Upside simulado",
-        formatar_percentual_br(float(upside)) if upside is not None else "n/d",
-    )
-    colunas[2].metric(
-        "WACC | g simulados",
-        f"{formatar_percentual_br(float(cenario['wacc']), 2)} | "
-        f"{formatar_percentual_br(float(cenario['g']), 2)}",
-    )
-
-
-def secao_analise(
-    ticker: str,
-    conteudo: dict[str, Any],
-    financeira: bool,
-) -> None:
-    """Tornado, sensibilidades vivas e heatmaps institucionais."""
-    if financeira:
-        cenarios = conteudo.get("cenarios", {})
-        if cenarios:
-            st.subheader("Cenarios do motor (pipeline completo por cenario)")
-            quadro = pd.DataFrame(cenarios).T[
-                ["target_price", "upside", "taxa_desconto", "g"]
-            ]
-            st.dataframe(
-                quadro.style.format(
-                    {
-                        "target_price": "R$ {:,.2f}",
-                        "upside": "{:.1%}",
-                        "taxa_desconto": "{:.2%}",
-                        "g": "{:.2%}",
-                    }
-                ),
-                width="stretch",
-            )
-        st.info(
-            "Sensibilidades FCFF (WACC x g, receita x margem) nao se aplicam "
-            "a trilha financeira; as sensibilidades bancarias (Ke x g, "
-            "capital x crescimento) chegam na Onda 5."
-        )
-        return
-
-    resultado_tornado = gerar_tornado(ticker, RAIZ_PROJETO)
-    st.plotly_chart(resultado_tornado["figura"], width="stretch")
-
-    _sensibilidade_viva(conteudo)
-
-    resultado_roic = gerar_roic_roiic(ticker, RAIZ_PROJETO)
-    st.plotly_chart(resultado_roic["figura"], width="stretch")
-
-    resultado_wacc_g = gerar_sensibilidade_wacc_g(ticker, RAIZ_PROJETO)
-    st.plotly_chart(resultado_wacc_g["figura"], width="stretch")
-
-    resultado_receita = gerar_sensibilidade_receita_margem(ticker, RAIZ_PROJETO)
-    st.plotly_chart(resultado_receita["figura"], width="stretch")
-
-    resultado_setor = gerar_sensibilidade_setor(ticker, RAIZ_PROJETO)
-    st.plotly_chart(resultado_setor["figura"], width="stretch")
-
-
-def secao_comparar(ticker: str) -> None:
-    """Comparacao lado a lado de 2-5 empresas + watchlist persistida."""
-    analisadas = [
-        analisada
-        for analisada in listar_empresas_analisadas()
-        if carregar_projecao_app(analisada) is not None
-    ]
-    if len(analisadas) < 2:
-        st.info("Analise ao menos 2 empresas (sidebar) para compara-las aqui.")
-        return
-
-    padrao = [t for t in (ticker, *TICKERS_REFERENCIA, "VALE3") if t in analisadas]
-    padrao = list(dict.fromkeys(padrao))[:4]
-    escolhidas = st.multiselect(
-        "Empresas (2 a 5)",
-        options=analisadas,
-        default=padrao if len(padrao) >= 2 else analisadas[:2],
-        max_selections=5,
-    )
-    if len(escolhidas) < 2:
-        st.warning("Escolha ao menos 2 empresas.")
-        return
-
-    linhas = montar_painel_comparacao(escolhidas, RAIZ_PROJETO)
-    quadro = pd.DataFrame(linhas).set_index("ticker")
-    formato = {
-        "target_price": "R$ {:,.2f}",
-        "preco_atual": "R$ {:,.2f}",
-        "upside": "{:.1%}",
-        "taxa_desconto": "{:.2%}",
-        "g": "{:.2%}",
-        "roic_ano1": "{:.1%}",
-        "spread_roic_taxa": "{:.1%}",
-        "ev_ebitda_mediana_peers": "{:,.1f}x",
-        "p_l_mediana_peers": "{:,.1f}x",
-        "p_vp_mediana_peers": "{:,.1f}x",
-    }
-    st.subheader("Painel comparativo (motor + comparaveis persistidos)")
-    st.dataframe(
-        quadro.style.format(formato, na_rep="n/d"),
-        width="stretch",
-    )
-
-    resultado = gerar_comparacao_empresas(escolhidas, RAIZ_PROJETO)
-    st.plotly_chart(resultado["figura"], width="stretch")
-
-    st.subheader("Watchlist (data/watchlist.json)")
-    watchlist = carregar_watchlist()
-    colunas = st.columns(2)
-    with colunas[0]:
-        if st.button(f"Adicionar {ticker} a watchlist"):
-            atualizar_watchlist(ticker)
-            st.rerun()
-    with colunas[1]:
-        if ticker in watchlist.get("tickers", {}) and st.button(
-            f"Remover {ticker} da watchlist"
-        ):
-            atualizar_watchlist(ticker, remover=True)
-            st.rerun()
-    if watchlist.get("tickers"):
-        quadro_watch = pd.DataFrame(watchlist["tickers"]).T
-        st.dataframe(
-            quadro_watch.style.format(
-                {"target_price": "R$ {:,.2f}", "upside": "{:.1%}"},
-                na_rep="n/d",
-            ),
-            width="stretch",
-        )
-    else:
-        st.caption("Watchlist vazia.")
 
 
 @st.cache_data(show_spinner="Montando o preview das 7 abas...")
@@ -1114,7 +806,7 @@ def secao_excel_preview(ticker: str, financeira: bool) -> None:
     if financeira:
         st.info(
             "O exportador Excel de 7 abas cobre a trilha nao-financeira; o "
-            "modelo bancario (FCFE/Ke) chega na Onda 5. Use as secoes "
+            "modelo bancario (FCFE/Ke) chega depois. Use as secoes "
             "Overview/Valuation para os resultados do banco."
         )
         return
@@ -1122,9 +814,8 @@ def secao_excel_preview(ticker: str, financeira: bool) -> None:
     caminho_xlsx = caminho_excel(ticker, RAIZ_PROJETO)
     st.caption(
         "Preview fiel das 7 abas geradas pelo exportador. O download "
-        "entrega o .xlsx real, com formulas nativas, graficos embutidos, "
-        "formatacao condicional e a convencao de cores de banco "
-        "(AZUL = input | PRETO = formula | VERDE = link entre abas)."
+        "entrega o .xlsx real, com formulas nativas, formatacao condicional "
+        "e a convencao de cores de banco."
     )
 
     coluna_gerar, coluna_baixar, coluna_info = st.columns([1, 1, 2])
@@ -1170,7 +861,7 @@ def montar_sidebar() -> tuple[str, str]:
     """Sidebar: seletor universal de empresa, secoes e acoes do pipeline."""
     with st.sidebar:
         st.title("DCF Automatizado")
-        st.caption("Valuation por DCF para QUALQUER acao da B3 — v2.0")
+        st.caption("Valuation por DCF para QUALQUER acao da B3 — nucleo enxuto")
 
         analisadas = listar_empresas_analisadas()
         padrao = st.session_state.get(
@@ -1220,7 +911,7 @@ def montar_sidebar() -> tuple[str, str]:
 
 
 def main() -> None:
-    """Monta a estacao de trabalho multi-empresa."""
+    """Monta a estacao de trabalho multi-empresa (nucleo enxuto)."""
     st.set_page_config(
         page_title="DCF Automatizado",
         page_icon=":chart_with_upwards_trend:",
@@ -1240,7 +931,7 @@ def main() -> None:
     financeira = empresa_financeira(ticker, conteudo)
 
     st.header(f"{ticker} — {secao}")
-    if conteudo is None and secao not in ("Premissas", "Historico", "Comparaveis"):
+    if conteudo is None and secao not in ("Premissas", "Historico"):
         meta = carregar_meta(ticker)
         score = meta.get("score_confiabilidade")
         st.warning(
@@ -1260,12 +951,6 @@ def main() -> None:
         secao_premissas(ticker, conteudo, financeira)
     elif secao == "Valuation":
         secao_valuation(ticker, conteudo, financeira)
-    elif secao == "Comparaveis":
-        secao_comparaveis(ticker, conteudo)
-    elif secao == "Analise":
-        secao_analise(ticker, conteudo, financeira)
-    elif secao == "Comparar":
-        secao_comparar(ticker)
     else:
         secao_excel_preview(ticker, financeira)
 

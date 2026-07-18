@@ -1,3 +1,6 @@
+# CONGELADO v2.1 (Prompt 9.0.0 - Enxugamento): fora do nucleo, nao-mantido.
+# Removido do caminho critico (app/pipeline/main); reversivel. Ver a lista
+# do congelado em Humano_revisar.md (D-053).
 """Motor de cenarios de primeira classe: Bear / Base / Bull (v2.0, Onda 2).
 
 Cada cenario RODA O PIPELINE COMPLETO do motor com um conjunto ajustado de

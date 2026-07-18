@@ -136,3 +136,103 @@ def test_normalizar_sinal_trata_nulos() -> None:
     assert normalizar_sinal(None, "positivo") is None
     assert normalizar_sinal(float("nan"), "negativo") is None
     assert normalizar_sinal(-10, "positivo") == 10.0
+
+
+# ---------------------------------------------------------------------------
+# Contas novas do Prompt 9.0.1 (fidelidade a CVM: BP aberto por codigo/nome)
+# ---------------------------------------------------------------------------
+
+
+def test_realizavel_lp_aberto_por_codigo() -> None:
+    """As sub-contas padrao do 1.02.01 ganham nome proprio por CD_CONTA."""
+    casos = {
+        "1.02.01.04": "contas_receber_lp",
+        "1.02.01.05": "estoques_lp",
+        "1.02.01.07": "tributos_diferidos_ativo_lp",
+        "1.02.01.10": "outros_ativos_nao_circulantes",
+    }
+    for codigo, esperado in casos.items():
+        resultado = mapear_conta(
+            codigo,
+            "Conta do Realizavel LP",
+            "bp_ativo",
+            "nao_financeira",
+            MAPEAMENTO,
+        )
+        assert resultado is not None, codigo
+        assert resultado["nome_padronizado"] == esperado
+        assert resultado["mapeado_por"] == "codigo"
+
+
+def test_outros_buckets_do_passivo_por_codigo() -> None:
+    """Partes relacionadas e baldes Outros do passivo mapeiam por codigo."""
+    casos = {
+        "2.01.05.01": "partes_relacionadas_passivo_cp",
+        "2.01.05.02": "outros_passivos_circulantes",
+        "2.02.02.01": "partes_relacionadas_passivo_lp",
+        "2.02.02.02": "outros_passivos_nao_circulantes",
+    }
+    for codigo, esperado in casos.items():
+        resultado = mapear_conta(
+            codigo,
+            "Outros",
+            "bp_passivo",
+            "nao_financeira",
+            MAPEAMENTO,
+        )
+        assert resultado is not None, codigo
+        assert resultado["nome_padronizado"] == esperado
+
+
+def test_sub_contas_recorrentes_por_nome() -> None:
+    """Sub-contas de nivel 5 recorrentes (por DS_CONTA) ganham nome proprio."""
+    casos = (
+        ("bp_passivo", "Adiantamento de clientes", "adiantamento_clientes"),
+        ("bp_passivo", "Dividendos e JCP a Pagar", "dividendos_a_pagar"),
+        # Typo real do arquivo da Direcional ("imovies") coberto pelo padrao.
+        ("bp_passivo", "Credores por imóvies compromissados", "credores_por_imoveis"),
+        ("bp_ativo", "Depósitos Judiciais", "depositos_judiciais"),
+        ("bp_ativo", "Impostos a Recuperar", "tributos_a_recuperar"),
+    )
+    for demonstracao, descricao, esperado in casos:
+        resultado = mapear_conta(
+            "2.02.02.02.99" if demonstracao == "bp_passivo" else "1.02.01.10.99",
+            descricao,
+            demonstracao,
+            "nao_financeira",
+            MAPEAMENTO,
+        )
+        assert resultado is not None, descricao
+        assert resultado["nome_padronizado"] == esperado
+        assert resultado["mapeado_por"] == "nome"
+
+
+def test_arrendamento_continua_vencendo_nos_fallbacks_do_passivo() -> None:
+    """Leasing em sub-conta de Outros segue como passivo_arrendamento (D-044)."""
+    resultado = mapear_conta(
+        "2.02.02.02.06",
+        "Passivo por arrendamento",
+        "bp_passivo",
+        "nao_financeira",
+        MAPEAMENTO,
+    )
+    assert resultado is not None
+    assert resultado["nome_padronizado"] == "passivo_arrendamento"
+    assert resultado["mapeado_por"] == "nome"
+
+
+def test_caixa_do_dfc_mapeado_por_codigo() -> None:
+    """Saldos inicial/final de caixa do DFC (6.05.01/6.05.02) tem nome proprio."""
+    for codigo, esperado in (
+        ("6.05.01", "caixa_inicial_dfc"),
+        ("6.05.02", "caixa_final_dfc"),
+    ):
+        resultado = mapear_conta(
+            codigo,
+            "Saldo de Caixa e Equivalentes",
+            "dfc",
+            "nao_financeira",
+            MAPEAMENTO,
+        )
+        assert resultado is not None
+        assert resultado["nome_padronizado"] == esperado

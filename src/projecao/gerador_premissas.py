@@ -24,6 +24,7 @@ from src.projecao.projetor_dre import (
     carregar_json,
     carregar_metadados,
     carregar_razao_receita_bruta,
+    empresa_usa_ret,
     normalizar_ticker,
     resolver_raiz,
     salvar_json,
@@ -36,6 +37,9 @@ LIMITES_CAPEX_RECEITA = (-0.30, -0.005)
 LIMITES_MARGEM_BRUTA = (0.01, 0.95)
 LIMITES_SGNA = (0.0, 0.90)
 LIMITES_DEDUCOES = (0.0, 0.90)
+# Beta desalavancado de PARTIDA: clamp de sanidade (acao em colapso da bolsa
+# produz beta estatistico > 2 e WACC absurdo; o analista sobrescreve).
+LIMITES_BETA = (0.5, 1.8)
 G_PERPETUIDADE_PADRAO = 0.035
 KD_PADRAO = 0.12
 BETA_PADRAO = 1.0
@@ -120,22 +124,51 @@ def _valor_ano0_dre(dados: pd.DataFrame, nome: str) -> float:
     return float(valor) if pd.notna(valor) else 0.0
 
 
+def _da_pct_receita_ano0(ticker: str, raiz: Path) -> float:
+    """|D&A historica do Ano 0| / Receita Liquida do Ano 0 (via DFC + DRE).
+
+    Insumo da calibracao PRE-D&A (9.0.2): somar a D&A%RL a margem bruta
+    historica (pos-D&A) faz o EBIT ex-Depreciacao do ano 1 ancorar EXATAMENTE
+    no EBITDA historico (EBIT_hist + D&A_hist). Sem DFC/RL devolve 0.0.
+    """
+    caminho_dfc = raiz / "data" / "raw" / "cvm" / f"{ticker}_dfc.json"
+    caminho_dre = raiz / "data" / "raw" / "cvm" / f"{ticker}_dre.json"
+    if not caminho_dfc.exists() or not caminho_dre.exists():
+        return 0.0
+    dfc = pd.DataFrame(carregar_json(caminho_dfc))
+    dre = pd.DataFrame(carregar_json(caminho_dre))
+    if dfc.empty or dre.empty:
+        return 0.0
+    da = abs(_valor_ano0_dre(dfc, "depreciacao_amortizacao"))
+    receita = _valor_ano0_dre(dre, "receita_liquida")
+    if receita <= 0 or da <= 0:
+        return 0.0
+    return da / receita
+
+
 def _ancoras_dre_completa(
     ticker: str,
     raiz: Path,
     agregados: dict[str, Any],
     defaults_setor: dict[str, float],
 ) -> dict[str, Any]:
-    """Ancoras da DRE completa: margem bruta, SG&A, deducoes, outras, equiv.
+    """Ancoras da DRE completa PRE-D&A: margem bruta, SG&A, deducoes, etc.
 
-    Usa a media historica quando disponivel (margem bruta agregada; SG&A,
-    outras, equivalencia e deducoes a partir do Ano 0 real da CVM/DVA) e cai
-    nos defaults setoriais quando falta a linha. Deducoes sem DVA => 0 + aviso
-    (Prompt 8.1.1). Sao PONTOS DE PARTIDA — o analista revisa.
+    MUDANCA 9.0.2 (margens de nivel EBITDA): a margem bruta historica da CVM
+    e POS-D&A (o CPV divulgado embute depreciacao); a ancora pre-D&A soma a
+    D&A%RL historica inteira a margem bruta (aproximacao: D&A
+    majoritariamente no CPV, padrao industrial). Com isso EBIT ex-Depreciacao
+    do ano 1 = EBITDA historico por identidade. SG&A, outras, equivalencia e
+    deducoes vem do Ano 0 real (CVM/DVA); defaults setoriais no fallback.
+    Sao PONTOS DE PARTIDA — o analista revisa.
     """
-    margem_bruta = _numero(
-        agregados.get("margem_bruta_media_3a"),
-        _numero(defaults_setor.get("margem_bruta"), 0.30),
+    da_pct_rl = _da_pct_receita_ano0(ticker, raiz)
+    margem_bruta = (
+        _numero(
+            agregados.get("margem_bruta_media_3a"),
+            _numero(defaults_setor.get("margem_bruta"), 0.30),
+        )
+        + da_pct_rl
     )
 
     # SG&A, outras e equivalencia a partir do Ano 0 real (3.04.xx da CVM).
@@ -177,6 +210,7 @@ def _ancoras_dre_completa(
 
     return {
         "margem_bruta": margem_bruta,
+        "da_pct_rl": da_pct_rl,
         "sgna_pct_receita": sgna_pct,
         "deducoes_pct": deducoes_pct,
         "outras_despesas_pct_receita": round(outras_pct, 5),
@@ -184,6 +218,25 @@ def _ancoras_dre_completa(
         "aliquota_efetiva": _numero(agregados.get("aliquota_efetiva_media_3a"), None),
         "fonte_deducoes": fonte_deducoes,
     }
+
+
+def _minoritarios_pct_ano0(ticker: str, raiz: Path) -> float:
+    """Ancora historica de minoritarios: |3.11.02| / |3.11| do Ano 0.
+
+    Sem as linhas (ou LL ~0) devolve 0.0 (default do 9.0.2.6).
+    """
+    caminho = raiz / "data" / "raw" / "cvm" / f"{ticker}_dre.json"
+    if not caminho.exists():
+        return 0.0
+    dados = pd.DataFrame(carregar_json(caminho))
+    if dados.empty:
+        return 0.0
+    lucro_total = _valor_ano0_dre(dados, "lucro_liquido")
+    nao_controladores = _valor_ano0_dre(dados, "lucro_atribuido_nao_controladores")
+    if abs(lucro_total) < 1e-9 or nao_controladores == 0.0:
+        return 0.0
+    pct = abs(nao_controladores) / abs(lucro_total)
+    return min(max(pct, 0.0), 0.5)
 
 
 def gerar_premissas_nao_financeira(
@@ -273,9 +326,28 @@ def gerar_premissas_nao_financeira(
     premissas["modo_aliquota"] = MODO_ALIQUOTA_PADRAO
     if ancoras.get("aliquota_efetiva") is not None:
         premissas["aliquota_efetiva"] = round(float(ancoras["aliquota_efetiva"]), 5)
+
+    # --- Padrao Direcional (9.0.2): margens PRE-D&A + aliquota ANUAL +
+    # minoritarios + WK multi-driver ---
+    usa_ret = empresa_usa_ret({"setor": premissas.get("setor")}, metadados)
+    if not usa_ret:
+        # Vetor anual de aliquota: interpolacao da efetiva historica com
+        # clamp [15%, 45%]; sem historico, marginal 34%. Construtora RET nao
+        # gera o vetor (o RET incide sobre a Receita Bruta projetada).
+        aliquota_base = _numero(ancoras.get("aliquota_efetiva"), 0.34)
+        aliquota_base = min(max(aliquota_base, 0.15), 0.45)
+        vetor_aliquota = _interpolar_vetor(aliquota_base, aliquota_base, (0.15, 0.45))
+        for ano, valor in vetor_aliquota.items():
+            # Re-clamp: o leque minimo do interpolador (+-0,2pp) pode
+            # estourar o clamp [15%, 45%] quando a base esta na borda.
+            premissas[f"aliquota_ir_ano{ano}"] = round(min(max(valor, 0.15), 0.45), 5)
+        # WK multi-driver (dias por conta derivados do Ano 0 no schedule).
+        premissas["modo_capital_giro"] = "dias_multi_driver"
+    premissas["minoritarios_pct_ll"] = round(_minoritarios_pct_ano0(ticker, raiz), 5)
     premissas["origem_dre_completa"] = (
-        "margem_bruta/SG&A/deducoes derivados de ancoras historicas + defaults "
-        f"do subtipo; deducoes: {ancoras['fonte_deducoes']}; REVISAR"
+        "PRE-D&A (9.0.2): margem_bruta = historica + D&A%RL "
+        f"({ancoras['da_pct_rl']:.4f}); SG&A/deducoes de ancoras historicas + "
+        f"defaults do subtipo; deducoes: {ancoras['fonte_deducoes']}; REVISAR"
     )
 
     premissas["dso"] = round(_numero(agregados.get("dso_media_3a"), 45.0))
@@ -283,7 +355,9 @@ def gerar_premissas_nao_financeira(
     premissas["dpo"] = round(_numero(agregados.get("dpo_media_3a"), 45.0))
     premissas["custo_divida_kd"] = KD_PADRAO
     premissas["crescimento_perpetuidade_g"] = G_PERPETUIDADE_PADRAO
-    premissas["beta"] = _numero(agregados.get("beta_desalavancado"), BETA_PADRAO)
+    premissas["beta"] = _clamp(
+        _numero(agregados.get("beta_desalavancado"), BETA_PADRAO), LIMITES_BETA
+    )
     premissas["erp"] = ERP_PADRAO
     premissas["crp"] = CRP_PADRAO
     payout = defaults.get("payout_dividendos")

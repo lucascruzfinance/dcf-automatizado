@@ -1,3 +1,6 @@
+# CONGELADO v2.1 (Prompt 9.0.0 - Enxugamento): fora do nucleo, nao-mantido.
+# Removido do caminho critico (app/pipeline/main); reversivel. Ver a lista
+# do congelado em Humano_revisar.md (D-053).
 """Waterfall do Enterprise Value: VP(FCFF) ano a ano + VP(VT) -> EV.
 
 Mostra o peso de cada ano explicito e da perpetuidade na composicao do EV,
