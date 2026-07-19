@@ -176,6 +176,27 @@ def criar_ambiente_divida(tmp_path: Path, caixa_minimo_pct: float = 0.0) -> None
     criar_projecao_existente(tmp_path)
 
 
+def test_resultado_financeiro_inclui_juros_arrendamento(tmp_path: Path) -> None:
+    """Prompt 8.2: resultado financeiro = receita financeira - juros divida -
+    juros de arrendamento (IFRS-16), separados na DRE."""
+    criar_ambiente_divida(tmp_path)
+    caminho = tmp_path / "data" / "processed" / "TEST3_projecao.json"
+    projecao = json.loads(caminho.read_text(encoding="utf-8"))
+    for ano in range(1, 9):
+        projecao["dre"][f"ano{ano}"]["juros_arrendamento"] = 50.0
+    salvar_json(caminho, projecao)
+
+    resultado = projetar_divida("TEST3", raiz_projeto=tmp_path)
+    divida = resultado["divida"]
+    dre = resultado["dre"]
+
+    # juros divida ano1 = Kd x divida abertura (0,10 x 400 = 40);
+    # receita financeira = 0,05 x (caixa 500 + aplicacoes 100) = 30;
+    # resultado financeiro = 30 - 40 - 50 (arrendamento) = -60.
+    assert float(divida["ano1"]["juros_arrendamento"]) == pytest.approx(50.0)
+    assert float(dre["ano1"]["resultado_financeiro"]) == pytest.approx(-60.0)
+
+
 def test_amortizacao_juros_e_fechamento_v2(tmp_path: Path) -> None:
     """CP amortiza no ano 1, LP linear em 3 anos e o balanco fecha exato."""
     criar_ambiente_divida(tmp_path)
@@ -267,3 +288,60 @@ def test_residuais_ancoram_no_bp_real(tmp_path: Path) -> None:
     assert balanco["ano1"]["outros_passivos"] == pytest.approx(300.0)
     for ano in range(1, 9):
         assert balanco[f"ano{ano}"]["diferenca_balanco"] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_taxa_aplicacao_por_ano_via_macro_anual(tmp_path: Path) -> None:
+    """Sem premissa, a taxa de aplicacao vem do CDI anual do macro (9.0.3)."""
+    from src.projecao.schedule_divida import resolver_taxa_aplicacao
+
+    macro = {
+        "selic_atual": 0.1425,
+        "macro_anual": {
+            f"ano{ano}": {"cdi": 0.14 - 0.01 * (ano - 1)} for ano in range(1, 9)
+        },
+    }
+    caminho_macro = tmp_path / "data" / "raw" / "macro" / "macro_brasil.json"
+    salvar_json(caminho_macro, macro)
+
+    parametros = {"taxa_aplicacao_caixa_fallback": 0.10}
+    taxas, origem = resolver_taxa_aplicacao({}, parametros, tmp_path)
+    assert origem == "cdi_macro_anual"
+    assert taxas[1] == pytest.approx(0.14)
+    assert taxas[8] == pytest.approx(0.07)
+
+    # Premissa escalar continua vencendo o macro (retrocompatibilidade).
+    taxas_premissa, origem_premissa = resolver_taxa_aplicacao(
+        {"taxa_aplicacao_caixa": 0.05}, parametros, tmp_path
+    )
+    assert origem_premissa == "premissa_da_empresa"
+    assert taxas_premissa == {ano: 0.05 for ano in range(1, 9)}
+
+    # Macro sem o bloco anual cai na Selic atual (comportamento v2).
+    salvar_json(caminho_macro, {"selic_atual": 0.1425})
+    taxas_selic, origem_selic = resolver_taxa_aplicacao({}, parametros, tmp_path)
+    assert origem_selic == "selic_atual_coletada"
+    assert taxas_selic[1] == pytest.approx(0.1425)
+
+
+def test_custo_divida_cdi_mais_spread_opcional(tmp_path: Path) -> None:
+    """Premissa spread_divida_sobre_cdi ativa Kd_t = CDI_t + spread."""
+    from src.projecao.schedule_divida import resolver_custo_divida_anual
+
+    macro = {
+        "macro_anual": {
+            f"ano{ano}": {"cdi": 0.12 - 0.005 * (ano - 1)} for ano in range(1, 9)
+        }
+    }
+    salvar_json(tmp_path / "data" / "raw" / "macro" / "macro_brasil.json", macro)
+
+    kd_spread, origem = resolver_custo_divida_anual(
+        {"spread_divida_sobre_cdi": 0.03}, 0.10, tmp_path
+    )
+    assert origem == "cdi_mais_spread_premissa"
+    assert kd_spread[1] == pytest.approx(0.15)
+    assert kd_spread[8] == pytest.approx(0.12 - 0.035 + 0.03)
+
+    # Sem a premissa, o Kd escalar vale para os 8 anos (v2 intacta).
+    kd_escalar, origem_escalar = resolver_custo_divida_anual({}, 0.10, tmp_path)
+    assert origem_escalar == "premissa_custo_divida_kd"
+    assert kd_escalar == {ano: 0.10 for ano in range(1, 9)}

@@ -1,3 +1,6 @@
+# CONGELADO v2.1 (Prompt 9.0.0 - Enxugamento): fora do nucleo, nao-mantido.
+# Removido do caminho critico (app/pipeline/main); reversivel. Ver a lista
+# do congelado em Humano_revisar.md (D-053).
 """ROIC e ROIIC historico vs projetado como reality check.
 
 O grafico torna explicitos ROIC e ROIIC nos anos de forecast, comparando com

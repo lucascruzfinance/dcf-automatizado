@@ -47,34 +47,28 @@ from src.projecao.projetor_dre import (  # noqa: E402
     projetar_dre,
     salvar_json,
 )
+from src.projecao.dfc_indireto import projetar_dfc_indireto  # noqa: E402
 from src.projecao.schedule_divida import projetar_divida  # noqa: E402
+from src.projecao.schedule_leasing import projetar_leasing  # noqa: E402
 from src.projecao.schedule_ppe import projetar_ppe  # noqa: E402
 from src.projecao.schedule_wk import projetar_wk  # noqa: E402
 from src.valuation.calculador_ev import calcular_ev  # noqa: E402
+from src.valuation.calculador_fcfe import (  # noqa: E402
+    calcular_fcfe_naofinanceira,
+)
 from src.valuation.calculador_fcff import calcular_fcff  # noqa: E402
+from src.valuation.calculador_retornos import calcular_retornos  # noqa: E402
 from src.valuation.calculador_vt import calcular_valor_terminal  # noqa: E402
 from src.valuation.calculador_wacc import calcular_wacc  # noqa: E402
 from src.valuation.checklist import (  # noqa: E402
     executar_checklist,
     imprimir_checklist,
 )
-from src.visualizacao.apoio_cenarios import carregar_mercado  # noqa: E402
-from src.visualizacao.dashboard_final import gerar_dashboard_final  # noqa: E402
-from src.visualizacao.football_field import gerar_football_field  # noqa: E402
-from src.visualizacao.historico_vs_projetado import (  # noqa: E402
-    gerar_historico_vs_projetado,
-)
-from src.visualizacao.roic_roiic import gerar_roic_roiic  # noqa: E402
-from src.visualizacao.sensibilidade_receita_margem import (  # noqa: E402
-    gerar_sensibilidade_receita_margem,
-)
-from src.visualizacao.sensibilidade_setor import (  # noqa: E402
-    gerar_sensibilidade_setor,
-)
-from src.visualizacao.sensibilidade_wacc_g import (  # noqa: E402
-    gerar_sensibilidade_wacc_g,
-)
-from src.visualizacao.waterfall_ev import gerar_waterfall_ev  # noqa: E402
+
+# NOTA (Prompt 9.0.0 — Enxugamento): os 8 geradores de grafico de
+# ``src/visualizacao/`` foram CONGELADOS (fora do nucleo). O caminho critico do
+# pipeline agora e coleta -> motor -> Excel; os graficos so entram com a flag
+# opcional ``--com-graficos`` (import tardio em ``etapa_graficos``).
 
 SETORES_V1 = ("construcao", "varejo")
 TICKERS_V1 = ("DIRR3", "MGLU3")
@@ -297,20 +291,34 @@ def etapa_premissas(ticker: str, setor: str, usar_existentes: bool) -> None:
 
 
 def etapa_projecao(ticker: str) -> None:
-    """DRE -> WK -> PP&E -> Divida (ordem obrigatoria do ROTEIRO)."""
+    """DRE -> WK -> PP&E -> leasing -> Divida -> DFC indireto (9.0.2)."""
     projetar_dre(ticker, RAIZ_PROJETO)
     projetar_wk(ticker, RAIZ_PROJETO)
     projetar_ppe(ticker, RAIZ_PROJETO)
+    projetar_leasing(ticker, RAIZ_PROJETO)
     projetar_divida(ticker, RAIZ_PROJETO)
+    projetar_dfc_indireto(ticker, RAIZ_PROJETO)
     caminho_projecao = RAIZ_PROJETO / "data" / "processed" / f"{ticker}_projecao.json"
     projecao = carregar_json(caminho_projecao)
     politica = projecao.get("politicas_projecao", {}).get("divida_balanco", "n/d")
     print(f"    DRE, WK, PP&E e Divida projetados (politica: {politica})")
 
 
+def _carregar_mercado(ticker: str) -> dict[str, Any]:
+    """Le o JSON de mercado coletado (Rf/preco); vazio se nao existir.
+
+    Inline no nucleo (Prompt 9.0.0): antes vinha de
+    ``src.visualizacao.apoio_cenarios``, agora fora do caminho critico.
+    """
+    caminho = RAIZ_PROJETO / "data" / "raw" / "mercado" / f"{ticker}_mercado.json"
+    if not caminho.exists():
+        return {}
+    return carregar_json(caminho)
+
+
 def etapa_valuation(ticker: str) -> dict[str, Any]:
     """FCFF -> WACC -> VT -> EV -> checklist, consumindo mercado persistido."""
-    mercado = carregar_mercado(ticker, RAIZ_PROJETO)
+    mercado = _carregar_mercado(ticker)
     rf_usd = mercado.get("rf_usd_tbond10y")
     preco_atual = mercado.get("preco_atual")
 
@@ -318,6 +326,9 @@ def etapa_valuation(ticker: str) -> dict[str, Any]:
     calcular_wacc(ticker, RAIZ_PROJETO, rf_usd=rf_usd)
     calcular_valor_terminal(ticker, RAIZ_PROJETO)
     calcular_ev(ticker, RAIZ_PROJETO, preco_atual=preco_atual)
+    # 9.0.3: FCFE nao-financeira (checagem do bridge) + painel de retornos.
+    calcular_fcfe_naofinanceira(ticker, RAIZ_PROJETO)
+    calcular_retornos(ticker, RAIZ_PROJETO)
     return executar_checklist(ticker, RAIZ_PROJETO)
 
 
@@ -327,7 +338,23 @@ def etapa_valuation(ticker: str) -> dict[str, Any]:
 
 
 def etapa_graficos(ticker: str) -> None:
-    """Gera os 8 graficos institucionais (HTML + PNG) do ticker."""
+    """Gera os 8 graficos institucionais (HTML + PNG) do ticker.
+
+    Etapa PERIFERICA (congelada no 9.0.0): so roda com ``--com-graficos``. Os
+    geradores sao importados sob demanda porque vivem em ``src/visualizacao/``,
+    fora do nucleo — o import tardio mantem o caminho critico limpo.
+    """
+    from src.visualizacao.dashboard_final import gerar_dashboard_final
+    from src.visualizacao.football_field import gerar_football_field
+    from src.visualizacao.historico_vs_projetado import gerar_historico_vs_projetado
+    from src.visualizacao.roic_roiic import gerar_roic_roiic
+    from src.visualizacao.sensibilidade_receita_margem import (
+        gerar_sensibilidade_receita_margem,
+    )
+    from src.visualizacao.sensibilidade_setor import gerar_sensibilidade_setor
+    from src.visualizacao.sensibilidade_wacc_g import gerar_sensibilidade_wacc_g
+    from src.visualizacao.waterfall_ev import gerar_waterfall_ev
+
     geradores: tuple[tuple[str, Callable[..., dict[str, Any]]], ...] = (
         ("football_field", gerar_football_field),
         ("waterfall_ev", gerar_waterfall_ev),
@@ -419,9 +446,9 @@ def montar_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="main.py",
         description=(
-            "Pipeline completo do DCF Automatizado: coleta -> limpeza -> "
-            "metricas -> premissas -> projecao -> valuation -> graficos -> "
-            "Excel."
+            "Pipeline do nucleo do DCF Automatizado: coleta -> limpeza -> "
+            "metricas -> premissas -> projecao -> valuation -> Excel. Os "
+            "graficos (congelados no 9.0.0) entram so com --com-graficos."
         ),
     )
     parser.add_argument(
@@ -444,14 +471,33 @@ def montar_parser() -> argparse.ArgumentParser:
             "o julgamento do analista."
         ),
     )
+    parser.add_argument(
+        "--com-graficos",
+        action="store_true",
+        help=(
+            "Gera os 8 graficos institucionais (etapa PERIFERICA congelada no "
+            "9.0.0, fora do nucleo). Sem a flag, o pipeline entrega o Excel "
+            "direto, sem os PNGs."
+        ),
+    )
     return parser
 
 
-def executar_pipeline(ticker: str, setor: str, usar_existentes: bool) -> int:
-    """Executa as 8 etapas na ordem, com timestamps e resumo final."""
+def executar_pipeline(
+    ticker: str,
+    setor: str,
+    usar_existentes: bool,
+    com_graficos: bool = False,
+) -> int:
+    """Executa as etapas do nucleo na ordem, com timestamps e resumo final.
+
+    Caminho critico (default): coleta -> limpeza -> metricas -> premissas ->
+    projecao -> valuation -> Excel (7 etapas). Com ``com_graficos``, insere a
+    etapa PERIFERICA de graficos (congelada no 9.0.0) antes do Excel.
+    """
     inicio_total = time.perf_counter()
-    total = 8
-    print(f"[{_timestamp()}] DCF Automatizado — pipeline completo para {ticker}")
+    total = 8 if com_graficos else 7
+    print(f"[{_timestamp()}] DCF Automatizado — pipeline do nucleo para {ticker}")
 
     executar_etapa(
         1, total, "coleta (CVM + mercado + macro)", lambda: etapa_coleta(ticker)
@@ -485,13 +531,19 @@ def executar_pipeline(ticker: str, setor: str, usar_existentes: bool) -> int:
     checklist = executar_etapa(
         6,
         total,
-        "valuation (FCFF, WACC, VT, EV, checklist)",
+        "valuation (FCFF, WACC, VT, EV, FCFE, retornos, checklist)",
         lambda: etapa_valuation(ticker),
     )
-    executar_etapa(
-        7, total, "graficos institucionais (HTML + PNG)", lambda: etapa_graficos(ticker)
+    if com_graficos:
+        executar_etapa(
+            7,
+            total,
+            "graficos institucionais (HTML + PNG, congelado)",
+            lambda: etapa_graficos(ticker),
+        )
+    caminho = executar_etapa(
+        total, total, "Excel de 7 abas", lambda: etapa_excel(ticker)
     )
-    caminho = executar_etapa(8, total, "Excel de 7 abas", lambda: etapa_excel(ticker))
 
     duracao_total = time.perf_counter() - inicio_total
     imprimir_resumo_final(ticker, caminho, checklist, duracao_total)
@@ -516,6 +568,7 @@ def main(argumentos: list[str] | None = None) -> int:
             ticker,
             opcoes.setor,
             opcoes.usar_premissas_existentes,
+            com_graficos=opcoes.com_graficos,
         )
     except ErroPipeline as erro:
         print(f"\nERRO DE PIPELINE: {erro}")

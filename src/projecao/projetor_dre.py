@@ -28,6 +28,35 @@ CAMPOS_DRE_PROJETADA = (
     "lucro_liquido",
 )
 
+# Campos adicionais persistidos SOMENTE no modo completo (padrao Direcional,
+# Prompt 9.0.2: margens PRE-D&A). Todos registrados em config/mapeamento_cvm.json.
+CAMPOS_DRE_COMPLETA = (
+    "receita_bruta",
+    "deducoes",
+    "cpv_cmv",
+    "lucro_bruto",
+    "margem_bruta",
+    "sgna",
+    "sgna_pct_receita",
+    "outras_receitas_despesas",
+    "equivalencia_patrimonial",
+    "aliquota_efetiva_usada",
+    "da_direito_uso",
+    "da_imobilizado",
+    "da_intangivel",
+    "ebit_ex_depreciacao",
+    "aliquota_ir_ano",
+    "ll_antes_minoritarios",
+    "participacao_minoritarios",
+    "minoritarios_pct_ll",
+    "lpa",
+)
+
+MODO_DRE_LEGADO = "legado"
+MODO_DRE_COMPLETO = "completo"
+MODO_ALIQUOTA_MARGINAL = "marginal"
+MODO_ALIQUOTA_EFETIVA = "efetiva_historica"
+
 
 def resolver_raiz(raiz_projeto: Path | None = None) -> Path:
     """Devolve a raiz do projeto, permitindo override em testes."""
@@ -207,6 +236,49 @@ def selecionar_ultimo_exercicio(
     return selecionado.iloc[0]
 
 
+def somar_ultimo_exercicio(dados: pd.DataFrame, nome_padronizado: str) -> float:
+    """Soma TODAS as sub-contas mapeadas para um nome no ultimo exercicio anual.
+
+    ``selecionar_ultimo_exercicio`` devolve UMA linha (a de codigo mais curto);
+    contas espalhadas em sub-contas — ex.: passivo de arrendamento em
+    2.01.05.x e 2.02.02.x — exigem SOMAR as sub-contas do mesmo exercicio para
+    obter a magnitude total. Devolve 0.0 quando a conta nao existe.
+    """
+    if dados.empty or "nome_padronizado" not in dados.columns:
+        return 0.0
+    if "valor_padronizado" not in dados.columns:
+        return 0.0
+
+    selecionado = dados[dados["nome_padronizado"] == nome_padronizado].copy()
+    selecionado = selecionado[selecionado["valor_padronizado"].notna()]
+    if "ORDEM_EXERC" in selecionado.columns:
+        ordem = selecionado["ORDEM_EXERC"].map(normalizar_texto)
+        selecionado = selecionado[ordem == "ultimo"]
+    if selecionado.empty:
+        return 0.0
+
+    if "DT_FIM_EXERC" in selecionado.columns:
+        datas = pd.to_datetime(selecionado["DT_FIM_EXERC"], errors="coerce")
+        anuais = selecionado[(datas.dt.month == 12) & (datas.dt.day == 31)]
+        if not anuais.empty:
+            selecionado = anuais.copy()
+    if "ano_arquivo" in selecionado.columns:
+        selecionado["_ano_num"] = pd.to_numeric(
+            selecionado["ano_arquivo"], errors="coerce"
+        )
+        selecionado = selecionado[
+            selecionado["_ano_num"] == selecionado["_ano_num"].max()
+        ]
+    if "DT_FIM_EXERC" in selecionado.columns:
+        selecionado["_data"] = pd.to_datetime(
+            selecionado["DT_FIM_EXERC"], errors="coerce"
+        )
+        selecionado = selecionado[selecionado["_data"] == selecionado["_data"].max()]
+    if "CD_CONTA" in selecionado.columns:
+        selecionado = selecionado.drop_duplicates(subset=["CD_CONTA"])
+    return float(selecionado["valor_padronizado"].sum())
+
+
 def extrair_receita_linha(linha: pd.Series, fonte: str) -> dict[str, Any]:
     """Extrai a receita liquida e metadados da linha historica selecionada."""
     return {
@@ -319,6 +391,31 @@ def carregar_razao_receita_bruta(
     return receita_bruta / receita_liquida, "dva_7_01_01"
 
 
+def projetar_receita(
+    receita_ano0: float,
+    taxas_crescimento: dict[int, float],
+    premissas: dict[str, Any] | None = None,
+) -> dict[int, float]:
+    """Projeta a serie de RECEITA LIQUIDA de ano1..ano8 (funcao plugavel).
+
+    PONTO DE ENCAIXE do unit economics (v3.0). Hoje implementa apenas o
+    crescimento percentual sobre o ano anterior
+    (``Receita_t = Receita_(t-1) x (1 + crescimento_receita_t)``). A v3.0
+    plugara AQUI o build-up setorial (academias x ticket, VGV x POC, ARPU x
+    base etc.) devolvendo a mesma serie de 8 anos, sem tocar no resto da DRE.
+    O parametro ``premissas`` fica disponivel para esse build-up futuro; hoje
+    nao e usado (o crescimento vem de ``taxas_crescimento``).
+    """
+    serie: dict[int, float] = {}
+    receita_anterior = receita_ano0
+    for ano in range(1, HORIZONTE_PROJECAO + 1):
+        # Formula: Receita_t = Receita_(t-1) x (1 + crescimento_receita_t).
+        receita_liquida = receita_anterior * (1 + taxas_crescimento[ano])
+        serie[ano] = receita_liquida
+        receita_anterior = receita_liquida
+    return serie
+
+
 def projetar_linhas_dre(
     receita_ano0: float,
     taxas_crescimento: dict[int, float],
@@ -326,9 +423,9 @@ def projetar_linhas_dre(
     usa_ret: bool,
     razao_receita_bruta: float | None = None,
 ) -> dict[str, dict[str, float | str]]:
-    """Projeta as linhas da DRE para ano1..ano8."""
+    """Projeta as linhas da DRE (modo LEGADO) para ano1..ano8."""
     linhas = {}
-    receita_anterior = receita_ano0
+    serie_receita = projetar_receita(receita_ano0, taxas_crescimento)
 
     for ano in range(1, HORIZONTE_PROJECAO + 1):
         chave_ano = f"ano{ano}"
@@ -336,7 +433,7 @@ def projetar_linhas_dre(
         margem_ebitda = margens_ebitda[ano]
 
         # Formula: Receita_t = Receita_(t-1) x (1 + crescimento_receita_t).
-        receita_liquida = receita_anterior * (1 + taxa_crescimento)
+        receita_liquida = serie_receita[ano]
 
         # Formula: EBITDA_t = Receita_t x margem_ebitda_t.
         ebitda = receita_liquida * margem_ebitda
@@ -378,7 +475,411 @@ def projetar_linhas_dre(
         if razao_receita_bruta is not None:
             # Formula: Receita Bruta_t = RL_t x razao RB/RL do Ano 0 (DVA).
             linhas[chave_ano]["receita_bruta"] = receita_liquida * razao_receita_bruta
-        receita_anterior = receita_liquida
+
+    return linhas
+
+
+def validar_nomes_mapeados_completa(raiz_projeto: Path) -> None:
+    """Garante que as colunas EXTRAS da DRE completa existem no mapeamento."""
+    caminho = raiz_projeto / "config" / "mapeamento_cvm.json"
+    mapeamento = carregar_json(caminho)
+    campos_mapeados = set(mapeamento.get("campos", {}))
+    faltantes = sorted(set(CAMPOS_DRE_COMPLETA) - campos_mapeados)
+    if faltantes:
+        raise RuntimeError(
+            "Campos da DRE completa ausentes em config/mapeamento_cvm.json: "
+            + ", ".join(faltantes)
+        )
+
+
+def premissas_tem_dre_completa(premissas: dict[str, Any]) -> bool:
+    """Detecta o modo COMPLETO pela presenca das duas premissas definidoras.
+
+    A DRE completa (Padrao Smartfit, Prompt 8.1) so liga quando ha
+    ``margem_bruta_ano1`` E ``sgna_pct_receita_ano1`` (os dois vetores que a
+    definem). Arquivos v2 (so ``margem_ebitda_ano1..8``) rodam no modo LEGADO
+    byte a byte — retrocompatibilidade do Principio 13.
+    """
+
+    def _tem(campo: str) -> bool:
+        valor = premissas.get(campo)
+        return isinstance(valor, (int, float)) and not isinstance(valor, bool)
+
+    return _tem("margem_bruta_ano1") and _tem("sgna_pct_receita_ano1")
+
+
+def carregar_parametros_dre_completa(raiz_projeto: Path) -> dict[str, Any]:
+    """Le clamps/defaults do bloco ``dre_completa`` de config/parametros.json."""
+    caminho = raiz_projeto / "config" / "parametros.json"
+    parametros = carregar_json(caminho)
+    bloco = parametros.get("dre_completa", {})
+    return {
+        "modo_aliquota_padrao": bloco.get(
+            "modo_aliquota_padrao", MODO_ALIQUOTA_MARGINAL
+        ),
+        "aliquota_marginal": float(
+            bloco.get("aliquota_marginal", ALIQUOTA_IR_CSLL_GERAL)
+        ),
+        "aliquota_efetiva_min": float(bloco.get("aliquota_efetiva_min", 0.15)),
+        "aliquota_efetiva_max": float(bloco.get("aliquota_efetiva_max", 0.45)),
+        "deducoes_padrao": float(bloco.get("deducoes_pct_receita_bruta_padrao", 0.0)),
+        "outras_padrao": float(bloco.get("outras_despesas_pct_receita_padrao", 0.0)),
+        "equivalencia_padrao": float(bloco.get("equivalencia_pct_receita_padrao", 0.0)),
+    }
+
+
+def _escalar_premissa(premissas: dict[str, Any], campo: str, padrao: float) -> float:
+    """Le uma premissa escalar opcional; ausente/invalida usa o padrao."""
+    valor = premissas.get(campo)
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+        return padrao
+    return float(valor)
+
+
+def _vetor_premissa_8(
+    premissas: dict[str, Any],
+    prefixo: str,
+    fallback: float,
+) -> dict[int, float]:
+    """Le um vetor opcional de 8 valores; anos ausentes herdam o mais antigo.
+
+    Preserva a regra dos 8 valores INDIVIDUAIS quando o arquivo os traz; para
+    um ano faltante usa o primeiro valor presente (ou ``fallback`` se nenhum),
+    nunca uma taxa unica silenciosa que apague a intencao do analista.
+    """
+    presentes: dict[int, float] = {}
+    for ano in range(1, HORIZONTE_PROJECAO + 1):
+        valor = premissas.get(f"{prefixo}_ano{ano}")
+        if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+            presentes[ano] = float(valor)
+    base = presentes[min(presentes)] if presentes else fallback
+    return {ano: presentes.get(ano, base) for ano in range(1, HORIZONTE_PROJECAO + 1)}
+
+
+def carregar_aliquota_efetiva_historica(
+    ticker: str,
+    raiz_projeto: Path,
+) -> float | None:
+    """Aliquota efetiva historica media (agregado das metricas), se existir."""
+    caminho = raiz_projeto / "data" / "processed" / f"{ticker}_metricas.json"
+    if not caminho.exists():
+        return None
+    metricas = carregar_json(caminho)
+    valor = metricas.get("agregados", {}).get("aliquota_efetiva_media_3a")
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+        return None
+    return float(valor)
+
+
+def resolver_aliquota_efetiva(
+    ticker: str,
+    premissas: dict[str, Any],
+    raiz_projeto: Path,
+    parametros_completa: dict[str, Any],
+) -> float | None:
+    """Aliquota efetiva a aplicar: premissa > historico, com clamp de sanidade.
+
+    Devolve None quando nao ha base historica nem premissa (o motor cai no
+    modo marginal). Clamp em [min, max] do bloco ``dre_completa`` (default
+    [15%, 45%]) — padrao Smartfit ``Model !N65``.
+    """
+    bruta = premissas.get("aliquota_efetiva")
+    if isinstance(bruta, bool) or not isinstance(bruta, (int, float)):
+        bruta = carregar_aliquota_efetiva_historica(ticker, raiz_projeto)
+    if bruta is None:
+        return None
+    minimo = parametros_completa["aliquota_efetiva_min"]
+    maximo = parametros_completa["aliquota_efetiva_max"]
+    return max(minimo, min(maximo, float(bruta)))
+
+
+def calcular_ir_csll_completo(
+    ebt: float,
+    receita_bruta: float,
+    usa_ret: bool,
+    modo_aliquota: str,
+    aliquota_efetiva: float | None,
+    aliquota_marginal: float,
+    aliquota_anual: float | None = None,
+) -> tuple[float, float | None]:
+    """IR/CSLL da DRE completa; devolve (ir_csll, aliquota_usada).
+
+    Precedencia (Prompt 9.0.2): RET (construtoras) > ``aliquota_anual`` (vetor
+    ``aliquota_ir_ano1..8``) > ``efetiva_historica`` > ``marginal`` (default).
+    - RET: -4% sobre a Receita BRUTA projetada (base gross).
+    - Demais: -aliquota x EBT positivo; EBT <= 0 => IR = 0 (sem credito
+      automatico).
+    """
+    if usa_ret:
+        # Formula: IR/CSLL RET = -4% x Receita Bruta projetada.
+        return -(receita_bruta * ALIQUOTA_RET_RECEITA), None
+
+    if aliquota_anual is not None:
+        aliquota = aliquota_anual
+    elif modo_aliquota == MODO_ALIQUOTA_EFETIVA and aliquota_efetiva is not None:
+        aliquota = aliquota_efetiva
+    else:
+        aliquota = aliquota_marginal
+
+    if ebt <= 0:
+        # Formula: IR/CSLL = 0 quando EBT <= 0 (sem credito automatico).
+        return 0.0, aliquota
+    # Formula: IR/CSLL = -aliquota x EBT positivo.
+    return -(ebt * aliquota), aliquota
+
+
+def carregar_aliquotas_anuais(premissas: dict[str, Any]) -> dict[int, float] | None:
+    """Vetor OPCIONAL ``aliquota_ir_ano1..8`` (vence o escalar quando existe).
+
+    Presente qualquer ``aliquota_ir_anoN`` numerico, o vetor completo e
+    montado (anos ausentes herdam o mais antigo presente — nunca uma taxa
+    unica silenciosa). Ausente por completo, devolve None e o motor segue a
+    cascata efetiva/marginal.
+    """
+    presentes = any(
+        isinstance(premissas.get(f"aliquota_ir_ano{ano}"), (int, float))
+        and not isinstance(premissas.get(f"aliquota_ir_ano{ano}"), bool)
+        for ano in range(1, HORIZONTE_PROJECAO + 1)
+    )
+    if not presentes:
+        return None
+    return _vetor_premissa_8(premissas, "aliquota_ir", ALIQUOTA_IR_CSLL_GERAL)
+
+
+def montar_contexto_ir_completo(conteudo: dict[str, Any]) -> dict[str, Any]:
+    """Contexto tributario/minoritarios da DRE completa persistido em politicas.
+
+    Fonte unica para os schedules (PP&E e divida) recomporem a cauda da DRE
+    (IR -> minoritarios -> LL -> LPA) sem reler premissas: le
+    ``politicas_projecao.dre`` gravado pelo projetor.
+    """
+    politicas = conteudo.get("politicas_projecao", {}).get("dre", {})
+
+    def _numero_ou_none(valor: Any) -> float | None:
+        if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+            return None
+        return float(valor)
+
+    return {
+        "modo_aliquota": str(politicas.get("modo_aliquota", MODO_ALIQUOTA_MARGINAL)),
+        "aliquota_efetiva": _numero_ou_none(
+            politicas.get("aliquota_efetiva_disponivel")
+        ),
+        "aliquota_marginal": _numero_ou_none(politicas.get("aliquota_marginal"))
+        or ALIQUOTA_IR_CSLL_GERAL,
+        "aliquotas_anuais": politicas.get("aliquotas_anuais") or {},
+        "minoritarios_pct_ll": _numero_ou_none(politicas.get("minoritarios_pct_ll"))
+        or 0.0,
+        "acoes_fully_diluted": _numero_ou_none(politicas.get("acoes_fully_diluted")),
+    }
+
+
+def recalcular_cauda_dre_completa(
+    linha_dre: dict[str, Any],
+    chave_ano: str,
+    usa_ret: bool,
+    contexto: dict[str, Any],
+) -> None:
+    """Recalcula IR -> LL antes -> minoritarios -> LL -> LPA de uma linha.
+
+    Usada pelos schedules (PP&E apos preencher a D&A; divida apos o resultado
+    financeiro) para fechar a cauda da DRE PRE-D&A com as mesmas regras do
+    projetor: RET sobre a Receita Bruta projetada > vetor ``aliquota_ir_anoN``
+    > efetiva historica > marginal. Pressupoe ``ebt`` ja atualizado na linha.
+    """
+    aliquotas_anuais = contexto.get("aliquotas_anuais") or {}
+    aliquota_anual = aliquotas_anuais.get(chave_ano)
+    if isinstance(aliquota_anual, bool) or not isinstance(aliquota_anual, (int, float)):
+        aliquota_anual = None
+    ir_csll, aliquota_usada = calcular_ir_csll_completo(
+        ebt=float(linha_dre["ebt"]),
+        receita_bruta=float(linha_dre["receita_bruta"]),
+        usa_ret=usa_ret,
+        modo_aliquota=str(contexto.get("modo_aliquota", MODO_ALIQUOTA_MARGINAL)),
+        aliquota_efetiva=contexto.get("aliquota_efetiva"),
+        aliquota_marginal=float(
+            contexto.get("aliquota_marginal", ALIQUOTA_IR_CSLL_GERAL)
+        ),
+        aliquota_anual=aliquota_anual,
+    )
+    linha_dre["ir_csll"] = ir_csll
+    linha_dre["aliquota_efetiva_usada"] = aliquota_usada
+    linha_dre["aliquota_ir_ano"] = aliquota_usada
+    aplicar_minoritarios_e_lpa(
+        linha_dre,
+        float(contexto.get("minoritarios_pct_ll") or 0.0),
+        contexto.get("acoes_fully_diluted"),
+    )
+
+
+def aplicar_minoritarios_e_lpa(
+    linha_dre: dict[str, Any],
+    minoritarios_pct_ll: float,
+    acoes_fully_diluted: float | None,
+) -> None:
+    """Fecha a cauda da DRE: LL antes de minoritarios -> LL final -> LPA.
+
+    Formula (Direcional ``Modelo`` L36-L43): participacao_minoritarios =
+    -pct x LL antes de minoritarios (minoritarios dividem lucro E prejuizo,
+    entao LL final = LL_antes x (1 - pct) nos dois sinais);
+    LPA = LL final / acoes fully diluted (None sem acoes).
+    """
+    ll_antes = float(linha_dre["ebt"]) + float(linha_dre["ir_csll"])
+    participacao = -(minoritarios_pct_ll * ll_antes)
+    linha_dre["ll_antes_minoritarios"] = ll_antes
+    linha_dre["participacao_minoritarios"] = participacao
+    linha_dre["lucro_liquido"] = ll_antes + participacao
+    linha_dre["lpa"] = (
+        float(linha_dre["lucro_liquido"]) / acoes_fully_diluted
+        if acoes_fully_diluted
+        else None
+    )
+
+
+def projetar_linhas_dre_completa(
+    receita_ano0: float,
+    taxas_crescimento: dict[int, float],
+    premissas: dict[str, Any],
+    usa_ret: bool,
+    aliquota_efetiva: float | None,
+    parametros_completa: dict[str, Any],
+) -> dict[str, dict[str, float | str]]:
+    """Projeta a DRE COMPLETA com margens PRE-D&A (padrao Direcional, 9.0.2).
+
+    MUDANCA DE PARADIGMA vs o antigo 8.1: ``margem_bruta`` e
+    ``sgna_pct_receita`` sao margens de NIVEL EBITDA (pre-D&A) — a D&A NAO
+    esta embutida em CPV/SG&A. Cascata (Direcional ``Modelo`` L17-L39):
+
+        Receita Bruta -> (-)Deducoes -> Receita Liquida -> (-)CPV ->
+        Lucro Bruto -> (-)SG&A -> (+/-)Outras -> (+)Equivalencia ->
+        EBIT ex-Depreciacao [= EBITDA] -> (-)D&A [LINHA PROPRIA, schedule
+        PP&E] -> EBIT -> (+/-)Res. financeiro [schedule divida] -> EBT ->
+        (-)IR/CS [aliquota ANUAL ou RET x RB] -> LL antes de minoritarios ->
+        (-)Minoritarios -> Lucro Liquido -> LPA.
+
+    A D&A nasce zerada (o schedule PP&E preenche e recalcula EBIT->LL); o
+    resultado financeiro idem (schedule de divida). Memo: EBITDA = EBIT
+    ex-Depreciacao (constante sob refinamentos de D&A).
+    """
+    serie_receita = projetar_receita(receita_ano0, taxas_crescimento, premissas)
+    margens_bruta = _vetor_premissa_8(premissas, "margem_bruta", 0.30)
+    sgna_pct = _vetor_premissa_8(premissas, "sgna_pct_receita", 0.15)
+    deducoes_pct = _vetor_premissa_8(
+        premissas,
+        "deducoes_pct_receita_bruta",
+        parametros_completa["deducoes_padrao"],
+    )
+    outras_pct = _escalar_premissa(
+        premissas,
+        "outras_despesas_pct_receita",
+        parametros_completa["outras_padrao"],
+    )
+    equivalencia_pct = _escalar_premissa(
+        premissas,
+        "equivalencia_pct_receita",
+        parametros_completa["equivalencia_padrao"],
+    )
+    modo_aliquota = (
+        premissas.get("modo_aliquota") or parametros_completa["modo_aliquota_padrao"]
+    )
+    aliquota_marginal = parametros_completa["aliquota_marginal"]
+    aliquotas_anuais = carregar_aliquotas_anuais(premissas)
+    minoritarios_pct = _escalar_premissa(premissas, "minoritarios_pct_ll", 0.0)
+    acoes_fully_diluted = premissas.get("acoes_fully_diluted")
+    acoes = (
+        float(acoes_fully_diluted)
+        if isinstance(acoes_fully_diluted, (int, float))
+        and not isinstance(acoes_fully_diluted, bool)
+        and float(acoes_fully_diluted) > 0
+        else None
+    )
+
+    linhas: dict[str, dict[str, float | str]] = {}
+    for ano in range(1, HORIZONTE_PROJECAO + 1):
+        chave_ano = f"ano{ano}"
+        receita_liquida = serie_receita[ano]
+
+        # Deducoes como % da RECEITA BRUTA: RB = RL / (1 - deducoes%).
+        deducoes_pct_ano = min(max(deducoes_pct[ano], 0.0), 0.95)
+        receita_bruta = receita_liquida / (1 - deducoes_pct_ano)
+        # Deducoes = RL - RB (<= 0; despesa/reducao com sinal negativo).
+        deducoes = receita_liquida - receita_bruta
+
+        # CPV PRE-D&A via margem bruta: Lucro Bruto = RL x margem_bruta_t.
+        margem_bruta = margens_bruta[ano]
+        cpv = -(receita_liquida * (1 - margem_bruta))
+        lucro_bruto = receita_liquida + cpv
+
+        # SG&A PRE-D&A como % da receita liquida (despesa negativa).
+        sgna_pct_ano = sgna_pct[ano]
+        sgna = -(receita_liquida * sgna_pct_ano)
+        outras_receitas_despesas = receita_liquida * outras_pct
+        equivalencia_patrimonial = receita_liquida * equivalencia_pct
+
+        # Formula: EBIT ex-Depreciacao = Lucro Bruto + SG&A + Outras +
+        # Equivalencia (nivel EBITDA — nenhuma D&A embutida nas margens).
+        ebit_ex_depreciacao = (
+            lucro_bruto + sgna + outras_receitas_despesas + equivalencia_patrimonial
+        )
+
+        # D&A como LINHA PROPRIA (zerada aqui; schedule PP&E preenche os
+        # componentes e o leasing reclassifica a parcela do direito de uso).
+        da_direito_uso = 0.0
+        da_imobilizado = 0.0
+        da_intangivel = 0.0
+        depreciacao_amortizacao = da_direito_uso + da_imobilizado + da_intangivel
+
+        # Formula: EBIT = EBIT ex-Depreciacao - D&A (D&A entra NEGATIVA na
+        # cascata; aqui subtraimos a magnitude).
+        ebit = ebit_ex_depreciacao - depreciacao_amortizacao
+        # Memo: EBITDA = EBIT ex-Depreciacao (invariante sob D&A).
+        ebitda = ebit_ex_depreciacao
+
+        # Resultado financeiro entra pelo schedule de divida (placeholder 0).
+        resultado_financeiro = 0.0
+        ebt = ebit + resultado_financeiro
+
+        ir_csll, aliquota_usada = calcular_ir_csll_completo(
+            ebt=ebt,
+            receita_bruta=receita_bruta,
+            usa_ret=usa_ret,
+            modo_aliquota=str(modo_aliquota),
+            aliquota_efetiva=aliquota_efetiva,
+            aliquota_marginal=aliquota_marginal,
+            aliquota_anual=(aliquotas_anuais[ano] if aliquotas_anuais else None),
+        )
+
+        linhas[chave_ano] = {
+            "ano_projecao": chave_ano,
+            "taxa_crescimento_receita": taxas_crescimento[ano],
+            "receita_bruta": receita_bruta,
+            "deducoes": deducoes,
+            "receita_liquida": receita_liquida,
+            "margem_bruta": margem_bruta,
+            "cpv_cmv": cpv,
+            "lucro_bruto": lucro_bruto,
+            "sgna_pct_receita": sgna_pct_ano,
+            "sgna": sgna,
+            "outras_receitas_despesas": outras_receitas_despesas,
+            "equivalencia_patrimonial": equivalencia_patrimonial,
+            "ebit_ex_depreciacao": ebit_ex_depreciacao,
+            "da_direito_uso": da_direito_uso,
+            "da_imobilizado": da_imobilizado,
+            "da_intangivel": da_intangivel,
+            "depreciacao_amortizacao": depreciacao_amortizacao,
+            "ebit": ebit,
+            # margem EBITDA derivada e PERSISTIDA (compat com consumidores v2).
+            "margem_ebitda": (ebitda / receita_liquida if receita_liquida else 0.0),
+            "ebitda": ebitda,
+            "resultado_financeiro": resultado_financeiro,
+            "ebt": ebt,
+            "modo_aliquota": str(modo_aliquota),
+            "aliquota_efetiva_usada": aliquota_usada,
+            "aliquota_ir_ano": aliquota_usada,
+            "ir_csll": ir_csll,
+            "minoritarios_pct_ll": minoritarios_pct,
+        }
+        aplicar_minoritarios_e_lpa(linhas[chave_ano], minoritarios_pct, acoes)
 
     return linhas
 
@@ -391,6 +892,8 @@ def atualizar_projecao(
     ano0: dict[str, Any],
     dre: dict[str, dict[str, float | str]],
     politicas_ret: dict[str, Any] | None = None,
+    modo_dre: str = MODO_DRE_LEGADO,
+    politicas_dre: dict[str, Any] | None = None,
 ) -> Path:
     """Grava ou atualiza a estrutura unica de projecao do ticker."""
     caminho = raiz_projeto / "data" / "processed" / f"{ticker}_projecao.json"
@@ -402,33 +905,167 @@ def atualizar_projecao(
     conteudo["ticker"] = ticker
     conteudo["tipo"] = premissas.get("tipo") or metadados.get("tipo")
     conteudo["setor"] = premissas.get("setor") or metadados.get("setor")
+    conteudo["modo_dre"] = modo_dre
     conteudo["ano0"] = ano0
     conteudo["dre"] = dre
-    if politicas_ret is not None:
+    if politicas_ret is not None or politicas_dre is not None:
         politicas = conteudo.get("politicas_projecao")
         if not isinstance(politicas, dict):
             politicas = {}
-        politicas["ret"] = politicas_ret
+        if politicas_ret is not None:
+            politicas["ret"] = politicas_ret
+        if politicas_dre is not None:
+            politicas["dre"] = politicas_dre
         conteudo["politicas_projecao"] = politicas
     salvar_json(caminho, conteudo)
     return caminho
+
+
+def _carregar_taxas_crescimento(premissas: dict[str, Any]) -> dict[int, float]:
+    """Le os 8 campos individuais de crescimento (obrigatorios nos dois modos)."""
+    taxas = {}
+    for ano in range(1, HORIZONTE_PROJECAO + 1):
+        taxas[ano] = valor_numerico_obrigatorio(
+            premissas,
+            f"crescimento_receita_ano{ano}",
+        )
+    return taxas
+
+
+def _projetar_dre_completa(
+    ticker: str,
+    raiz: Path,
+    premissas: dict[str, Any],
+    metadados: dict[str, Any],
+    ano0: dict[str, Any],
+    taxas_crescimento: dict[int, float],
+    usa_ret: bool,
+) -> dict[str, Any]:
+    """Ramo COMPLETO (Padrao Smartfit): DRE bruta->liquida com CPV/SG&A/D&A."""
+    validar_nomes_mapeados_completa(raiz)
+    parametros_completa = carregar_parametros_dre_completa(raiz)
+    aliquota_efetiva = resolver_aliquota_efetiva(
+        ticker,
+        premissas,
+        raiz,
+        parametros_completa,
+    )
+    modo_aliquota = str(
+        premissas.get("modo_aliquota") or parametros_completa["modo_aliquota_padrao"]
+    )
+
+    dre = projetar_linhas_dre_completa(
+        receita_ano0=ano0["receita_liquida"],
+        taxas_crescimento=taxas_crescimento,
+        premissas=premissas,
+        usa_ret=usa_ret,
+        aliquota_efetiva=aliquota_efetiva,
+        parametros_completa=parametros_completa,
+    )
+
+    aliquotas_anuais = carregar_aliquotas_anuais(premissas)
+    acoes_fully_diluted = premissas.get("acoes_fully_diluted")
+    politicas_dre = {
+        "modo_dre": MODO_DRE_COMPLETO,
+        "margens": "pre_da_nivel_ebitda (padrao Direcional, Prompt 9.0.2)",
+        "modo_aliquota": modo_aliquota,
+        "aliquota_efetiva_disponivel": aliquota_efetiva,
+        "aliquota_marginal": parametros_completa["aliquota_marginal"],
+        # Vetor anual persistido para os schedules recomporem o IR (9.0.2).
+        "aliquotas_anuais": (
+            {f"ano{ano}": taxa for ano, taxa in aliquotas_anuais.items()}
+            if aliquotas_anuais
+            else None
+        ),
+        "minoritarios_pct_ll": _escalar_premissa(premissas, "minoritarios_pct_ll", 0.0),
+        "acoes_fully_diluted": (
+            float(acoes_fully_diluted)
+            if isinstance(acoes_fully_diluted, (int, float))
+            and not isinstance(acoes_fully_diluted, bool)
+            and float(acoes_fully_diluted) > 0
+            else None
+        ),
+        "base_ret": "receita_bruta_projetada" if usa_ret else "n/a",
+        "fonte_receita": (
+            "projetar_receita:crescimento_percentual "
+            "(encaixe do unit economics reservado para a v3.0)"
+        ),
+    }
+    # No modo completo o RET incide sobre a Receita BRUTA PROJETADA ano a ano
+    # (linha receita_bruta da DRE), nao mais sobre a razao fixa RB/RL da DVA.
+    politicas_ret = (
+        {
+            "usa_ret": True,
+            "razao_receita_bruta": None,
+            "fonte_base_ret": "receita_bruta_projetada_da_dre_completa",
+        }
+        if usa_ret
+        else None
+    )
+
+    caminho_saida = atualizar_projecao(
+        ticker=ticker,
+        raiz_projeto=raiz,
+        premissas=premissas,
+        metadados=metadados,
+        ano0=ano0,
+        dre=dre,
+        politicas_ret=politicas_ret,
+        modo_dre=MODO_DRE_COMPLETO,
+        politicas_dre=politicas_dre,
+    )
+    return {
+        "ticker": ticker,
+        "modo_dre": MODO_DRE_COMPLETO,
+        "usa_ret": usa_ret,
+        "razao_receita_bruta": None,
+        "aliquota_efetiva": aliquota_efetiva,
+        "ano0": ano0,
+        "dre": dre,
+        "caminho_saida": caminho_saida,
+    }
 
 
 def projetar_dre(
     ticker: str,
     raiz_projeto: Path | None = None,
 ) -> dict[str, Any]:
-    """Executa a projecao da DRE para um ticker e persiste o resultado."""
+    """Executa a projecao da DRE para um ticker e persiste o resultado.
+
+    Detecta o modo pela presenca das premissas definidoras (Principio 13):
+    ``margem_bruta`` + ``sgna_pct_receita`` => DRE COMPLETA (Padrao Smartfit);
+    caso contrario, modo LEGADO (margem EBITDA direta) byte a byte.
+    """
     raiz = resolver_raiz(raiz_projeto)
     ticker_normalizado = normalizar_ticker(ticker)
     validar_nomes_mapeados(raiz)
-    premissas, taxas_crescimento, margens_ebitda = carregar_premissas_dre(
-        ticker_normalizado,
-        raiz,
+    caminho_premissas = (
+        raiz / "data" / "premissas" / f"{ticker_normalizado}_premissas.json"
     )
+    premissas = carregar_json(caminho_premissas)
+    taxas_crescimento = _carregar_taxas_crescimento(premissas)
     metadados = carregar_metadados(ticker_normalizado, raiz)
     ano0 = carregar_receita_ano0(ticker_normalizado, raiz)
     usa_ret = empresa_usa_ret(premissas, metadados)
+
+    if premissas_tem_dre_completa(premissas):
+        return _projetar_dre_completa(
+            ticker=ticker_normalizado,
+            raiz=raiz,
+            premissas=premissas,
+            metadados=metadados,
+            ano0=ano0,
+            taxas_crescimento=taxas_crescimento,
+            usa_ret=usa_ret,
+        )
+
+    # --- Modo LEGADO (v2): receita liquida x margem EBITDA (intocado) ---
+    margens_ebitda = {}
+    for ano in range(1, HORIZONTE_PROJECAO + 1):
+        margens_ebitda[ano] = valor_numerico_obrigatorio(
+            premissas,
+            f"margem_ebitda_ano{ano}",
+        )
 
     razao_receita_bruta: float | None = None
     politicas_ret: dict[str, Any] | None = None
@@ -464,9 +1101,11 @@ def projetar_dre(
         ano0=ano0,
         dre=dre,
         politicas_ret=politicas_ret,
+        modo_dre=MODO_DRE_LEGADO,
     )
     return {
         "ticker": ticker_normalizado,
+        "modo_dre": MODO_DRE_LEGADO,
         "usa_ret": usa_ret,
         "razao_receita_bruta": razao_receita_bruta,
         "ano0": ano0,

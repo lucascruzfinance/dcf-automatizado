@@ -1,3 +1,6 @@
+# CONGELADO v2.1 (Prompt 9.0.0 - Enxugamento): fora do nucleo, nao-mantido.
+# Removido do caminho critico (app/pipeline/main); reversivel. Ver a lista
+# do congelado em Humano_revisar.md (D-053).
 """Apoio compartilhado para as tabelas de sensibilidade em heatmap.
 
 A formatacao condicional segue os limiares de recomendacao do motor:

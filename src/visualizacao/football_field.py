@@ -1,3 +1,6 @@
+# CONGELADO v2.1 (Prompt 9.0.0 - Enxugamento): fora do nucleo, nao-mantido.
+# Removido do caminho critico (app/pipeline/main); reversivel. Ver a lista
+# do congelado em Humano_revisar.md (D-053).
 """Football Field: faixas de valuation por metodologia (v2.0, Onda 3).
 
 Metodologias: DCF Bear/Base/Bull (derivados do caso base persistido pelo

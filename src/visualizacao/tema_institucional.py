@@ -1,3 +1,6 @@
+# RETIDO no nucleo (Prompt 9.0.0): NAO e chart. Suporte do exportador Excel
+# legado (formatacao/cores/derivacao de cenario) ate a reescrita do 9.0.5.
+# Nao importado por app.py (que usa src/apresentacao/formatacao.py).
 """Tema visual institucional compartilhado por todos os graficos Plotly.
 
 Paleta e tipografia definidas no ROTEIRO (Etapa 4): fundo navy, azul ancora,

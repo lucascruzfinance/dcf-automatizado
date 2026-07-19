@@ -1,3 +1,6 @@
+# CONGELADO v2.1 (Prompt 9.0.0 - Enxugamento): fora do nucleo, nao-mantido.
+# Removido do caminho critico (app/pipeline/main); reversivel. Ver a lista
+# do congelado em Humano_revisar.md (D-053).
 """Exportador de tabelas planas para a camada de BI (Power BI).
 
 Nasce na Onda 3 com a ``fato_comparaveis.csv`` (formato long/tidy: uma linha

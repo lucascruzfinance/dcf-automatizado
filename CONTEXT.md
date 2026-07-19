@@ -125,17 +125,46 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
-- **Data da última atualização:** 13/07/2026
-- **Versão alvo:** v2.0 "Universalização" (5 ondas do `PROMPTS_FABLE.md`; v1.0 concluída em 11/07/2026)
-- **Fase atual:** v2.0 — **ONDAS 1, 2, 3 e 4 CONCLUÍDAS em 12/07/2026 e
-  VALIDADAS em 13/07/2026** (suíte 135 verde, auditoria da cadeia de dados,
-  figuras conferidas contra os JSONs e app real validado no navegador seção a
-  seção; 2 bugs visuais corrigidos — D-025/D-026). Qualquer ticker da B3 roda
-  coleta → motor correto por tipo (FCFF/WACC ou FCFE/Ke) → comparáveis reais
-  → app multi-empresa. Próxima: **Onda 5 — Prompt 5** (Excel dinâmico por
-  tipo, exportador BI completo, Power BI, PDF e automação/orquestração de
-  dados). Decisões autônomas pendentes de revisão humana:
-  **`Humano_revisar.md`** (D-001+).
+- **Data da última atualização:** 19/07/2026
+- **Versão alvo:** **v2.1 "Padrão Smartfit"** (semanas 8–10, 8 prompts do
+  `PROMPTS_FABLE.md` reescrito; v2.0 Ondas 1–4 concluídas; a antiga Onda 5 foi
+  redistribuída — parte virou as semanas 8–10, o resto virou backlog v2.2).
+- **Fase atual:** v2.0 — **ONDAS 1, 2, 3 e 4 CONCLUÍDAS/ VALIDADAS em
+  13/07/2026** (suíte 135 verde, auditoria da cadeia de dados, figuras
+  conferidas contra os JSONs e app real validado no navegador; D-025/D-026).
+  Qualquer ticker da B3 roda coleta → motor por tipo (FCFF/WACC ou FCFE/Ke) →
+  comparáveis reais → app multi-empresa. **Planejamento da v2.1 feito em
+  13/07/2026** (ver sessão do Claude Code abaixo): novo Excel de referência do
+  mentor (Smartfit/SMFT3) analisado e o `PROMPTS_FABLE.md` reescrito do zero
+  para as semanas 8–10. **Prompts 8.1 e 8.2 CONCLUÍDOS em 14/07/2026** (8.1: DRE
+  completa bruta→líquida com CPV/SG&A separados, imposto efetivo e D&A aberta,
+  revolver formal descopado; 8.2: IFRS-16 + capex expansão×manutenção). **D&A por
+  safra REVERTIDA em 17/07/2026 a pedido de Lucas** (D-047/D-048): a depreciação
+  do imobilizado voltou ao modelo simples (CAPEX = % receita; D&A = taxa única
+  `1/vida_util_ppe_anos` sobre o PP&E de abertura); o intangível deixou de
+  amortizar; o IFRS-16 (juros de arrendamento, D&A do direito de uso, bridge com
+  passivo somado) foi MANTIDO. **O plano foi reescrito** (D-049/D-051) para a
+  **Semana 9.0** e o **Prompt 9.0.0 (Enxugamento) foi CONCLUÍDO em 17/07/2026**
+  (ver sessão datada abaixo): a periferia foi congelada e o projeto reduzido ao
+  núcleo coleta → motor → Excel. **Prompt 9.0.1 (Fidelidade à CVM) CONCLUÍDO em
+  17/07/2026:** mapeamento expandido (+25 entradas), `auditor_cvm.py` novo com 5
+  checagens + remapeamento offline, residual do BP < 5% nos 5 tickers do lote
+  (DIRR3 saiu de 55%/59% para 0,01%/0,11%), golden triplo idêntico. **Prompt
+  9.0.2 (Motor "padrão Direcional") CONCLUÍDO em 18/07/2026:** DRE pré-D&A com
+  D&A como linha própria, alíquota anual, minoritários + LPA, WK multi-driver
+  (6 contas), instrumentos de dívida opcionais, DFC indireto
+  (`dfc_indireto.py`) e BP aberto com check — golden triplo RE-BASELINE
+  explicado (D-060): DIRR3 21,2560 | MGLU3 0,8430 | SMFT3 −3,8481 (premissas
+  automáticas, REVISAR). **Prompt 9.0.3 (FCFE + macro anual + retornos)
+  CONCLUÍDO em 19/07/2026:** FCFE não-financeira ao Ke com checagem do bridge
+  (`fcfe_valuation`), bloco `macro_anual` (CDI/IGP-M/câmbio/PIB; Focus +
+  convergência a metas) alimentando a receita financeira do motor, painel
+  `retornos` (múltiplos implícitos, TIR/MOIC, grade bear/base/bull) — golden
+  re-explicado (D-065): DIRR3 20,8806 | MGLU3 0,7713 | SMFT3 −3,9300 (canal
+  único: receita financeira Selic spot → CDI anual; FCFF byte-idêntico).
+  **Próxima tarefa: Prompt 9.0.4** (front-end guiado). Decisões autônomas
+  pendentes de revisão humana: **`Humano_revisar.md`** (D-001+, agora até
+  D-067; D-063 sobre o Kd do WACC segue ABERTA — ver D-066).
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -209,6 +238,412 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 19/07/2026 (Claude Fable 5) — Semana 9.0, Prompt 9.0.3 (FCFE + macro anual + retornos)
+
+- **Objetivo:** fechar a camada de valuation sobre o motor 9.0.2: FCFE de
+  não-financeiras (Excel do 9.0.5 mostrará FCFF e FCFE), bloco macro anual
+  alimentando CDI/inflação, e painel de Retornos (TIR/MOIC/múltiplos).
+- **Entregue:**
+  - **Macro anual (`coletor_macro.py`, D-065):** séries novas — CDI (SGS 4389,
+    fallback Selic−0,1pp), IGP-M 12m (SGS 189), câmbio BRL/USD (SGS 1) — e
+    Focus estendido (IPCA/Selic/IGP-M/Câmbio/PIB, medianas SEMPRE /100 via
+    `focus_para_decimal`; câmbio bruto). Bloco `macro_anual` (ano1..8): Focus
+    onde cobre (2026-2030 na coleta atual) + convergência LINEAR até as metas
+    do bloco `macro` novo da config (IPCA 3%, Selic 9%, PIB 2%) no ano 8;
+    CDI_t = Selic_t − 0,1pp. Coleta offline PRESERVA os campos persistidos
+    (merge) e reconstrói o `macro_anual` do que existir.
+  - **Motor lê o CDI (`schedule_divida.py`):** taxa de aplicação do caixa POR
+    ANO (premissa > CDI do macro_anual > Selic spot > fallback); premissa
+    opcional NOVA `spread_divida_sobre_cdi` → Kd_t = CDI_t + spread (sem ela,
+    Kd escalar byte-igual). Leasing prefere `cdi_atual` real. **Kd do WACC
+    INTOCADO** (D-063 segue aberta; DoD exigia target estável).
+  - **FCFE não-financeira (`calculador_fcfe.py`, D-066):** decomposição por
+    ano persistida no bloco `fcfe` (FCFF − juros após IR + rec. fin. após IR +
+    ΔDívida + resíduo de regime tributário/minoritários) + `fcfe_valuation`:
+    desconto ao Ke (`wacc.ke_brl`), VT com ΔDívida NORMALIZADA (g × Dívida_8;
+    perpetuar amortização deixaria dívida negativa), fallback payout
+    sustentável, equity DIRETO vs bridge — divergência = AVISO (nunca erro).
+  - **Retornos (`src/valuation/calculador_retornos.py`, NOVO, D-067):**
+    múltiplos implícitos por ano nas duas pontas (EV/EBITDA, EV/Receita, P/L;
+    financeiras P/L e P/VP via capital regulatório); TIR do acionista
+    (−preço; +dividendos/ação do DFC; +target truncado em zero no ano 5) por
+    bissecção robusta; MOIC; grade bear/base/bull = ±20% no preço de saída
+    (motor de cenários segue congelado). Persistido em `retornos`.
+  - **Orquestradores:** `main.py`, `src/pipeline.py` e `verificar_semana3.py`
+    chamam FCFE NF + retornos após o EV; painel do verificador mostra Equity
+    FCFE/Ke, divergência vs bridge, TIR e MOIC. +27 campos no mapeamento.
+- **DoD verificado:** blocos `fcfe`/`fcfe_valuation`, `macro_anual` e
+  `retornos` persistidos nos 5 tickers; TIR base DIRR3 +14,7% (target > preço
+  ✓); FCFF **byte-idêntico** nos 5; `verificar_semana3` → SEMANA 3 OK.
+- **Golden re-explicado (D-065, canal único = receita financeira):** DIRR3
+  21,2560 → **20,8806** (−1,77%); MGLU3 0,8430 → **0,7713** (−8,52%); SMFT3
+  −3,8481 → **−3,9300**; VALE3 −0,08%; WEGE3 −0,04%. Selic spot 14,25%
+  constante → CDI anual 13,9%→8,9% derruba a receita financeira acumulada
+  ~25% → PL médio ~−2% → WACC +0,06 a +0,13pp. Divergências FCFE vs bridge
+  explicadas por ticker em D-066 (MGLU3 +935% = sintoma quantificado do kd
+  derivado 46% da D-063).
+- **Validação:** `pytest tests -q` → **179 passed, 15 skipped** (+21: 8 macro,
+  5 FCFE NF, 7 retornos, 2 taxas por ano — arquivos novos
+  `test_coletor_macro.py` e `test_calculador_retornos.py`); `black --workers
+  1`/`flake8` limpos.
+- **PRÓXIMA TAREFA:** Prompt 9.0.4 (front-end guiado).
+
+### Sessão 18/07/2026 (Claude Fable 5) — Semana 9.0, Prompt 9.0.2 (Motor "padrão Direcional")
+
+- **Objetivo:** reescrever o motor de projeção das não-financeiras para a
+  mecânica da aba `Modelo` da Direcional com a Regra de Precedência de Lucas:
+  margens PRÉ-D&A, D&A = %PP&E, CAPEX = %receita, alíquota ANUAL, WK expandido,
+  DFC indireto e BP aberto com check.
+- **Entregue:**
+  - **DRE pré-D&A (`projetor_dre.py`, D-059):** modo completo reescrito — EBIT
+    ex-Depreciação (nível EBITDA) sai das margens; D&A é LINHA PRÓPRIA
+    subtraída depois (EBIT = ex-D&A − D&A; EBITDA = ex-D&A, invariante). Cauda
+    nova: IR com vetor `aliquota_ir_ano1..8` (vence efetiva/marginal; RET sobre
+    a RB projetada intacto) → `ll_antes_minoritarios` →
+    `participacao_minoritarios` (`minoritarios_pct_ll`, default 0, âncora
+    3.11.02/3.11) → LL → `lpa`. Recalculada nos schedules por UMA função
+    (`recalcular_cauda_dre_completa` + `montar_contexto_ir_completo` — fonte
+    única). **Modo legado byte a byte** (provado antes da regeneração de
+    premissas: DIRR3/MGLU3 idênticos ao baseline pós-9.0.1).
+  - **PP&E (`schedule_ppe.py`):** vida útil com override (premissa > subtipo >
+    config; D-047 preservada — nunca derivada); `da_pct_ppe_historica`
+    persistida como INFO (Direcional L202); intangível constante (documentado);
+    no modo completo o schedule recalcula EBIT→LL pela cauda pré-D&A.
+  - **WK multi-driver (`schedule_wk.py`, D-061):** modo `dias_multi_driver`
+    com as 6 contas de Lucas (CR/RL, estoques/CPV, tributos a recuperar/IR,
+    fornecedores/CPV, obrigações trabalhistas/SG&A, adiantamentos/RL); dias =
+    média histórica implícita do Ano 0 (premissa `dias_*` sobrescreve);
+    salvaguarda dias > 365 → driver RL (MGLU3 daria 2.307 dias de tributos pelo
+    IR). Modos `dias` e `percentual_receita` preservados.
+  - **Dívida (`schedule_divida.py`):** tabela opcional `instrumentos_divida`
+    (saldo BRL, taxa própria, bullet/curva de amortização; juros = Σ taxa_i ×
+    saldo_abertura_i); sem a tabela, perfil CP/LP agregado BYTE-IGUAL à v2.
+    Captação automática v2 intacta (sem revolver).
+  - **DFC indireto (`src/projecao/dfc_indireto.py`, NOVO) + BP aberto
+    (D-062):** `dfc` vira superset com uma linha de variação POR CONTA do WK
+    (Σ variações = −ΔNWC verificado); `dfc_simplificado` preserva o contrato
+    v2; `verificacao_dfc` amarra caixa EoP = caixa BP (dif < 1e-6). Balanço
+    ganha as contas novas do WK + `passivo_arrendamento` linha própria
+    constante + `verificacao_balanco` (check L122). Inserido nos orquestradores
+    (`main.py`, `pipeline.py`, `verificar_semana2/3.py`).
+  - **Gerador pré-D&A:** margem bruta = histórica + D&A%RL (identidade: EBIT
+    ex-D&A ano 1 = EBITDA histórico), vetor de alíquota anual clampado,
+    `modo_capital_giro: dias_multi_driver` p/ não-construtoras, minoritários
+    históricos, beta clampado [0,5; 1,8] (D-063 — MGLU3 saía beta 2,27/WACC
+    27%).
+- **DoD verificado nos 5 tickers (DIRR3/MGLU3/SMFT3/VALE3/WEGE3):** DRE
+  coerente (EBITDA = EBIT + D&A; margem bruta bate por identidade); DFC
+  indireto fecha (dif < 1e-6); balanço fecha nos 8 anos (check ~0); WK com as
+  contas novas (multi-driver; DIRR3 segue ancorada por ser construtora).
+- **Golden RE-BASELINE explicado (D-060):** DIRR3 16,9687 → **21,2560**
+  (premissas regeneradas + RET sobre RB projetada); MGLU3 2,6542 → **0,8430**
+  (teste manual complementada pré-D&A + WK multi; bridge 12 bi domina); SMFT3
+  0,6361 → **−3,8481** (capex de expansão automático −30% + Kd derivado alto +
+  bridge 13,75 bi conferido SEM dupla contagem). **O colapso estrutural do
+  D-048 SUMIU:** FCFF da SMFT3 cresce 0,23 → 1,53 bi e capex de analista
+  (−15%→−4%) vira o target para **+3,11** — negativo atual é premissa
+  automática (D-024), não bug. Kd derivado (46% MGLU3 / 19,9% SMFT3) anotado
+  para revisão no 9.0.3 (D-063).
+- **Validação:** `pytest tests -q` → **158 passed, 15 skipped** (+12: cascata
+  pré-D&A, alíquota anual vence escalar, minoritários/LPA, PP&E recalcula
+  cauda, 4 de WK multi-driver, 4 de `test_dfc_indireto.py`, 2 de
+  `test_balanco_aberto.py`); `black --workers 1`/`flake8` limpos;
+  `python -m src.verificar_semana3` → **SEMANA 3 OK**.
+- **PRÓXIMA TAREFA:** Prompt 9.0.3 (FCFF + FCFE sobre o novo motor + macro
+  anual + painel de retornos).
+
+### Sessão 17/07/2026 (Claude Fable 5) — Semana 9.0, Prompt 9.0.1 (Fidelidade à CVM)
+
+- **Objetivo:** BP/DRE/DFC históricos batendo linha a linha com a DFP/ITR da
+  CVM; meta objetiva: residual < 5% do ativo/passivo (DIRR3 partia de 55%/59%).
+  Motor/projeção INTOCADOS (Target Price idêntico — DoD).
+- **Diagnóstico (D-055):** o mapeamento bruto já estava completo (0 contas não
+  mapeadas); o "buraco" era a camada de extração (só ~10 contas do BP nomeadas
+  em `montar_series_anuais`) e os baldes `1.02.01`/`2.02.02` (na DIRR3, 50% do
+  ativo era realizável LP — contas a receber + estoques/terrenos LP — e 50% do
+  passivo era "outras obrigações LP": credores por imóveis 5,1 bi + cessão).
+- **Entregue:**
+  - **`config/mapeamento_cvm.json` +25 entradas:** nível 4 do BP por CD_CONTA
+    (1.02.01.01–.10 → aplicações/contas a receber/estoques/tributos diferidos/
+    partes relacionadas/outros LP; 2.01.05.01/.02 e 2.02.02.01/.02 → partes
+    relacionadas e os residuais explícitos `outros_passivos_*`), sub-contas
+    recorrentes de nível 5 por nome (adiantamento de clientes, dividendos a
+    pagar, credores por imóveis — inclui o typo "imóvies" da DFP —, passivo de
+    cessão, depósitos judiciais, contas a pagar, receitas diferidas,
+    derivativos, participação nos lucros, provisão para garantias), e
+    `6.05.01/6.05.02` do DFC (saldos inicial/final de caixa). Catálogo `campos`
+    com 197 nomes (todos com descrição e sinal).
+  - **`src/coleta/auditor_cvm.py` (novo):** 5 checagens sem rede — (1) balanço
+    fecha (conta 1 = conta 2; totais = subtotais); (2) subtotais do BP = soma
+    do nível 3 e identidades da DRE (3.03=3.01+3.02 … 3.11=3.09+3.10, VL_CONTA
+    assinado); (3) DFC amarra (FCO+FCI+FCF+cambial=variação; 6.05.02 = caixa do
+    BP, fallback caixa+aplicações vira AVISO); (4) cobertura: decomposição em
+    árvore atribui cada R$ a um nome próprio ou ao residual explícito
+    (persistida em `bp_aberto` — insumo direto do Excel 9.0.5); (5) escala/
+    sinais. Persiste `<TICKER>_auditoria_cvm.json`; `--estrito` p/ CI; NUNCA
+    derruba pipeline. Inclui `remapear_empresa` (`--remapear`): recoleta
+    OFFLINE — reaplica a cascata atual aos JSONs brutos e refaz o Parquet.
+  - **`montar_series_anuais` ampliada:** +36 séries (BP aberto: totais,
+    subtotais e contas novas; DFC: fco/fci/fcf/variações/caixas; DVA: receita
+    bruta) — a coluna histórica do Excel (9.0.5) nasce daqui, 1:1 com a CVM.
+- **Resultados (laudos persistidos, últimos 5 exercícios):** DIRR3 **status OK,
+  100 checagens, 0 AVISO/ERRO, residual 0,01%/0,11%**; MGLU3 AVISO (residual
+  1,53%/3,58%; IR/CSLL 2025 POSITIVO +330 mi — crédito fiscal real exposto);
+  SMFT3 AVISO (1,14%/0,03%); VALE3 AVISO (2,61%/0,66%; CPV 2022 divulgado
+  POSITIVO — identidade fecha invertendo o sinal, D-057; residual ativo 2023
+  6,03% é "Outros" da própria Vale); WEGE3 AVISO (2,40%/4,49%).
+- **Conferência manual pontual (DoD):** BP 2025 da DIRR3 conferido linha a
+  linha contra a DFP aberta da CVM (arquivo 2026): Caixa 1.199.343 | Aplicações
+  983.456 | Contas a Receber 1.438.700 | Estoques 2.086.835 | Imobilizado
+  260.159 | PL 2.320.151 (R$ mil) — todos idênticos ao snapshot persistido e
+  somando aos totais oficiais (conta 1 = 13.219.635 = conta 2). Conferência
+  contra o release de RI segue como validação humana (padrão D-022).
+- **Golden triplo IDÊNTICO (D-056):** MGLU3 2,6542154782645526 e SMFT3
+  0,6360724149230469 byte-idênticos pré/pós-remap (prova de neutralidade);
+  DIRR3 16,9029 → **16,968729990248534** NÃO é o remap — é o `rf_usd` vivo
+  (4,541%) refrescado pelo `main.py` do DoD 9.0.0 (padrão D-011). Baseline novo
+  registrado; reexecução dupla determinística.
+- **Validação:** `pytest tests -q` → **146 passed, 15 skipped** (+12 novos:
+  7 do `test_auditor_cvm.py` com fixtures sintéticas, 5 de contas novas no
+  `test_mapeador_contas.py`); `black --workers 1`/`flake8` limpos;
+  `python -m src.verificar_semana3` → SEMANA 3 OK.
+- **PRÓXIMA TAREFA:** Prompt 9.0.2 (motor "padrão Direcional": DRE pré-D&A,
+  D&A=%PP&E, WK expandido, DFC indireto, BP aberto).
+
+### Sessão 17/07/2026 (Claude Fable 5) — Semana 9.0, Prompt 9.0.0 (Enxugamento)
+
+- **Objetivo:** reduzir o projeto ao NÚCLEO (coleta → motor → Excel dos 3
+  demonstrativos + FCFF/FCFE), CONGELANDO a periferia de forma reversível (nada
+  apagado). Nenhuma fórmula/valuation tocada.
+- **Congelado (banner `# CONGELADO v2.1` no topo; import removido de app/main/
+  pipeline):** 12 módulos de `src/visualizacao/` (football_field, tornado,
+  waterfall_ev, dashboard_final, roic_roiic, historico_vs_projetado,
+  comparacao_empresas, tabela_comparaveis, sensibilidade_wacc_g,
+  sensibilidade_receita_margem, sensibilidade_setor, apoio_heatmap) +
+  `src/valuation/comparaveis.py` + `src/valuation/motor_cenarios.py` +
+  `src/exportacao/exportador_bi.py`. Lista exata em `Humano_revisar.md` (D-053).
+- **RETIDO no núcleo (não é chart):** `src/visualizacao/tema_institucional.py` e
+  `src/visualizacao/apoio_cenarios.py` — ainda usados por `exportador_excel.py`
+  (sensibilidades + cores) até a reescrita do 9.0.5 (D-052). Novo módulo
+  `src/apresentacao/formatacao.py` (formatação BR + cores) para o `app.py` NÃO
+  importar de `src/visualizacao/`.
+- **Orquestradores enxutos:** `app.py` reduzido de 8 → 5 seções (Overview,
+  Histórico, Premissas, Valuation, Excel Preview; saíram Comparáveis, Comparar/
+  watchlist, Análise/sensibilidade viva, cenários e todos os gráficos Plotly).
+  `main.py` default = 7 etapas (coleta→limpeza→métricas→premissas→projeção→
+  valuation→Excel); gráficos só com `--com-graficos` (import tardio).
+  `pipeline.py`: `com_cenarios`/`com_comparaveis` default DESLIGADOS, import
+  tardio; CLI ganhou `--com-cenarios`/`--com-comparaveis`.
+- **Docs consolidadas (D-054):** `ROTEIRO.md`, `CHANGELOG.md`, `CONTRIBUTING.md`
+  → `docs/`; `Roteiro DCF - Copia.md` APAGADO (cópia, sem referência funcional);
+  raiz com 5 `.md` (README, CONTEXT, CLAUDE, PROMPTS_FABLE, Humano_revisar).
+  Refs atualizadas em README.md e CLAUDE.md.
+- **Regressão dourada — NEUTRA (importante):** o enxugamento NÃO toca nenhum
+  arquivo do motor (git diff confirma: só app/main/pipeline-orquestração,
+  periferia congelada, testes e docs). **Descoberta:** os JSONs em
+  `data/processed/` estavam DEFASADOS (estado 8.2/D-045: DIRR3 16,8618; MGLU3
+  7,5128; SMFT3 18,6259) — nunca regenerados após a simplificação da D&A. Re-
+  rodar o motor os atualizou para o estado ATUAL do código (D-048, determinístico
+  em 2 execuções): **DIRR3 16,90289543726421; MGLU3 2,65421547826455; SMFT3
+  0,63607241492305**. A mudança é da defasagem de dados, não do enxugamento.
+- **Validação:** `pytest tests -q` → **134 passed, 15 skipped** (4 arquivos de
+  teste de módulos congelados + 3 testes de seções removidas do app, todos com
+  `skip(reason=...)`; total 149, mesma suíte). `black --workers 1` e `flake8`
+  limpos (src/tests/app.py/main.py). `main.py --ticker DIRR3` default gera o
+  Excel em 7 etapas sem passos periféricos (Target R$ 16,97 = rf ao vivo, D-011).
+- **PRÓXIMA TAREFA:** Prompt 9.0.1 (fidelidade à CVM: BP/DRE/DFC históricos
+  batendo exatamente com DFP/ITR; residual < 5%).
+
+### Sessão 17/07/2026 (Claude Fable 5) — Simplificação da D&A (reverte a D&A por safra do 8.2)
+
+- **Pedido de Lucas (no meio do Prompt 8.2):** *"Não precisa fazer o D&A por
+  safra, faça simplificado, conforme estava antes, apenas fazendo CAPEX por % da
+  receita e D&A por % do PP&E."*
+- **Entregue (só motor por dentro; leasing IFRS-16 intacto):**
+  - **`schedule_ppe.py` — D&A SIMPLES (D-047, reverte D-041):** CAPEX = % da
+    receita (premissa inalterada); D&A do imobilizado = taxa única
+    `1/vida_util_ppe_anos` (config = 10) sobre o PP&E de ABERTURA (reusa
+    `calcular_depreciacao_amortizacao` com `MIN(quota, base)`). Removidos: vida
+    derivada, clamp, matriz de safras, meia-depreciação. **Intangível não amortiza
+    mais** (`da_intangivel = 0`, saldo do Ano 0 constante, mas mantido como LINHA
+    PRÓPRIA do balanço — o balanço continua fechando). Mantido do 8.2: split
+    informativo capex expansão×manutenção (novo default por subtipo em
+    `setores.json` → global 80%) e a D&A histórica do Ano 0 em `ano0.ppe` (insumo
+    do prazo médio do leasing).
+  - **Config:** `parametros.json` — bloco `ppe_safras` virou `capex_split` (só o
+    `capex_expansao_pct_padrao`); `mapeamento_cvm.json` — removido
+    `vida_util_ppe_derivada`; `template_naofinanceiras.json` — comentário das
+    premissas opcionais atualizado.
+  - **Leasing (schedule_leasing.py) INTACTO** (juros de arrendamento separados,
+    D&A do direito de uso por reclassificação, bridge com passivo somado D-044);
+    adicionados apenas logs dos fallbacks (direito de uso, taxa, prazo).
+- **Validação:**
+  - **Golden re-baseline EXPLICADO (D-048, substitui D-045/D-046):** DIRR3
+    16,8618→16,9029 (+0,24%); MGLU3 7,5128→2,6542 (−64,7%); SMFT3
+    18,6259→0,6361 (−96,6%). Balanço fecha nos 3 (dif < 6e-9). Driver único: a
+    D&A simples (config vida 10) é MENOR que a por safra → menos tax shield
+    (legado) / menos add-back (completo); a queda vira grande em MGLU3/SMFT3
+    porque o equity é resíduo pequeno após bridge grande (dívida + leasing). VALE3
+    (109,85) e WEGE3 (12,87) rodam; `verificar_semana3` → SEMANA 3 OK.
+  - **SMFT3 R$ 0,64 é ARTEFATO (REVISAR), não tese** (D-048): pior caso do modelo
+    simples (leasing gigante + modo completo + premissas automáticas). No modo
+    completo a D&A real embutida nas margens > add-back simples → FCFF subestimado.
+  - `pytest tests -q` → **149 verdes** (−0, testes do PP&E reescritos para o modelo
+    simples: D&A % PP&E, intangível constante, split por subtipo, taxa da config
+    ignora D&A histórica). `black --workers 1` e `flake8` limpos.
+- **PRÓXIMA TAREFA:** Prompt 8.3 do `PROMPTS_FABLE.md` (fecha a Semana 8).
+
+### Sessão 14/07/2026 (Claude Code) — Prompt 8.2 (IFRS-16 + D&A por safra + capex expansão/manutenção)
+
+- **Entregue (motor por dentro; front-end/Excel intocados — Semana 9):**
+  - **`schedule_ppe.py` — D&A POR SAFRA (D-041):** vida útil DERIVADA do
+    histórico (`imobilizado_ano0/|D&A_ano0|` do DFC, clamp [3,30]; fallback
+    config); estoque existente deprecia linear até zerar; cada safra de capex
+    faz meia-depreciação no ano da safra e `MIN(quota, saldo)` depois.
+    Amortização do intangível (linear sobre o saldo do Ano 0). Split capex
+    expansão (default 80%) × manutenção. Matriz de safras persistida.
+  - **`schedule_leasing.py` (NOVO) — IFRS-16 (D-042/D-044):** rollforward do
+    passivo (BoP−amort+novos, split CP/LP) e do ativo de direito de uso, com
+    **juros de arrendamento** separados dos juros de dívida (taxa = CDI+spread,
+    clamp; ou premissa). `da_direito_uso` por RECLASSIFICAÇÃO proporcional da
+    D&A do imobilizado (o direito de uso vem agregado no imobilizado da CVM) —
+    D&A total intacta, EBIT/EBITDA/FCFF não mudam com a reclassificação.
+    Empresa com passivo < 1% do ativo → bloco zera (sem erro). Passivo de
+    arrendamento SOMADO das sub-contas (novo `somar_ultimo_exercicio`), fonte
+    única do bridge e do schedule.
+  - **`schedule_divida.py`:** resultado financeiro = receita financeira −
+    juros de dívida − **juros de arrendamento**; intangível vira LINHA PRÓPRIA
+    do balanço projetado (declina; sai do residual `outros_ativos`) para o
+    balanço continuar fechando (D-043).
+  - **Bridge (`calculador_ev`):** subtrai o passivo de arrendamento REAL
+    (somado) do Ano 0, mesma fonte do schedule.
+  - **Orquestradores:** `projetar_leasing` inserido entre PP&E e dívida em
+    `main.py`, `src/pipeline.py`, `verificar_semana2/3.py` e `motor_cenarios.py`.
+  - **Config:** `parametros.json` (blocos `ppe_safras` e `leasing`);
+    `mapeamento_cvm.json` (+9 campos: juros_arrendamento, direito_uso_ativo,
+    amortizacao/adicoes_arrendamento, capex_expansao/manutencao/pct,
+    vida_util_ppe_derivada); `template_naofinanceiras.json` (premissas opcionais
+    de leasing e capex_expansao — todas derivadas quando ausentes).
+- **Validação:**
+  - **Regressão dourada EXPLICADA (D-045):** DIRR3 17,0418→16,8541 (−1,10%);
+    MGLU3 8,1040→7,5200 (−7,21%); SMFT3 12,3617→18,6259 (+50,67%). Balanço
+    fecha (dif ~0) nos 3. Drivers: (1) D&A por safra com vida derivada; (2)
+    bridge com passivo de arrendamento somado; (3) amortização do intangível;
+    juros de arrendamento NÃO afetam o FCFF. SMFT3 +50% = correção da D&A que a
+    8.1 subestimava (vida 10 vs 7,22 real) em modo completo + premissas
+    automáticas (D-046 — REVISAR).
+  - **SMFT3 (leasing gigante):** bloco leasing persistido, juros de
+    arrendamento separados, D&A aberta nos 3 componentes somando o total.
+    MGLU3 leasing relevante; DIRR3 leasing imaterial (zera abaixo do limiar).
+  - `pytest tests -q` → **147 verdes** (+5: leasing rollforward/juros/zera/
+    fallback, PP&E vida derivada + safra, resultado financeiro com juros de
+    arrendamento; 3 testes de PP&E atualizados para o modelo por safra).
+    `black --workers 1`/`flake8` limpos; `python -m src.verificar_semana3` → OK.
+- **PRÓXIMA TAREFA:** Prompt 8.3 do `PROMPTS_FABLE.md` (fecha a Semana 8).
+
+### Sessão 14/07/2026 (Claude Code) — Prompt 8.1 (DRE completa) + descope do revolver
+
+- **Pedido do humano:** (1) retirar do `PROMPTS_FABLE.md`, README e demais locais
+  a NECESSIDADE de um revolver formal no DCF; (2) executar o Prompt 8.1.
+- **Descope do revolver (D-036):** o projeto NÃO implementa revolver formal. A
+  captação automática para caixa mínimo da v2 (`caixa_minimo_pct_receita`, D-015)
+  fica como o mecanismo de fechamento de caixa. Editado `PROMPTS_FABLE.md` (tabela
+  de gap linha 10, Prompt 8.3 inteiro e referências cruzadas em 8.1/8.2/9.1/9.2/
+  9.3/10.1/10.2); D-032 marcada 🔁 REVERTIDA. As referências IMUTÁVEIS
+  (`referencias/README.md`, `ESTRUTURA_SMARTFIT.md`) descrevem FATUALMENTE o modelo
+  do mentor (que tem revolver) e foram mantidas intactas (Princípio 14).
+- **DRE completa (Prompt 8.1) implementada, retrocompatível (D-037):**
+  - `projetor_dre.py`: modo detectado pela presença de `margem_bruta` +
+    `sgna_pct_receita`. Modo COMPLETO projeta Receita Bruta → (−)Deduções →
+    Receita Líquida → (−)CPV (via margem bruta) → Lucro Bruto → (−)SG&A →
+    (+/−)Outras → (+/−)Equivalência → EBIT → EBT → IR/CSLL → LL; memo D&A aberta
+    (direito de uso/imobilizado/intangível) e EBITDA = EBIT + D&A. Função plugável
+    `projetar_receita` extraída (encaixe do unit economics v3.0). Imposto por modo
+    `marginal` (default) ou `efetiva_historica` (clamp [15%,45%]); RET sobre a
+    Receita BRUTA PROJETADA ano a ano. Modo LEGADO (arquivo v2 só com margem
+    EBITDA) intocado byte a byte.
+  - `schedule_ppe.py`: no modo completo preenche `da_imobilizado` e faz
+    `EBITDA = EBIT + D&A` sem recalcular EBT/IR/LL (D&A já embutida em CPV/SG&A).
+  - `schedule_divida.py`: no modo completo recompõe o IR pela regra da DRE
+    completa (RET sobre Receita Bruta projetada; efetiva/marginal via
+    `politicas_projecao.dre`). WK já usa o `cpv_cmv` projetado real.
+  - `gerador_premissas.py`: passa a gerar SEMPRE o conjunto completo (margem
+    bruta/SG&A/deduções ancorados no histórico + defaults do subtipo;
+    `modo_aliquota` marginal; `aliquota_efetiva` histórica gravada; margem EBITDA
+    mantida para retrocompat). SG&A = comerciais + G&A; Outras/Equivalência
+    separadas (D-038, evita dupla contagem).
+  - Configs: `parametros.json` bloco `dre_completa`; `setores.json` bloco
+    `defaults_dre_completa` por subtipo (D-039); `mapeamento_cvm.json` +12 campos;
+    `template_naofinanceiras.json` com os campos novos (todos opcionais).
+- **Validação:**
+  - **Regressão dourada preservada:** DIRR3 17.041750319793266 e MGLU3
+    8.104037755921702 IDÊNTICOS (diff 0.0) rodando o chain com mercado congelado
+    (a divergência de ~0,05% no `verificar_semana3` é o `rf_usd` ao vivo — D-011).
+  - **SMFT3 coletada e rodando em modo completo (D-040):** Target R$ 12,36 · VENDA
+    · score 95 · subtipo `outros` · balanço fecha (dif 0,0) · DRE completa
+    coerente (todas as identidades batem). Premissas AUTOMÁTICAS (REVISAR).
+  - **DIRR3 em modo completo (temp root, premissas auto):** RET = −4% × Receita
+    Bruta projetada EXATO; EBITDA = EBIT + D&A; Target R$ 23,88 (premissas
+    auto CAGR-based, não comparável 1:1 com as de teste legadas — a mudança
+    material é o RET sobre a bruta projetada).
+  - `pytest tests -q` → **142 verdes** (7 novos: DRE completa, imposto efetivo
+    com clamp, RET sobre bruta, contrato retrocompat, PP&E modo completo, gerador
+    conjunto completo, gerador sem DVA → deduções 0 + aviso). `black --workers 1`
+    e `flake8` limpos.
+- **Artefatos novos no working tree:** `data/premissas/SMFT3_premissas.json`
+  (premissas automáticas completas); `data/raw/cvm/SMFT3_*`, `data/processed/
+  SMFT3_*`, `outputs/bi/SMFT3/` (gerados; a maioria ignorada pelo git). Nada
+  commitado (o humano decide o commit).
+- **PRÓXIMA TAREFA:** Prompt 8.2 do `PROMPTS_FABLE.md`.
+
+### Sessão 13/07/2026 (Claude Code) — Planejamento da v2.1 "Padrão Smartfit" (novo Excel de referência)
+
+- **Gatilho:** o humano adicionou ao repo o modelo Excel do mentor (Heitor
+  Crespo, InFinance), "Smartfit Model — PEP 2025.2 — Grupo 4", um DCF
+  operacional mais completo que o da Direcional, e pediu: analisar as
+  diferenças, planejar em prompts progressivos a aplicação de TUDO que o
+  Smartfit tem e o projeto não, organizar os 2 Excels em local de referência,
+  e reescrever o `PROMPTS_FABLE.md` do zero até a semana 10 (02/08). Recado do
+  mentor: "modelo tá mais bull, mas é assim que tem que ser feito — através de
+  unit economics". Decisão do Lucas: começar por premissas básicas; unit
+  economics fica para depois.
+- **Análise feita (só leitura, nenhum código de produção tocado):** dump
+  programático (openpyxl) das 8 abas do Smartfit e das abas-chave da
+  Direcional. O Smartfit tem: DRE bruta→líquida com CPV/SG&A por natureza,
+  IFRS-16 completo (lease asset + liability + juros de arrendamento), D&A por
+  safra de CAPEX (meia no 1º ano, para no saldo, vida derivada do histórico),
+  capex expansão×manutenção, WK multi-driver (dias sobre RB/CPV/deduções/SG&A),
+  dívida instrumento a instrumento em 6 moedas (~45 emissões), revolver formal
+  com caixa mínimo, DFC INDIRETO reconciliando o BP inteiro, BP aberto com
+  linha Check, aba Macro (fonte Itaú), aba de controle "To do list", e
+  D@G/AVP (retornos de PE: múltiplos entrada/saída, TIR/MOIC). O projeto já
+  tem o que o Smartfit NÃO tem: WACC/Ke, VT de Gordon, FCFF explícito,
+  comparáveis reais, checklist, cenários, football field, sensibilidades,
+  front-end e coleta automática.
+- **Reorganização dos arquivos de referência (D-029):** criado `referencias/`
+  (+`README.md`) e `referencias/modelos_excel/` com os DOIS xlsx (Direcional
+  e Smartfit, via `git mv`) e um mapa estrutural por aba/linha de cada
+  (`ESTRUTURA_DIRECIONAL.md`, `ESTRUTURA_SMARTFIT.md`). O da Direcional saiu
+  de `tests/fixtures/` (nenhum teste dependia dele — verificado por grep).
+  `CONTEXT.md`, `README.md` e `CLAUDE.md` atualizados para o novo caminho.
+- **`PROMPTS_FABLE.md` reescrito do zero:** de "v2.0 Universalização / 5
+  Ondas" para **"v2.1 Padrão Smartfit / 8 prompts em 3 semanas"** (8.1–8.3
+  motor por dentro; 9.1–9.3 macro/retornos + front-end guiado + Excel de 9
+  abas; 10.1–10.2 auditoria dupla + universalização B3 + fechamento). Semana
+  8 = 12–19/07, 9 = 19–26/07, 10 = 26/07–02/08. Inclui uma tabela de gap
+  (16 mecânicas do Smartfit → prompt que a implementa), Princípios
+  Invariantes atualizados (retrocompatibilidade de premissas), e um Apêndice
+  de backlog (unit economics = v3.0; BI/PDF/Power BI/Excel bancário/trimestres
+  = v2.2) e um checklist do que o humano precisa fazer.
+- **Decisões registradas:** D-027 a D-035 em `Humano_revisar.md` (adotar
+  mecânica e adiar unit economics; semanas em vez de ondas; ticker SMFT3; DRE
+  completa opcional/retrocompatível; dívida por instrumento opcional; traduzir
+  D@G/AVP para "Retornos do acionista"; Excel de 9 abas só p/ não-financeiras;
+  Semana 10 = auditoria dupla).
+- **Nada commitado** (o humano decide o commit). Artefatos de análise ficaram
+  no scratchpad da sessão (fora do repo).
+- **PRÓXIMA TAREFA:** Prompt 8.1 do `PROMPTS_FABLE.md`.
 
 ### Sessão 13/07/2026 — VALIDAÇÃO COMPLETA das Ondas 3–4 (4 frentes) + 2 correções visuais
 

@@ -1,3 +1,6 @@
+# CONGELADO v2.1 (Prompt 9.0.0 - Enxugamento): fora do nucleo, nao-mantido.
+# Removido do caminho critico (app/pipeline/main); reversivel. Ver a lista
+# do congelado em Humano_revisar.md (D-053).
 """Tornado chart: impacto de cada premissa no Target Price (Onda 4).
 
 Aplica choques padronizados e simetricos a cada premissa-chave usando o

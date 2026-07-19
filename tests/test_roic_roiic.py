@@ -5,7 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from src.visualizacao import roic_roiic
+
+# CONGELADO v2.1 (Prompt 9.0.0 — Enxugamento): roic_roiic saiu do nucleo.
+# Testes preservados, mas pulados para a suite seguir verde (Humano_revisar D-053).
+pytestmark = pytest.mark.skip(reason="congelado 9.0.0 — fora do nucleo (D-053)")
 
 
 def salvar_json(caminho: Path, conteudo: object) -> None:

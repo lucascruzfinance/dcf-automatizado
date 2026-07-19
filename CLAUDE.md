@@ -1,7 +1,7 @@
 # CLAUDE.md — Guia operacional do repositório dcf-automatizado
 
 Sistema de valuation por DCF para ações da B3. Estado atual e próxima tarefa:
-`CONTEXT.md` (fonte única de verdade do estado). Especificação v1.0: `ROTEIRO.md`.
+`CONTEXT.md` (fonte única de verdade do estado). Especificação v1.0: `docs/ROTEIRO.md`.
 Plano vigente — v2.1 "Padrão Smartfit" (semanas 8–10, prompts progressivos):
 `PROMPTS_FABLE.md`. Modelos Excel de referência (imutáveis) e seus mapas
 estruturais: `referencias/modelos_excel/`.

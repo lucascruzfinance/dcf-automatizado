@@ -21,6 +21,7 @@ try:
         resolver_raiz,
         salvar_json,
         selecionar_ultimo_exercicio,
+        somar_ultimo_exercicio,
         valor_numerico_obrigatorio,
     )
 except ModuleNotFoundError as erro:
@@ -38,6 +39,7 @@ except ModuleNotFoundError as erro:
         resolver_raiz,
         salvar_json,
         selecionar_ultimo_exercicio,
+        somar_ultimo_exercicio,
         valor_numerico_obrigatorio,
     )
 
@@ -45,6 +47,7 @@ DIAS_ANO = 365
 CAMPOS_SALDO_WK = ("contas_receber", "estoques", "fornecedores")
 MODO_DIAS = "dias"
 MODO_PERCENTUAL_RECEITA = "percentual_receita"
+MODO_DIAS_MULTI_DRIVER = "dias_multi_driver"
 TETO_DELTA_NWC_RECEITA_PADRAO = 0.50
 EPSILON = 1e-12
 CAMPOS_WK_PROJETADOS = (
@@ -55,6 +58,37 @@ CAMPOS_WK_PROJETADOS = (
     "nwc",
     "delta_nwc",
     "modo_capital_giro",
+)
+
+# Contas do WK EXPANDIDO (Prompt 9.0.2.3, padrao Direcional `Modelo` L144-180):
+# cada conta = dias x driver / 365; dias default = media historica implicita
+# do Ano 0 (premissa ``dias_*`` opcional sobrescreve). Conta ausente na CVM
+# entra com dias 0 + aviso (Principio 7), nunca quebra.
+CONTAS_MULTI_DRIVER = (
+    # (conta, premissa_dias, driver, sinal: +1 ativo / -1 passivo, opcional)
+    ("contas_receber", "dias_clientes", "receita_liquida", 1, False),
+    ("estoques", "dias_estoques", "cpv", 1, False),
+    ("tributos_a_recuperar", "dias_impostos_recuperar", "ir_csll", 1, True),
+    ("fornecedores", "dias_fornecedores", "cpv", -1, False),
+    (
+        "obrigacoes_sociais_trabalhistas",
+        "dias_obrigacoes_trabalhistas",
+        "sgna",
+        -1,
+        True,
+    ),
+    (
+        "adiantamento_clientes",
+        "dias_adiantamento_clientes",
+        "receita_liquida",
+        -1,
+        True,
+    ),
+)
+CAMPOS_WK_MULTI_DRIVER = (
+    "tributos_a_recuperar",
+    "obrigacoes_sociais_trabalhistas",
+    "adiantamento_clientes",
 )
 
 logger = logging.getLogger(__name__)
@@ -125,29 +159,52 @@ def obter_teto_delta_nwc_receita(premissas: dict[str, Any]) -> float:
     return teto
 
 
+def premissas_tem_dias_multi_driver(premissas: dict[str, Any]) -> bool:
+    """Indica se ha alguma premissa ``dias_*`` do WK expandido (9.0.2)."""
+    return any(
+        isinstance(premissas.get(premissa_dias), (int, float))
+        and not isinstance(premissas.get(premissa_dias), bool)
+        for _, premissa_dias, _, _, _ in CONTAS_MULTI_DRIVER
+    )
+
+
 def obter_modo_capital_giro(
     premissas: dict[str, Any],
     metadados: dict[str, Any],
 ) -> str:
-    """Define o modo de projecao do capital de giro."""
+    """Define o modo de projecao do capital de giro.
+
+    Precedencia: ``modo_capital_giro`` explicito > construtora/RET (ancorada
+    em % receita) > presenca de premissas ``dias_*`` (multi-driver, 9.0.2) >
+    DSO/DIO/DPO (modo classico). Arquivos antigos (so DSO/DIO/DPO) seguem no
+    modo ``dias`` byte a byte; o gerador passa a gravar
+    ``dias_multi_driver`` para nao-construtoras (padrao Direcional).
+    """
     usa_modo_ancorado = empresa_usa_ret(premissas, metadados)
     modo_informado = normalizar_texto(premissas.get("modo_capital_giro"))
     modo_informado = modo_informado.replace("-", "_").replace(" ", "_")
 
     if modo_informado == MODO_PERCENTUAL_RECEITA:
         usa_modo_ancorado = True
+    elif modo_informado == MODO_DIAS_MULTI_DRIVER:
+        return MODO_DIAS_MULTI_DRIVER
     elif modo_informado and modo_informado != MODO_DIAS:
         raise ValueError(
-            "Premissa modo_capital_giro invalida. Use 'dias' ou "
-            "'percentual_receita'."
+            "Premissa modo_capital_giro invalida. Use 'dias', "
+            "'dias_multi_driver' ou 'percentual_receita'."
         )
 
     if usa_modo_ancorado:
         return MODO_PERCENTUAL_RECEITA
+    if modo_informado == MODO_DIAS:
+        return MODO_DIAS
+    if premissas_tem_dias_multi_driver(premissas):
+        return MODO_DIAS_MULTI_DRIVER
     if premissas_tem_prazos(premissas):
         return MODO_DIAS
     raise ValueError(
-        "Premissas DSO/DIO/DPO ausentes para modo de capital de giro por dias."
+        "Premissas de capital de giro ausentes: informe dias_* (multi-driver) "
+        "ou DSO/DIO/DPO."
     )
 
 
@@ -217,8 +274,25 @@ def calcular_nwc(
     return contas_receber + estoques + fornecedores
 
 
+def _saldo_opcional_ano0(dados: pd.DataFrame, nome: str) -> float:
+    """Saldo do Ano 0 de conta OPCIONAL do WK; ausente vira 0.0 (Principio 7)."""
+    try:
+        linha = selecionar_ultimo_exercicio(dados, nome)
+    except RuntimeError:
+        return 0.0
+    valor = linha["valor_padronizado"]
+    return float(valor) if pd.notna(valor) else 0.0
+
+
 def carregar_ano0_wk(ticker: str, raiz_projeto: Path) -> dict[str, Any]:
-    """Carrega saldos historicos de WK do ultimo exercicio disponivel."""
+    """Carrega saldos historicos de WK do ultimo exercicio disponivel.
+
+    Alem das 3 contas classicas, expoe as contas do WK EXPANDIDO (9.0.2):
+    tributos a recuperar (AC), obrigacoes sociais/trabalhistas e adiantamento
+    de clientes (CP+LP somados — construtoras reportam a maior parte no LP).
+    ``nwc`` continua sendo o classico (CR + estoques - fornecedores) para os
+    modos antigos; ``nwc_multi_driver`` inclui as contas novas.
+    """
     caminho = raiz_projeto / "data" / "raw" / "cvm" / f"{ticker}_bp.json"
     dados = carregar_quadro_cvm(caminho)
     linhas = {campo: extrair_linha_ano0(dados, campo) for campo in CAMPOS_SALDO_WK}
@@ -228,6 +302,16 @@ def carregar_ano0_wk(ticker: str, raiz_projeto: Path) -> dict[str, Any]:
         float(linhas["fornecedores"]["valor_padronizado"])
     )
     nwc = calcular_nwc(contas_receber, estoques, fornecedores)
+
+    # Contas novas do WK expandido (passivos ficam negativos na convencao).
+    tributos_a_recuperar = abs(_saldo_opcional_ano0(dados, "tributos_a_recuperar"))
+    obrigacoes_trabalhistas = -abs(
+        _saldo_opcional_ano0(dados, "obrigacoes_sociais_trabalhistas")
+    )
+    adiantamento_clientes = -abs(somar_ultimo_exercicio(dados, "adiantamento_clientes"))
+    nwc_multi_driver = (
+        nwc + tributos_a_recuperar + obrigacoes_trabalhistas + adiantamento_clientes
+    )
 
     linha_referencia = linhas["contas_receber"]
     return {
@@ -239,7 +323,158 @@ def carregar_ano0_wk(ticker: str, raiz_projeto: Path) -> dict[str, Any]:
         "estoques": estoques,
         "fornecedores": fornecedores,
         "nwc": nwc,
+        "tributos_a_recuperar": tributos_a_recuperar,
+        "obrigacoes_sociais_trabalhistas": obrigacoes_trabalhistas,
+        "adiantamento_clientes": adiantamento_clientes,
+        "nwc_multi_driver": nwc_multi_driver,
     }
+
+
+def carregar_drivers_ano0(
+    ticker: str,
+    raiz_projeto: Path,
+    receita_ano0: float,
+) -> dict[str, float]:
+    """Drivers do Ano 0 para os dias implicitos do multi-driver (9.0.2).
+
+    CPV, IR/CSLL e SG&A (comerciais + G&A) vem do Ano 0 REAL da DRE da CVM,
+    em magnitude; linha ausente vira 0.0 (o dia implicito cai no fallback).
+    """
+    caminho = raiz_projeto / "data" / "raw" / "cvm" / f"{ticker}_dre.json"
+    drivers = {"receita_liquida": receita_ano0, "cpv": 0.0, "ir_csll": 0.0, "sgna": 0.0}
+    if not caminho.exists():
+        return drivers
+    try:
+        dados = carregar_quadro_cvm(caminho)
+    except RuntimeError:
+        return drivers
+
+    def _magnitude(nome: str) -> float:
+        try:
+            linha = selecionar_ultimo_exercicio(dados, nome)
+        except RuntimeError:
+            return 0.0
+        valor = linha["valor_padronizado"]
+        return abs(float(valor)) if pd.notna(valor) else 0.0
+
+    drivers["cpv"] = _magnitude("cpv_cmv")
+    drivers["ir_csll"] = _magnitude("ir_csll")
+    drivers["sgna"] = _magnitude("despesas_vendas") + _magnitude(
+        "despesas_gerais_administrativas"
+    )
+    return drivers
+
+
+def derivar_dias_multi_driver(
+    ano0_wk: dict[str, Any],
+    drivers_ano0: dict[str, float],
+    premissas: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Dias por conta do WK expandido: premissa ``dias_*`` > media implicita.
+
+    Formula (Direcional ``Modelo`` L144-L180): dias = saldo_ano0 / driver_ano0
+    x 365. Driver do Ano 0 zerado => fallback para a receita liquida (fonte
+    marcada); saldo ausente => dias 0 + aviso (conta some das saidas).
+    """
+    resultado: dict[str, dict[str, Any]] = {}
+    for conta, premissa_dias, driver, sinal, _opcional in CONTAS_MULTI_DRIVER:
+        saldo = abs(float(ano0_wk.get(conta) or 0.0))
+        driver_usado = driver
+        base = drivers_ano0.get(driver, 0.0)
+        if base <= 0 and driver != "receita_liquida":
+            driver_usado = "receita_liquida"
+            base = drivers_ano0.get("receita_liquida", 0.0)
+
+        valor_premissa = premissas.get(premissa_dias)
+        if isinstance(valor_premissa, (int, float)) and not isinstance(
+            valor_premissa, bool
+        ):
+            dias = max(float(valor_premissa), 0.0)
+            origem = "premissa_da_empresa"
+        elif saldo > 0 and base > 0:
+            # Formula: dias implicitos = saldo_ano0 / driver_ano0 x 365.
+            dias = saldo / base * DIAS_ANO
+            origem = "media_historica_implicita_ano0"
+            # Salvaguarda de sanidade: dias > 365 indicam driver INSTAVEL
+            # para a conta (ex.: tributos a recuperar de varejo sao ICMS/PIS/
+            # COFINS ligados a RECEITA, nao ao IR — na MGLU3 o driver IR
+            # daria 2.307 dias). Recai para a receita liquida.
+            if dias > DIAS_ANO and driver_usado != "receita_liquida":
+                base_rl = drivers_ano0.get("receita_liquida", 0.0)
+                if base_rl > 0:
+                    driver_usado = "receita_liquida"
+                    dias = saldo / base_rl * DIAS_ANO
+                    origem = "fallback_driver_instavel_para_receita"
+                    logger.warning(
+                        "WK multi-driver: dias de %s > 365 pelo driver "
+                        "nominal; usando receita liquida (%.0f dias).",
+                        conta,
+                        dias,
+                    )
+        else:
+            dias = 0.0
+            origem = "conta_ausente_na_cvm_dias_zero"
+            logger.warning(
+                "WK multi-driver: conta %s sem saldo/driver no Ano 0; dias 0.",
+                conta,
+            )
+        resultado[conta] = {
+            "dias": dias,
+            "driver": driver_usado,
+            "sinal": sinal,
+            "origem": origem,
+        }
+    return resultado
+
+
+def _driver_projetado(
+    linha_dre: dict[str, Any],
+    driver: str,
+    base_cpv: float,
+    ano: int,
+) -> float:
+    """Magnitude do driver de um ano projetado para o WK multi-driver."""
+    if driver == "receita_liquida":
+        return obter_float_obrigatorio(linha_dre, "receita_liquida", f"ano{ano}")
+    if driver == "cpv":
+        return base_cpv
+    if driver == "ir_csll":
+        return abs(float(linha_dre.get("ir_csll") or 0.0))
+    if driver == "sgna":
+        valor = linha_dre.get("sgna")
+        if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+            return abs(float(valor))
+        return obter_float_obrigatorio(linha_dre, "receita_liquida", f"ano{ano}")
+    raise ValueError(f"Driver de WK desconhecido: {driver}")
+
+
+def projetar_linha_multi_driver(
+    linha_dre: dict[str, Any],
+    dias_por_conta: dict[str, dict[str, Any]],
+    premissas_completas: dict[str, Any],
+    indice_cpv_historico: dict[str, Any] | None,
+    ano: int,
+) -> dict[str, float]:
+    """Projeta as contas do WK expandido: saldo = dias x driver / 365.
+
+    Ativos entram positivos; passivos (fornecedores, obrigacoes sociais/
+    trabalhistas, adiantamento de clientes) entram NEGATIVOS na convencao do
+    projeto. NWC = soma assinada de todas as contas.
+    """
+    base_cpv, _fonte = calcular_base_cpv(
+        linha_dre,
+        premissas_completas,
+        indice_cpv_historico,
+        ano,
+    )
+    saldos: dict[str, float] = {}
+    for conta, _premissa, _driver, sinal, _opcional in CONTAS_MULTI_DRIVER:
+        config = dias_por_conta[conta]
+        driver_valor = _driver_projetado(linha_dre, config["driver"], base_cpv, ano)
+        # Formula: saldo_t = (dias / 365) x driver_t (sinal do lado do BP).
+        saldos[conta] = sinal * (float(config["dias"]) / DIAS_ANO) * driver_valor
+    saldos["nwc"] = sum(saldos[conta] for conta, *_ in CONTAS_MULTI_DRIVER)
+    return saldos
 
 
 def margem_bruta_opcional(premissas: dict[str, Any], ano: int) -> float | None:
@@ -398,15 +633,22 @@ def aplicar_salvaguarda_delta_ano1(
     fornecedores: float,
     nwc: float,
     teto_delta_nwc_receita: float,
-) -> tuple[float, float, float, float, float]:
-    """Trunca Delta NWC do ano 1 quando o salto e economicamente irreal."""
+    extras: dict[str, float] | None = None,
+) -> tuple[float, float, float, float, float, dict[str, float]]:
+    """Trunca Delta NWC do ano 1 quando o salto e economicamente irreal.
+
+    ``extras`` traz as contas do WK expandido (9.0.2); no truncamento elas
+    sao reescaladas pelo mesmo fator dos componentes classicos para preservar
+    a identidade NWC = soma assinada de todas as contas.
+    """
+    extras = dict(extras or {})
     delta_nwc = nwc - nwc_anterior
     if chave_ano != "ano1":
-        return contas_receber, estoques, fornecedores, nwc, delta_nwc
+        return contas_receber, estoques, fornecedores, nwc, delta_nwc, extras
 
     limite = teto_delta_nwc_receita * abs(receita_liquida)
     if abs(delta_nwc) <= limite:
-        return contas_receber, estoques, fornecedores, nwc, delta_nwc
+        return contas_receber, estoques, fornecedores, nwc, delta_nwc, extras
 
     delta_truncado = limite if delta_nwc > 0 else -limite
     nwc_ajustado = nwc_anterior + delta_truncado
@@ -420,22 +662,30 @@ def aplicar_salvaguarda_delta_ano1(
 
     # O teto evita que o ano 1 carregue uma liberacao/consumo de caixa
     # artificial. Reescalamos os componentes para preservar a identidade:
-    # NWC = contas_receber + estoques + fornecedores.
-    contas_ajustada, estoques_ajustado, fornecedores_ajustado = (
-        ajustar_componentes_para_nwc(
-            contas_receber,
-            estoques,
-            fornecedores,
-            nwc,
+    # NWC = soma assinada das contas do modo.
+    if abs(nwc) > EPSILON and (nwc * nwc_ajustado) >= 0:
+        fator = nwc_ajustado / nwc
+        extras = {conta: valor * fator for conta, valor in extras.items()}
+        return (
+            contas_receber * fator,
+            estoques * fator,
+            fornecedores * fator,
             nwc_ajustado,
+            delta_truncado,
+            extras,
         )
-    )
+
+    # Caso degenerado (NWC trocando de sinal): o ajuste inteiro vai para
+    # fornecedores, preservando ativos de giro e as contas expandidas.
+    soma_extras = sum(extras.values())
+    fornecedores_ajustado = nwc_ajustado - contas_receber - estoques - soma_extras
     return (
-        contas_ajustada,
-        estoques_ajustado,
+        contas_receber,
+        estoques,
         fornecedores_ajustado,
         nwc_ajustado,
         delta_truncado,
+        extras,
     )
 
 
@@ -449,11 +699,14 @@ def projetar_linhas_wk(
     receita_ano0: float,
     modo_capital_giro: str,
     teto_delta_nwc_receita: float,
+    dias_multi_driver: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[dict[str, dict[str, float | str]], dict[str, str]]:
     """Projeta contas de working capital de ano1 a ano8."""
     linhas = {}
     fontes_base_cpv = {}
-    nwc_anterior = float(ano0_wk["nwc"])
+    modo_multi = modo_capital_giro == MODO_DIAS_MULTI_DRIVER
+    # No modo expandido o NWC de partida inclui as contas novas do Ano 0.
+    nwc_anterior = float(ano0_wk["nwc_multi_driver"] if modo_multi else ano0_wk["nwc"])
 
     for ano in range(1, HORIZONTE_PROJECAO + 1):
         chave_ano = f"ano{ano}"
@@ -463,8 +716,25 @@ def projetar_linhas_wk(
             "receita_liquida",
             chave_ano,
         )
+        extras: dict[str, float] = {}
 
-        if modo_capital_giro == MODO_DIAS:
+        if modo_multi:
+            if dias_multi_driver is None:
+                raise ValueError("Dias do WK multi-driver nao derivados.")
+            saldos = projetar_linha_multi_driver(
+                linha_dre,
+                dias_multi_driver,
+                premissas_completas,
+                indice_cpv_historico,
+                ano,
+            )
+            contas_receber = saldos["contas_receber"]
+            estoques = saldos["estoques"]
+            fornecedores = saldos["fornecedores"]
+            extras = {conta: saldos[conta] for conta in CAMPOS_WK_MULTI_DRIVER}
+            nwc = saldos["nwc"]
+            fonte_base_cpv = "multi_driver.dre_ou_base_cpv"
+        elif modo_capital_giro == MODO_DIAS:
             if premissas_wk is None:
                 raise ValueError("Premissas DSO/DIO/DPO ausentes para modo por dias.")
             (
@@ -496,6 +766,7 @@ def projetar_linhas_wk(
             fornecedores,
             nwc,
             delta_nwc,
+            extras,
         ) = aplicar_salvaguarda_delta_ano1(
             ticker=ticker,
             chave_ano=chave_ano,
@@ -506,6 +777,7 @@ def projetar_linhas_wk(
             fornecedores=fornecedores,
             nwc=nwc,
             teto_delta_nwc_receita=teto_delta_nwc_receita,
+            extras=extras,
         )
 
         linhas[chave_ano] = {
@@ -517,6 +789,8 @@ def projetar_linhas_wk(
             "delta_nwc": delta_nwc,
             "modo_capital_giro": modo_capital_giro,
         }
+        if modo_multi:
+            linhas[chave_ano].update(extras)
         fontes_base_cpv[chave_ano] = fonte_base_cpv
         nwc_anterior = nwc
 
@@ -563,6 +837,26 @@ def projetar_wk(
     ano0_wk = carregar_ano0_wk(ticker_normalizado, raiz)
     receita_ano0 = obter_receita_ano0(conteudo)
     indice_cpv_historico = carregar_indice_cpv_historico(ticker_normalizado, raiz)
+    dias_multi = None
+    if modo_capital_giro == MODO_DIAS_MULTI_DRIVER:
+        drivers_ano0 = carregar_drivers_ano0(
+            ticker_normalizado,
+            raiz,
+            receita_ano0,
+        )
+        dias_multi = derivar_dias_multi_driver(
+            ano0_wk,
+            drivers_ano0,
+            premissas_completas,
+        )
+        ano0_wk["dias_multi_driver"] = {
+            conta: {
+                "dias": config["dias"],
+                "driver": config["driver"],
+                "origem": config["origem"],
+            }
+            for conta, config in dias_multi.items()
+        }
     wk, fontes_base_cpv = projetar_linhas_wk(
         ticker=ticker_normalizado,
         dre=dre,
@@ -573,6 +867,7 @@ def projetar_wk(
         receita_ano0=receita_ano0,
         modo_capital_giro=modo_capital_giro,
         teto_delta_nwc_receita=teto_delta_nwc_receita,
+        dias_multi_driver=dias_multi,
     )
     atualizar_projecao_wk(caminho_projecao, conteudo, ano0_wk, wk)
     return {
@@ -582,6 +877,7 @@ def projetar_wk(
         "teto_delta_nwc_receita": teto_delta_nwc_receita,
         "ano0_wk": ano0_wk,
         "wk": wk,
+        "dias_multi_driver": dias_multi,
         "base_cpv_historica": indice_cpv_historico,
         "fontes_base_cpv": fontes_base_cpv,
         "caminho_saida": caminho_projecao,
