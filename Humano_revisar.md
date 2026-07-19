@@ -15,6 +15,77 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 
 ---
 
+## 19/07/2026 — Prompt 9.0.3 (FCFE não-financeira + macro anual + painel de Retornos)
+
+> Sessão do **Claude Fable 5**. Fecha a camada de valuation sobre o motor 9.0.2:
+> FCFE de não-financeiras descontado ao Ke (checagem do bridge), bloco
+> `macro_anual` (Focus + convergência) alimentando o CDI do motor, e o painel
+> de Retornos (múltiplos implícitos, TIR/MOIC, grade bear/base/bull).
+
+### D-065 ⏳ — Motor lê o CDI anual do macro; golden −0,04% a −8,5% explicado; Kd do WACC INTOCADO
+
+- **Situação:** a taxa de aplicação do caixa era a Selic spot constante (14,25%
+  nos 8 anos). O 9.0.3 manda o motor ler o CDI do `macro_anual` (Direcional
+  `Modelo` L190), e o DoD manda explicar a diferença na receita financeira.
+- **Escolha:** cascata nova `premissa > CDI anual do macro_anual > Selic spot >
+  fallback config`. O CDI anual converge 13,9% (2026) → 8,9% (2033) — metas de
+  longo prazo NOVAS em `config/parametros.json` bloco `macro` (IPCA 3% = meta
+  BC; Selic 9% ≈ juro neutro nominal arredondado pelas medianas longas do
+  Focus; PIB 2%; CDI = Selic − 0,1pp). Medianas do Focus convertem SEMPRE /100
+  (`focus_para_decimal`) — a heurística legada erraria PIB < 1%. Coleta nova
+  PRESERVA campos persistidos quando a rede falha (merge campo a campo).
+- **Golden (rf/preço persistidos, FCFF byte-IDÊNTICO nos 5):** DIRR3 21,2560 →
+  **20,8806** (−1,77%); MGLU3 0,8430 → **0,7713** (−8,52%); SMFT3 −3,8481 →
+  **−3,9300**; VALE3 −0,08%; WEGE3 −0,04%. Canal ÚNICO: receita financeira
+  acumulada cai ~25% (ex.: DIRR3 1,45 → 1,10 bi) → LL/PL menores → PL médio
+  −2% → WACC +0,06 a +0,13pp → target. A queda é amplificada onde o equity é
+  resíduo de bridge grande (MGLU3, padrão D-048/D-060).
+- **Kd:** premissa opcional NOVA `spread_divida_sobre_cdi` (Kd_t = CDI_t +
+  spread, por ano); sem ela, o `custo_divida_kd` escalar segue byte-igual.
+  **O Kd do WACC NÃO foi tocado** apesar da pendência D-063 (kd derivado 46%
+  MGLU3): o DoD do 9.0.3 exige target inalterado. A pendência CONTINUA aberta
+  — ver D-066 (a divergência FCFE vs bridge da MGLU3 é o sintoma quantificado).
+
+### D-066 ⏳ — VT do FCFE com ΔDívida normalizada; divergências vs bridge explicadas por ticker
+
+- **Escolha:** perpetuar a amortização do ano 8 levaria a dívida a ficar
+  negativa para sempre; a base do VT do FCFE usa `FCFE_8 − ΔDívida_8 + g ×
+  Dívida_8` (estrutura estável na perpetuidade, Damodaran). Fallbacks: payout
+  sustentável `LL8 × (1 − g/ROE8)` → sem base viável persiste equity None +
+  aviso (nunca quebra — é checagem secundária; o bridge FCFF segue primário).
+  Decomposição por ano persistida: `FCFE = FCFF − juros após IR + rec. fin.
+  após IR + ΔDívida + resíduo` (resíduo = RET/EBT≤0/alíquota anual +
+  minoritários; zero no caso marginal puro).
+- **Divergências (premissas atuais, AVISO > 15%):** DIRR3 **−50%** (RET sem
+  escudo fiscal + desalavancagem pesada: FCFE 1-8 ≪ FCFF; estrutura Ke único
+  vs WACC com pesos contábeis); MGLU3 **+935%** — SINTOMA da D-063: o WACC usa
+  kd_historico 46% (equity residual ~0,6 bi), o FCFE paga os juros REAIS da
+  premissa e desconta ao Ke (equity 6,2 bi); SMFT3 **−102%** (bridge negativo,
+  premissa automática D-024); VALE3 −37%; WEGE3 +51%. Interpretação: a
+  divergência é diagnóstico útil, não erro — quando Lucas revisar o Kd (D-063)
+  as pontas devem se aproximar.
+
+### D-067 ⏳ — Retornos: saída = target truncado em zero; grade = ±20% na saída; proxies da financeira
+
+- **Escolha:** TIR do acionista com fluxo `−preço; +dividendos/ação (payout do
+  DFC); +preço de saída no ano 5` e saída = target do bridge **truncada em
+  zero** quando negativa (responsabilidade limitada — o acionista não paga
+  para sair; flag `preco_saida_truncado_em_zero` persistida). TIR por bissecção
+  robusta (sem mudança de sinal → None + nota, nunca explode). Grade
+  bear/base/bull = **±20% no preço de saída** (`retornos.variacao_target_bear_
+  bull`): o motor de cenários completo está CONGELADO desde o 9.0.0 — a grade é
+  sensibilidade de saída, não re-run do valuation (alternativa descartada:
+  descongelar `motor_cenarios.py`, vetado pelo enxugamento).
+- **Financeiras:** P/L e P/VP (sem EV/EBITDA); VPA via `capital_regulatorio`
+  (que parte do PL contábil do Ano 0 — proxy documentado) e dividendos = FCFE
+  truncado em zero (capacidade de distribuição; não há DFC na trilha bancária).
+- **Múltiplos com denominador ≤ 0 → None** ("n.m."), LL/EBITDA negativos
+  continuam válidos no motor. Resultado atual: DIRR3 TIR base **+14,7%**/MOIC
+  1,93x (target > preço ✓ DoD); MGLU3 −10,2%; SMFT3 −60,5% (saída truncada);
+  VALE3 −8,4%; WEGE3 −24,1% — coerentes com os upsides.
+
+---
+
 ## 18/07/2026 — Prompt 9.0.2 (Motor "padrão Direcional"): DRE pré-D&A, WK expandido, DFC indireto, BP aberto
 
 > Sessão do **Claude Fable 5**. A etapa mais densa da Semana 9.0: o modo completo

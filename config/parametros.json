@@ -47,6 +47,24 @@
     "usar_convencao_meio_periodo": false,
     "fracao_ano_stub": 0.0
   },
+  "macro": {
+    "descricao": "Bloco macro_anual (Prompt 9.0.3): mediana do Focus onde ele cobre; alem do horizonte do Focus, convergencia LINEAR ate as metas de longo prazo no ano 8. CDI nao tem serie anual no Focus: cdi_t = selic_t + spread (pp). O motor le o CDI daqui (receita financeira e custo da divida = CDI + spread, Direcional Modelo L190).",
+    "metas_longo_prazo": {
+      "ipca": 0.03,
+      "selic": 0.09,
+      "pib": 0.02
+    },
+    "cdi_spread_sobre_selic_pp": -0.001
+  },
+  "fcfe_naofinanceira": {
+    "descricao": "FCFE de nao-financeiras (Prompt 9.0.3): descontado ao Ke do CAPM Brasil (wacc.ke_brl) como CHECAGEM do bridge FCFF/WACC. Divergencia acima do limiar vira AVISO (nunca erro).",
+    "limiar_divergencia_vs_bridge": 0.15
+  },
+  "retornos": {
+    "descricao": "Painel de Retornos (Prompt 9.0.3): TIR do acionista (-preco; +dividendos/acao; +preco-alvo no ano N) e MOIC; grade bear/base/bull varia o preco de saida em +/- variacao_target_bear_bull (o motor de cenarios completo esta congelado desde o 9.0.0).",
+    "horizonte_tir_anos": 5,
+    "variacao_target_bear_bull": 0.2
+  },
   "trilha_financeira": {
     "indice_capital_alvo_padrao": 0.115,
     "fator_rwa_ativos_padrao": 0.75,

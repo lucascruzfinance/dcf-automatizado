@@ -154,14 +154,21 @@ def carregar_ano0_leasing(
 
 
 def carregar_cdi(raiz_projeto: Path) -> float:
-    """CDI aproximado pela Selic coletada; fallback de config."""
+    """CDI coletado (9.0.3) > aproximacao pela Selic > fallback de config."""
     caminho = raiz_projeto / "data" / "raw" / "macro" / "macro_brasil.json"
     if not caminho.exists():
         return CDI_FALLBACK
     macro = carregar_json(caminho)
-    selic = macro.get("selic_atual")
-    if isinstance(selic, (int, float)) and not isinstance(selic, bool) and selic > 0:
-        return float(selic) / 100.0 if selic > 1 else float(selic)
+    # CDI REAL coletado (SGS 4389, Prompt 9.0.3) tem prioridade sobre a
+    # aproximacao pela Selic mantida para arquivos macro antigos.
+    for campo in ("cdi_atual", "selic_atual"):
+        valor = macro.get(campo)
+        if (
+            isinstance(valor, (int, float))
+            and not isinstance(valor, bool)
+            and valor > 0
+        ):
+            return float(valor) / 100.0 if valor > 1 else float(valor)
     return CDI_FALLBACK
 
 

@@ -28,7 +28,11 @@ from src.projecao.schedule_leasing import projetar_leasing  # noqa: E402
 from src.projecao.schedule_ppe import projetar_ppe  # noqa: E402
 from src.projecao.schedule_wk import projetar_wk  # noqa: E402
 from src.valuation.calculador_ev import calcular_ev  # noqa: E402
+from src.valuation.calculador_fcfe import (  # noqa: E402
+    calcular_fcfe_naofinanceira,
+)
 from src.valuation.calculador_fcff import calcular_fcff  # noqa: E402
+from src.valuation.calculador_retornos import calcular_retornos  # noqa: E402
 from src.valuation.calculador_vt import calcular_valor_terminal  # noqa: E402
 from src.valuation.calculador_wacc import calcular_wacc  # noqa: E402
 from src.valuation.checklist import executar_checklist  # noqa: E402
@@ -108,6 +112,9 @@ def executar_cadeia(ticker: str) -> None:
     calcular_wacc(ticker)
     calcular_valor_terminal(ticker)
     calcular_ev(ticker)
+    # 9.0.3: FCFE nao-financeira (checagem do bridge) + painel de retornos.
+    calcular_fcfe_naofinanceira(ticker)
+    calcular_retornos(ticker)
     executar_checklist(ticker)
 
 
@@ -395,6 +402,16 @@ def imprimir_painel_resumo(conteudo: dict[str, Any]) -> None:
     if not isinstance(checklist, dict):
         checklist = {}
 
+    fcfe_valuation = conteudo.get("fcfe_valuation", {})
+    if not isinstance(fcfe_valuation, dict):
+        fcfe_valuation = {}
+    retornos = conteudo.get("retornos", {})
+    cenario_base = {}
+    if isinstance(retornos, dict):
+        cenario_base = retornos.get("tir_moic", {}).get("cenarios", {}).get("base", {})
+    if not isinstance(cenario_base, dict):
+        cenario_base = {}
+
     linhas = [
         ("WACC", formatar_pct(numero_opcional(wacc, "wacc"))),
         ("g", formatar_pct(numero_opcional(vt, "g"))),
@@ -405,6 +422,23 @@ def imprimir_painel_resumo(conteudo: dict[str, Any]) -> None:
         ("Upside", formatar_pct(numero_opcional(ev, "upside"))),
         ("Recomendacao", str(ev.get("recomendacao", "n/d"))),
         ("% EV perpetuidade", formatar_pct(numero_opcional(vt, "pct_ev_perpetuidade"))),
+        (
+            "Equity FCFE/Ke",
+            formatar_valor(numero_opcional(fcfe_valuation, "equity_value_fcfe"), "R$ "),
+        ),
+        (
+            "FCFE vs bridge",
+            formatar_pct(numero_opcional(fcfe_valuation, "divergencia_vs_bridge")),
+        ),
+        ("TIR base (5a)", formatar_pct(numero_opcional(cenario_base, "tir_acionista"))),
+        (
+            "MOIC base",
+            (
+                f"{numero_opcional(cenario_base, 'moic'):.2f}x"
+                if numero_opcional(cenario_base, "moic") is not None
+                else "n/d"
+            ),
+        ),
         ("Checklist", "APROVADO" if checklist.get("aprovado") is True else "REPROVADO"),
     ]
 

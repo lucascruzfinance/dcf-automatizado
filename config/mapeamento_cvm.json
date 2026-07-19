@@ -1063,6 +1063,102 @@
     "indice_eficiencia": {
       "descricao": "Indice de eficiencia bancaria (despesas/receitas core)",
       "sinal_esperado": "positivo"
+    },
+    "ipca": {
+      "descricao": "IPCA esperado do ano (macro_anual 9.0.3: Focus + convergencia)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "selic": {
+      "descricao": "Selic esperada do ano (macro_anual 9.0.3: Focus fim de periodo + convergencia)",
+      "sinal_esperado": "positivo"
+    },
+    "cdi": {
+      "descricao": "CDI esperado do ano (macro_anual 9.0.3: Selic esperada + spread da config)",
+      "sinal_esperado": "positivo"
+    },
+    "pib": {
+      "descricao": "Crescimento real do PIB esperado do ano (macro_anual 9.0.3)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "cdi_atual": {
+      "descricao": "CDI anualizado vigente (SGS 4389; fallback Selic - 0,1pp)",
+      "sinal_esperado": "positivo"
+    },
+    "igpm_12m": {
+      "descricao": "IGP-M acumulado 12 meses (SGS 189)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "cambio_brl_usd": {
+      "descricao": "Cambio BRL/USD (SGS 1, dolar venda; valor bruto, nao percentual)",
+      "sinal_esperado": "positivo"
+    },
+    "spread_divida_sobre_cdi": {
+      "descricao": "Premissa opcional 9.0.3: custo da divida projetado = CDI anual + spread",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "aliquota_fcfe": {
+      "descricao": "Aliquota usada nos juros apos IR da decomposicao FCFF -> FCFE (a do NOPAT)",
+      "sinal_esperado": "positivo"
+    },
+    "juros_divida": {
+      "descricao": "Juros da divida onerosa do ano (decomposicao FCFE 9.0.3)",
+      "sinal_esperado": "positivo"
+    },
+    "juros_apos_ir": {
+      "descricao": "Juros de divida + arrendamento x (1 - aliquota) na decomposicao FCFE",
+      "sinal_esperado": "positivo"
+    },
+    "receita_financeira": {
+      "descricao": "Receita financeira sobre caixa/aplicacoes (decomposicao FCFE 9.0.3)",
+      "sinal_esperado": "positivo"
+    },
+    "receita_financeira_apos_ir": {
+      "descricao": "Receita financeira x (1 - aliquota) na decomposicao FCFE",
+      "sinal_esperado": "positivo"
+    },
+    "fcfe_via_fcff": {
+      "descricao": "FCFE reconstruido a partir do FCFF (FCFF - juros apos IR + rec. fin. apos IR + ΔDivida)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "residuo_regime_tributario": {
+      "descricao": "FCFE - FCFE via FCFF: efeitos de RET/EBT<=0/aliquota anual + minoritarios",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "equity_value_fcfe": {
+      "descricao": "Equity Value direto do FCFE descontado ao Ke (checagem do bridge FCFF)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "target_price_fcfe": {
+      "descricao": "Target price implicito do valuation FCFE/Ke (checagem, nao substitui o bridge)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "divergencia_vs_bridge": {
+      "descricao": "Equity FCFE/Ke sobre Equity do bridge FCFF - 1 (aviso acima do limiar)",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "ev_receita": {
+      "descricao": "Multiplo EV/Receita Liquida implicito",
+      "sinal_esperado": "positivo"
+    },
+    "tir_acionista": {
+      "descricao": "TIR do acionista: -preco; +dividendos/acao; +preco de saida no ano N",
+      "sinal_esperado": "positivo_ou_negativo"
+    },
+    "moic": {
+      "descricao": "MOIC do acionista: (dividendos + preco de saida) / preco de entrada",
+      "sinal_esperado": "positivo"
+    },
+    "dividendos_por_acao": {
+      "descricao": "Dividendos por acao do ano (DFC x escala / acoes fully diluted)",
+      "sinal_esperado": "positivo"
+    },
+    "preco_saida": {
+      "descricao": "Preco de saida do cenario (target do bridge, truncado em zero)",
+      "sinal_esperado": "positivo"
+    },
+    "vpa": {
+      "descricao": "Valor patrimonial por acao projetado (financeiras, base do P/VP)",
+      "sinal_esperado": "positivo_ou_negativo"
     }
   }
 }

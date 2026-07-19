@@ -53,7 +53,11 @@ from src.projecao.schedule_leasing import projetar_leasing  # noqa: E402
 from src.projecao.schedule_ppe import projetar_ppe  # noqa: E402
 from src.projecao.schedule_wk import projetar_wk  # noqa: E402
 from src.valuation.calculador_ev import calcular_ev  # noqa: E402
+from src.valuation.calculador_fcfe import (  # noqa: E402
+    calcular_fcfe_naofinanceira,
+)
 from src.valuation.calculador_fcff import calcular_fcff  # noqa: E402
+from src.valuation.calculador_retornos import calcular_retornos  # noqa: E402
 from src.valuation.calculador_vt import calcular_valor_terminal  # noqa: E402
 from src.valuation.calculador_wacc import calcular_wacc  # noqa: E402
 from src.valuation.checklist import (  # noqa: E402
@@ -322,6 +326,9 @@ def etapa_valuation(ticker: str) -> dict[str, Any]:
     calcular_wacc(ticker, RAIZ_PROJETO, rf_usd=rf_usd)
     calcular_valor_terminal(ticker, RAIZ_PROJETO)
     calcular_ev(ticker, RAIZ_PROJETO, preco_atual=preco_atual)
+    # 9.0.3: FCFE nao-financeira (checagem do bridge) + painel de retornos.
+    calcular_fcfe_naofinanceira(ticker, RAIZ_PROJETO)
+    calcular_retornos(ticker, RAIZ_PROJETO)
     return executar_checklist(ticker, RAIZ_PROJETO)
 
 
@@ -524,7 +531,7 @@ def executar_pipeline(
     checklist = executar_etapa(
         6,
         total,
-        "valuation (FCFF, WACC, VT, EV, checklist)",
+        "valuation (FCFF, WACC, VT, EV, FCFE, retornos, checklist)",
         lambda: etapa_valuation(ticker),
     )
     if com_graficos:

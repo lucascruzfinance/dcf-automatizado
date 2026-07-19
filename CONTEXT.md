@@ -125,7 +125,7 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
-- **Data da última atualização:** 17/07/2026
+- **Data da última atualização:** 19/07/2026
 - **Versão alvo:** **v2.1 "Padrão Smartfit"** (semanas 8–10, 8 prompts do
   `PROMPTS_FABLE.md` reescrito; v2.0 Ondas 1–4 concluídas; a antiga Onda 5 foi
   redistribuída — parte virou as semanas 8–10, o resto virou backlog v2.2).
@@ -155,9 +155,16 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   (6 contas), instrumentos de dívida opcionais, DFC indireto
   (`dfc_indireto.py`) e BP aberto com check — golden triplo RE-BASELINE
   explicado (D-060): DIRR3 21,2560 | MGLU3 0,8430 | SMFT3 −3,8481 (premissas
-  automáticas, REVISAR). **Próxima tarefa: Prompt 9.0.3** (FCFF + FCFE + macro
-  anual + retornos). Decisões autônomas pendentes de revisão humana:
-  **`Humano_revisar.md`** (D-001+, agora até D-064).
+  automáticas, REVISAR). **Prompt 9.0.3 (FCFE + macro anual + retornos)
+  CONCLUÍDO em 19/07/2026:** FCFE não-financeira ao Ke com checagem do bridge
+  (`fcfe_valuation`), bloco `macro_anual` (CDI/IGP-M/câmbio/PIB; Focus +
+  convergência a metas) alimentando a receita financeira do motor, painel
+  `retornos` (múltiplos implícitos, TIR/MOIC, grade bear/base/bull) — golden
+  re-explicado (D-065): DIRR3 20,8806 | MGLU3 0,7713 | SMFT3 −3,9300 (canal
+  único: receita financeira Selic spot → CDI anual; FCFF byte-idêntico).
+  **Próxima tarefa: Prompt 9.0.4** (front-end guiado). Decisões autônomas
+  pendentes de revisão humana: **`Humano_revisar.md`** (D-001+, agora até
+  D-067; D-063 sobre o Kd do WACC segue ABERTA — ver D-066).
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -231,6 +238,56 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 19/07/2026 (Claude Fable 5) — Semana 9.0, Prompt 9.0.3 (FCFE + macro anual + retornos)
+
+- **Objetivo:** fechar a camada de valuation sobre o motor 9.0.2: FCFE de
+  não-financeiras (Excel do 9.0.5 mostrará FCFF e FCFE), bloco macro anual
+  alimentando CDI/inflação, e painel de Retornos (TIR/MOIC/múltiplos).
+- **Entregue:**
+  - **Macro anual (`coletor_macro.py`, D-065):** séries novas — CDI (SGS 4389,
+    fallback Selic−0,1pp), IGP-M 12m (SGS 189), câmbio BRL/USD (SGS 1) — e
+    Focus estendido (IPCA/Selic/IGP-M/Câmbio/PIB, medianas SEMPRE /100 via
+    `focus_para_decimal`; câmbio bruto). Bloco `macro_anual` (ano1..8): Focus
+    onde cobre (2026-2030 na coleta atual) + convergência LINEAR até as metas
+    do bloco `macro` novo da config (IPCA 3%, Selic 9%, PIB 2%) no ano 8;
+    CDI_t = Selic_t − 0,1pp. Coleta offline PRESERVA os campos persistidos
+    (merge) e reconstrói o `macro_anual` do que existir.
+  - **Motor lê o CDI (`schedule_divida.py`):** taxa de aplicação do caixa POR
+    ANO (premissa > CDI do macro_anual > Selic spot > fallback); premissa
+    opcional NOVA `spread_divida_sobre_cdi` → Kd_t = CDI_t + spread (sem ela,
+    Kd escalar byte-igual). Leasing prefere `cdi_atual` real. **Kd do WACC
+    INTOCADO** (D-063 segue aberta; DoD exigia target estável).
+  - **FCFE não-financeira (`calculador_fcfe.py`, D-066):** decomposição por
+    ano persistida no bloco `fcfe` (FCFF − juros após IR + rec. fin. após IR +
+    ΔDívida + resíduo de regime tributário/minoritários) + `fcfe_valuation`:
+    desconto ao Ke (`wacc.ke_brl`), VT com ΔDívida NORMALIZADA (g × Dívida_8;
+    perpetuar amortização deixaria dívida negativa), fallback payout
+    sustentável, equity DIRETO vs bridge — divergência = AVISO (nunca erro).
+  - **Retornos (`src/valuation/calculador_retornos.py`, NOVO, D-067):**
+    múltiplos implícitos por ano nas duas pontas (EV/EBITDA, EV/Receita, P/L;
+    financeiras P/L e P/VP via capital regulatório); TIR do acionista
+    (−preço; +dividendos/ação do DFC; +target truncado em zero no ano 5) por
+    bissecção robusta; MOIC; grade bear/base/bull = ±20% no preço de saída
+    (motor de cenários segue congelado). Persistido em `retornos`.
+  - **Orquestradores:** `main.py`, `src/pipeline.py` e `verificar_semana3.py`
+    chamam FCFE NF + retornos após o EV; painel do verificador mostra Equity
+    FCFE/Ke, divergência vs bridge, TIR e MOIC. +27 campos no mapeamento.
+- **DoD verificado:** blocos `fcfe`/`fcfe_valuation`, `macro_anual` e
+  `retornos` persistidos nos 5 tickers; TIR base DIRR3 +14,7% (target > preço
+  ✓); FCFF **byte-idêntico** nos 5; `verificar_semana3` → SEMANA 3 OK.
+- **Golden re-explicado (D-065, canal único = receita financeira):** DIRR3
+  21,2560 → **20,8806** (−1,77%); MGLU3 0,8430 → **0,7713** (−8,52%); SMFT3
+  −3,8481 → **−3,9300**; VALE3 −0,08%; WEGE3 −0,04%. Selic spot 14,25%
+  constante → CDI anual 13,9%→8,9% derruba a receita financeira acumulada
+  ~25% → PL médio ~−2% → WACC +0,06 a +0,13pp. Divergências FCFE vs bridge
+  explicadas por ticker em D-066 (MGLU3 +935% = sintoma quantificado do kd
+  derivado 46% da D-063).
+- **Validação:** `pytest tests -q` → **179 passed, 15 skipped** (+21: 8 macro,
+  5 FCFE NF, 7 retornos, 2 taxas por ano — arquivos novos
+  `test_coletor_macro.py` e `test_calculador_retornos.py`); `black --workers
+  1`/`flake8` limpos.
+- **PRÓXIMA TAREFA:** Prompt 9.0.4 (front-end guiado).
 
 ### Sessão 18/07/2026 (Claude Fable 5) — Semana 9.0, Prompt 9.0.2 (Motor "padrão Direcional")
 

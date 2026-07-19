@@ -37,8 +37,12 @@ from src.projecao.schedule_leasing import projetar_leasing
 from src.projecao.schedule_ppe import projetar_ppe
 from src.projecao.schedule_wk import projetar_wk
 from src.valuation.calculador_ev import calcular_ev
-from src.valuation.calculador_fcfe import calcular_fcfe_financeira
+from src.valuation.calculador_fcfe import (
+    calcular_fcfe_financeira,
+    calcular_fcfe_naofinanceira,
+)
 from src.valuation.calculador_fcff import calcular_fcff
+from src.valuation.calculador_retornos import calcular_retornos
 from src.valuation.calculador_vt import calcular_valor_terminal
 from src.valuation.calculador_wacc import calcular_ke, calcular_wacc
 from src.valuation.checklist import executar_checklist
@@ -114,6 +118,13 @@ def rodar_motor_valuation(
         calcular_wacc(ticker, raiz, rf_usd=rf)
         calcular_valor_terminal(ticker, raiz)
         calcular_ev(ticker, raiz, preco_atual=preco)
+        # 9.0.3: FCFE de nao-financeira (checagem do bridge, desconto ao Ke).
+        _avisar(callback, "FCFE nao-financeira (checagem do bridge)...")
+        calcular_fcfe_naofinanceira(ticker, raiz)
+
+    # 9.0.3: painel de retornos (TIR/MOIC/multiplos) para os dois tipos.
+    _avisar(callback, "Painel de retornos (TIR/MOIC/multiplos)...")
+    calcular_retornos(ticker, raiz)
 
     _avisar(callback, "Checklist de consistencia...")
     return executar_checklist(ticker, raiz)

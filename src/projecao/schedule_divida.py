@@ -177,26 +177,105 @@ def resolver_payout(
     return parametros["payout_dividendos_global"], "parametro_global"
 
 
+def _carregar_macro_persistido(raiz_projeto: Path) -> dict[str, Any]:
+    """Le macro_brasil.json persistido; vazio quando ausente/ilegivel."""
+    caminho_macro = raiz_projeto / "data" / "raw" / "macro" / "macro_brasil.json"
+    if not caminho_macro.exists():
+        return {}
+    try:
+        macro = carregar_json(caminho_macro)
+    except RuntimeError:
+        return {}
+    return macro if isinstance(macro, dict) else {}
+
+
+def carregar_cdi_anual(raiz_projeto: Path) -> dict[int, float] | None:
+    """CDI esperado por ano de projecao (bloco macro_anual do 9.0.3).
+
+    Devolve {1..8: cdi_t} quando o macro_anual persistido cobre os 8 anos;
+    None quando ausente (o chamador cai na cascata Selic/fallback).
+    """
+    macro_anual = _carregar_macro_persistido(raiz_projeto).get("macro_anual")
+    if not isinstance(macro_anual, dict):
+        return None
+    cdi_por_ano: dict[int, float] = {}
+    for ano in range(1, HORIZONTE_PROJECAO + 1):
+        linha = macro_anual.get(f"ano{ano}")
+        cdi = _numero_ou_none(linha.get("cdi")) if isinstance(linha, dict) else None
+        if cdi is None or cdi < 0:
+            return None
+        cdi_por_ano[ano] = cdi
+    return cdi_por_ano
+
+
 def resolver_taxa_aplicacao(
     premissas: dict[str, Any],
     parametros: dict[str, float],
     raiz_projeto: Path,
-) -> tuple[float, str]:
-    """Taxa de aplicacao do caixa: premissa > Selic coletada > fallback."""
+) -> tuple[dict[int, float], str]:
+    """Taxa de aplicacao do caixa POR ANO (Prompt 9.0.3, Direcional L190).
+
+    Cascata: premissa ``taxa_aplicacao_caixa`` (escalar, vale para os 8
+    anos) > CDI anual do ``macro_anual`` persistido > Selic atual coletada
+    (constante) > fallback de config. Devolve ({ano: taxa}, origem).
+    """
     taxa_premissa = _numero_ou_none(premissas.get("taxa_aplicacao_caixa"))
     if taxa_premissa is not None and taxa_premissa >= 0:
-        return taxa_premissa, "premissa_da_empresa"
+        return (
+            {ano: taxa_premissa for ano in range(1, HORIZONTE_PROJECAO + 1)},
+            "premissa_da_empresa",
+        )
 
-    caminho_macro = raiz_projeto / "data" / "raw" / "macro" / "macro_brasil.json"
-    if caminho_macro.exists():
-        macro = carregar_json(caminho_macro)
-        selic = _numero_ou_none(macro.get("selic_atual"))
-        if selic is not None and selic > 0:
-            # Selic > 1 indica valor em % a.a. (ex.: 10.5) — converte.
-            taxa = selic / 100.0 if selic > 1 else selic
-            return taxa, "selic_atual_coletada"
+    cdi_anual = carregar_cdi_anual(raiz_projeto)
+    if cdi_anual is not None:
+        return cdi_anual, "cdi_macro_anual"
 
-    return parametros["taxa_aplicacao_caixa_fallback"], "fallback_config"
+    selic = _numero_ou_none(_carregar_macro_persistido(raiz_projeto).get("selic_atual"))
+    if selic is not None and selic > 0:
+        # Selic > 1 indica valor em % a.a. (ex.: 10.5) — converte.
+        taxa = selic / 100.0 if selic > 1 else selic
+        return (
+            {ano: taxa for ano in range(1, HORIZONTE_PROJECAO + 1)},
+            "selic_atual_coletada",
+        )
+
+    taxa_fallback = parametros["taxa_aplicacao_caixa_fallback"]
+    return (
+        {ano: taxa_fallback for ano in range(1, HORIZONTE_PROJECAO + 1)},
+        "fallback_config",
+    )
+
+
+def resolver_custo_divida_anual(
+    premissas: dict[str, Any],
+    custo_divida_kd: float,
+    raiz_projeto: Path,
+) -> tuple[dict[int, float], str]:
+    """Custo da divida POR ANO: CDI + spread quando a premissa pedir.
+
+    Com a premissa OPCIONAL ``spread_divida_sobre_cdi`` (decimal, ex.: 0.03)
+    e o ``macro_anual`` persistido, ``kd_t = cdi_t + spread`` (padrao
+    Direcional ``Modelo`` L190). Sem a premissa (ou sem macro), o Kd escalar
+    da premissa ``custo_divida_kd`` vale para os 8 anos — comportamento v2
+    intacto. O Kd do WACC NAO muda aqui (D-065): a estrutura de capital do
+    valuation segue o calculador de WACC.
+    """
+    spread = _numero_ou_none(premissas.get("spread_divida_sobre_cdi"))
+    if spread is not None:
+        cdi_anual = carregar_cdi_anual(raiz_projeto)
+        if cdi_anual is not None:
+            return (
+                {ano: max(cdi + spread, 0.0) for ano, cdi in cdi_anual.items()},
+                "cdi_mais_spread_premissa",
+            )
+        logger.warning(
+            "Premissa spread_divida_sobre_cdi presente mas macro_anual "
+            "indisponivel; usando custo_divida_kd escalar."
+        )
+    return (
+        {ano: custo_divida_kd for ano in range(1, HORIZONTE_PROJECAO + 1)},
+        "premissa_custo_divida_kd",
+    )
 
 
 def carregar_projecao_existente(
@@ -592,7 +671,7 @@ def projetar_divida_balanco_dfc(
     wk: dict[str, dict[str, Any]],
     ppe: dict[str, dict[str, Any]],
     custo_divida_kd: float,
-    taxa_aplicacao: float,
+    taxa_aplicacao: float | dict[int, float],
     payout: float,
     usa_ret: bool,
     razao_receita_bruta: float | None,
@@ -600,19 +679,31 @@ def projetar_divida_balanco_dfc(
     modo_dre: str = "legado",
     contexto_ir_completo: dict[str, Any] | None = None,
     instrumentos: list[dict[str, Any]] | None = None,
+    custo_divida_por_ano: dict[int, float] | None = None,
 ) -> tuple[
     dict[str, dict[str, float | str]],
     dict[str, dict[str, float | str]],
     dict[str, dict[str, float | str]],
 ]:
-    """Projeta divida, balanco e DFC integrados ano a ano (v2.0 + 9.0.2).
+    """Projeta divida, balanco e DFC integrados ano a ano (v2.0 + 9.0.2/3).
 
     Ordem dentro de cada ano (convencao de saldo inicial): juros e receita
     financeira sobre os saldos de abertura -> DRE (EBT, IR, LL, minoritarios)
     -> dividendos -> FCO/FCI -> teste do caixa minimo -> captacao (fim do
     ano) -> FCF -> caixa de fechamento via DFC -> balanco ABERTO verificado
     (contas do WK expandido + passivo de arrendamento como linha propria).
+
+    ``taxa_aplicacao`` e ``custo_divida_por_ano`` aceitam vetores POR ANO
+    (Prompt 9.0.3: CDI anual do macro; escalar continua valendo para os 8).
     """
+    if not isinstance(taxa_aplicacao, dict):
+        taxa_aplicacao = {
+            ano: float(taxa_aplicacao) for ano in range(1, HORIZONTE_PROJECAO + 1)
+        }
+    if custo_divida_por_ano is None:
+        custo_divida_por_ano = {
+            ano: custo_divida_kd for ano in range(1, HORIZONTE_PROJECAO + 1)
+        }
     prazo_lp = int(parametros["prazo_amortizacao_lp_anos"])
     pct_caixa_minimo = float(parametros["caixa_minimo_pct_receita"])
     usa_instrumentos = bool(instrumentos)
@@ -667,21 +758,23 @@ def projetar_divida_balanco_dfc(
             chave_ano,
         )
         ebit = obter_float_obrigatorio(linha_dre, "ebit", chave_ano)
+        kd_ano = float(custo_divida_por_ano.get(ano, custo_divida_kd))
+        taxa_aplicacao_ano = float(taxa_aplicacao[ano])
 
-        # Formula: juros_t = Kd x divida de ABERTURA (captacao do ano nao
+        # Formula: juros_t = Kd_t x divida de ABERTURA (captacao do ano nao
         # paga juros no proprio ano — convencao sem circularidade). Com a
         # tabela de instrumentos, juros = soma(taxa_i x saldo_abertura_i).
         juros = _juros_do_ano(
             tranches,
-            custo_divida_kd,
+            kd_ano,
             usa_instrumentos,
             divida_abertura,
         )
         # Juros de arrendamento (IFRS-16) vem do schedule de leasing, SEPARADOS
         # dos juros de divida; 0 quando nao ha leasing relevante.
         juros_arrendamento = float(linha_dre.get("juros_arrendamento") or 0.0)
-        # Formula: receita financeira_t = taxa x (caixa inicial + aplicacoes).
-        receita_financeira = taxa_aplicacao * max(
+        # Formula: receita financeira_t = taxa_t x (caixa inicial + aplicacoes).
+        receita_financeira = taxa_aplicacao_ano * max(
             caixa_anterior + aplicacoes,
             0.0,
         )
@@ -740,13 +833,13 @@ def projetar_divida_balanco_dfc(
         _aplicar_amortizacao(tranches)
         if captacao > 0:
             # Captacao automatica v2: tranche linear com carencia de 1 ano,
-            # sempre ao Kd (mesmo com tabela de instrumentos).
+            # sempre ao Kd do ano (mesmo com tabela de instrumentos).
             tranches.append(
                 {
                     "saldo": captacao,
                     "parcela": captacao / prazo_lp,
                     "carencia": 1,
-                    "taxa": custo_divida_kd,
+                    "taxa": kd_ano,
                 }
             )
 
@@ -807,7 +900,7 @@ def projetar_divida_balanco_dfc(
         divida[chave_ano] = {
             "ano_projecao": chave_ano,
             "politica_divida": POLITICA_DIVIDA,
-            "custo_divida_kd": custo_divida_kd,
+            "custo_divida_kd": kd_ano,
             "divida_abertura": divida_abertura,
             "amortizacao": amortizacao,
             "captacao": captacao,
@@ -819,7 +912,7 @@ def projetar_divida_balanco_dfc(
             "juros": juros,
             "juros_arrendamento": juros_arrendamento,
             "receita_financeira_caixa": receita_financeira,
-            "taxa_aplicacao_caixa": taxa_aplicacao,
+            "taxa_aplicacao_caixa": taxa_aplicacao_ano,
             "resultado_financeiro": resultado_financeiro,
             "delta_divida": delta_divida,
         }
@@ -989,9 +1082,14 @@ def projetar_divida(
         parametros,
         raiz,
     )
-    taxa_aplicacao, origem_taxa = resolver_taxa_aplicacao(
+    taxa_aplicacao_por_ano, origem_taxa = resolver_taxa_aplicacao(
         premissas_completas,
         parametros,
+        raiz,
+    )
+    custo_divida_por_ano, origem_custo_divida = resolver_custo_divida_anual(
+        premissas_completas,
+        premissas_divida["custo_divida_kd"],
         raiz,
     )
 
@@ -1002,7 +1100,7 @@ def projetar_divida(
         wk=wk,
         ppe=ppe,
         custo_divida_kd=premissas_divida["custo_divida_kd"],
-        taxa_aplicacao=taxa_aplicacao,
+        taxa_aplicacao=taxa_aplicacao_por_ano,
         payout=payout,
         usa_ret=usa_ret,
         razao_receita_bruta=razao_receita_bruta,
@@ -1010,6 +1108,7 @@ def projetar_divida(
         modo_dre=modo_dre,
         contexto_ir_completo=contexto_ir_completo,
         instrumentos=instrumentos,
+        custo_divida_por_ano=custo_divida_por_ano,
     )
     fechamento_ok = validar_fechamento_balanco(balanco)
     politicas = {
@@ -1023,8 +1122,16 @@ def projetar_divida(
         ),
         "payout_dividendos": payout,
         "origem_payout": origem_payout,
-        "taxa_aplicacao_caixa": taxa_aplicacao,
+        # Escalar do ano 1 para compatibilidade; o vetor completo fica ao lado.
+        "taxa_aplicacao_caixa": taxa_aplicacao_por_ano[1],
+        "taxa_aplicacao_caixa_por_ano": {
+            f"ano{ano}": taxa for ano, taxa in sorted(taxa_aplicacao_por_ano.items())
+        },
         "origem_taxa_aplicacao": origem_taxa,
+        "custo_divida_por_ano": {
+            f"ano{ano}": kd for ano, kd in sorted(custo_divida_por_ano.items())
+        },
+        "origem_custo_divida": origem_custo_divida,
         "prazo_amortizacao_lp_anos": parametros["prazo_amortizacao_lp_anos"],
         "caixa_minimo_pct_receita": parametros["caixa_minimo_pct_receita"],
         "receita_financeira_sobre_caixa": True,
