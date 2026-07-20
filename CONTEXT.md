@@ -125,7 +125,7 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
-- **Data da última atualização:** 19/07/2026
+- **Data da última atualização:** 20/07/2026
 - **Versão alvo:** **v2.1 "Padrão Smartfit"** (semanas 8–10, 8 prompts do
   `PROMPTS_FABLE.md` reescrito; v2.0 Ondas 1–4 concluídas; a antiga Onda 5 foi
   redistribuída — parte virou as semanas 8–10, o resto virou backlog v2.2).
@@ -298,7 +298,41 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   expostos sem travar: `dfc_amarra` RENT3/PETR4/ABEV3 (caixa DFC ≠ BP na
   divulgação da cia), falso-positivo AC/ANC do auditor em bancos, e Modelo
   Integrado com 3 anos históricos por contrato v1 (5 anos = entrega do 9.0.5).
-- **PRÓXIMA TAREFA:** Prompt 9.0.4 (front-end guiado).
+
+### Sessão 20/07/2026 (Claude Fable 5) — Prompt 9.0.4 (Front-end guiado) + verificação do 9.0.3
+
+- **Objetivo:** (pedido de Lucas) verificar o 9.0.3 ponta a ponta (front +
+  back, vários tickers) e executar o 9.0.4 — app em fluxo guiado de 4 etapas,
+  as 6 premissas, aba Modelo (DRE/BP/DFC + FCFF/FCFE) e Retornos, WACC manual.
+- **Verificação do 9.0.3:** app sobe sem exceção para DIRR3/MGLU3/SMFT3/PETR4/
+  TOTS3 em todas as seções (AppTest headless); blocos `fcfe_valuation`/
+  `macro_anual`/`retornos` persistidos e coerentes. Achado: os blocos 9.0.3
+  ainda não eram exibidos no app enxuto — surfacá-los é justamente o 9.0.4.
+- **Entregue (9.0.4):**
+  - **`app.py` REESCRITO (D-070):** fluxo guiado ① Empresa → ② Premissas → ③
+    Resultados → ④ Exportar (radio de etapa na sidebar). ② com 6 grupos
+    colapsáveis: crescimento/margem BRUTA pré-D&A/SG&A (data_editor ×8) +
+    margem EBITDA DERIVADA read-only; alíquota ×8 (RET travado); WACC manual
+    opcional; Outros (capex, DSO/DIO/DPO, Kd, caixa mínimo, payout,
+    minoritários, g). Validação em tempo real (g≥WACC usando o WACC manual
+    quando informado; alíquota 0-45%; margem bruta 0-100%). "Restaurar
+    automáticas" com confirmação. ③ com 5 sub-abas: Overview, Histórico,
+    Valuation (mostra WACC manual vs build-up), **Modelo** (NOVA) e
+    **Retornos** (NOVA). ④ preview das 7 abas + download + regerar.
+  - **`calculador_wacc.py` (D-069):** premissa `wacc_manual` vence o build-up
+    CAPM; decomposição preservada em `wacc_capm_buildup`/`wacc_origem`.
+  - **Bug de front-end corrigido:** checklist quebrava no navegador (coluna
+    `valor` float+str → Arrow falha). Coagido a str; quadros de Modelo em
+    float puro. Todas as tabelas Arrow-safe.
+- **DoD verificado (SMFT3, navegador + integração):** editar margem bruta
+  (−10pp) + WACC manual 0,16 → salvar → lucro bruto/EBIT ex-D&A/LL/FCFF/FCFE/
+  target mudam (receita intacta), WACC vira manual, balanço fecha (3,7e-9).
+  Zero erros de console. Nenhuma funcionalidade do núcleo perdida.
+- **Validação:** `pytest tests -q` → **185 passed, 12 skipped** (+6 no total:
+  2 do WACC manual, test_app.py reescrito com Modelo/Retornos/WACC manual — 3
+  testes antes skipados do app voltaram a rodar no fluxo novo); `black
+  --workers 1`/`flake8` limpos.
+- **PRÓXIMA TAREFA:** Prompt 9.0.5 (novo conteúdo do Excel de 9 abas).
 
 ### Sessão 18/07/2026 (Claude Fable 5) — Semana 9.0, Prompt 9.0.2 (Motor "padrão Direcional")
 

@@ -208,3 +208,40 @@ def test_kd_historico_de_dados_brutos(tmp_path: Path) -> None:
     media_despesas = (100.0 + 120.0 + 140.0) / 3
     media_divida = (1000.0 + 1100.0 + 1200.0) / 3
     assert kd == pytest.approx(media_despesas / media_divida)
+
+
+def test_wacc_manual_vence_build_up(tmp_path: Path) -> None:
+    """Premissa wacc_manual valida vence o build-up CAPM (Prompt 9.0.4)."""
+    criar_meta_e_premissas(tmp_path)
+    criar_projecao_wacc(tmp_path)
+    premissas_path = tmp_path / "data" / "premissas" / "TEST3_premissas.json"
+    premissas = json.loads(premissas_path.read_text(encoding="utf-8"))
+    premissas["wacc_manual"] = 0.17
+    salvar_json(premissas_path, premissas)
+
+    resultado = calcular_wacc(
+        "TEST3", raiz_projeto=tmp_path, rf_usd=0.044, kd_historico=0.12
+    )
+
+    assert resultado["wacc"] == pytest.approx(0.17)
+    assert resultado["wacc_origem"] == "manual_do_analista"
+    # A decomposicao CAPM continua persistida para transparencia.
+    assert resultado["wacc_capm_buildup"] != pytest.approx(0.17)
+    assert 0.05 <= resultado["wacc_capm_buildup"] <= 0.30
+
+
+def test_wacc_manual_invalido_cai_no_build_up(tmp_path: Path) -> None:
+    """wacc_manual fora de (0, 1] ou ausente => build-up CAPM manda."""
+    criar_meta_e_premissas(tmp_path)
+    criar_projecao_wacc(tmp_path)
+    premissas_path = tmp_path / "data" / "premissas" / "TEST3_premissas.json"
+    premissas = json.loads(premissas_path.read_text(encoding="utf-8"))
+    premissas["wacc_manual"] = 0  # zero nao e override valido
+    salvar_json(premissas_path, premissas)
+
+    resultado = calcular_wacc(
+        "TEST3", raiz_projeto=tmp_path, rf_usd=0.044, kd_historico=0.12
+    )
+
+    assert resultado["wacc_origem"] == "build_up_capm"
+    assert resultado["wacc"] == pytest.approx(resultado["wacc_capm_buildup"])

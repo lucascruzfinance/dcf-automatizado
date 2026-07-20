@@ -22,6 +22,56 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 > `macro_anual` (Focus + convergência) alimentando o CDI do motor, e o painel
 > de Retornos (múltiplos implícitos, TIR/MOIC, grade bear/base/bull).
 
+## 20/07/2026 — Prompt 9.0.4 (Front-end guiado) + verificação do 9.0.3 no navegador
+
+> Sessão do **Claude Fable 5**. Lucas pediu (1) verificar o 9.0.3 ponta a ponta
+> front + back para vários tickers e (2) executar o 9.0.4: reorganizar o app em
+> fluxo guiado de 4 etapas, expor as 6 premissas, adicionar a aba Modelo
+> (DRE/BP/DFC + FCFF/FCFE) e Retornos, e o WACC manual.
+
+### D-069 ⏳ — WACC manual (input direto do analista) vence o build-up CAPM
+
+- **Situação:** o 9.0.4 pede um WACC como INPUT direto opcional (premissa de
+  Lucas nº 5). O motor só tinha o build-up CAPM (beta/ERP/CRP/Kd).
+- **Escolha:** `calculador_wacc` ganhou o override: premissa `wacc_manual`
+  (decimal em (0, 1]) VENCE o build-up. A decomposição CAPM continua calculada
+  e persistida (`wacc_capm_buildup`, `wacc_origem`) para transparência — a aba
+  Valuation mostra as duas e sinaliza quando o manual está ativo. O WACC usado
+  no VT/EV é o do analista. Sem a premissa (ou fora de (0,1]), o build-up manda
+  (byte-igual à v2). Alternativa descartada: short-circuit sem calcular o
+  build-up — perderia a decomposição de referência.
+- **Verificado:** editar `wacc_manual=0.16` na UI → `wacc_origem=
+  manual_do_analista`, target recalculado; ausência → `build_up_capm`.
+
+### D-070 ⏳ — App reorganizado em fluxo guiado de 4 etapas (margem EBITDA vira derivada)
+
+- **Escolha:** o `app.py` enxuto (5 seções em radio) virou o FLUXO GUIADO de
+  Lucas: ① Empresa (busca/landing) → ② Premissas (6 grupos colapsáveis) → ③
+  Resultados (5 sub-abas) → ④ Exportar. A etapa ② expõe margem BRUTA ×8
+  (pré-D&A) no lugar do antigo slider de margem EBITDA — que agora é DERIVADA
+  read-only (margem bruta − SG&A); SG&A ×8; alíquota ×8 (RET travado com aviso
+  4% sobre a bruta); WACC manual opcional; e o grupo Outros (capex, dias WK, Kd,
+  caixa mínimo, payout, minoritários, g). Validação em tempo real: g ≥ WACC
+  bloqueia (usa o WACC manual quando informado), alíquota 0-45%, margem bruta
+  0-100%, margem EBITDA derivada vs máxima histórica. "Restaurar automáticas"
+  com confirmação.
+- **Etapa ③** ganhou 2 sub-abas NOVAS: **Modelo** (DRE pré-D&A / Balanço com
+  linha de verificação / DFC indireto / FCFF / FCFE lado a lado + a divergência
+  FCFE vs bridge do 9.0.3) e **Retornos** (TIR/MOIC bear/base/bull + múltiplos
+  implícitos por ano). As seções congeladas no 9.0.0 (comparáveis, cenários,
+  football field, sensibilidade viva, comparar/watchlist) seguem fora — o app
+  guiado não as reintroduz (continuam backlog; o 9.0.4 não as pede de volta).
+- **Bug de front-end corrigido (achado nesta verificação):** a tabela do
+  checklist quebrava no navegador — a coluna `valor` mistura float e string, o
+  Arrow não serializa e o Streamlit sumia com a tabela. Agora `valor`/`limite`
+  são coagidas a str; os quadros de anos (Modelo) usam float puro + NaN. Todas
+  as tabelas do app são Arrow-safe.
+- **DoD verificado no navegador (SMFT3) e por teste de integração:** escolher →
+  editar margem bruta (−10pp) + WACC manual 0,16 → salvar → lucro bruto, EBIT
+  ex-D&A, LL, FCFF, FCFE e target TODOS mudam (receita intacta, correto), WACC
+  vira manual, balanço fecha (residual 3,7e-9). App sobe sem erro de console
+  para DIRR3/MGLU3/SMFT3/PETR4 nas 4 etapas.
+
 ### D-068 ⏳ — Validação em lote (12 tickers): achados e correção do erro do Excel p/ financeiras
 
 - **Situação:** Lucas pediu validação ponta a ponta da Semana 9 (dados

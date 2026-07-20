@@ -1159,6 +1159,18 @@
     "vpa": {
       "descricao": "Valor patrimonial por acao projetado (financeiras, base do P/VP)",
       "sinal_esperado": "positivo_ou_negativo"
+    },
+    "wacc_manual": {
+      "descricao": "WACC informado direto pelo analista (Prompt 9.0.4); vence o build-up CAPM quando em (0, 1]",
+      "sinal_esperado": "positivo"
+    },
+    "wacc_capm_buildup": {
+      "descricao": "WACC do build-up CAPM (persistido para transparencia quando ha override manual)",
+      "sinal_esperado": "positivo"
+    },
+    "wacc_origem": {
+      "descricao": "Origem do WACC usado: build_up_capm ou manual_do_analista",
+      "sinal_esperado": "positivo_ou_negativo"
     }
   }
 }
