@@ -290,12 +290,25 @@ def montar_contexto(ticker: str, raiz_projeto: Path | None = None) -> dict[str, 
     """Carrega tudo que o exportador consome (motor, premissas, historico)."""
     raiz = resolver_raiz(raiz_projeto)
     ticker_normalizado = normalizar_ticker(ticker)
+    metadados_tipo = carregar_metadados(ticker_normalizado, raiz)
+    if str(metadados_tipo.get("tipo", "")) == "financeira":
+        # Erro CLARO em vez do generico "bloco fcff ausente": a trilha
+        # financeira (FCFE/Ke) roda no motor, mas o Excel de 7 abas modela
+        # DRE/WK/PP&E/divida de NAO-financeiras (D-034; Excel bancario e
+        # backlog v2.2).
+        raise RuntimeError(
+            f"{ticker_normalizado} e financeira (banco/seguradora): o Excel "
+            "de 7 abas cobre apenas nao-financeiras. O valuation FCFE/Ke "
+            "fica disponivel no app e em data/processed/"
+            f"{ticker_normalizado}_projecao.json; o Excel bancario e backlog "
+            "(v2.2)."
+        )
     projecao = carregar_projecao(ticker_normalizado, raiz)
     caminho_premissas = (
         raiz / "data" / "premissas" / f"{ticker_normalizado}_premissas.json"
     )
     premissas = carregar_json(caminho_premissas)
-    metadados = carregar_metadados(ticker_normalizado, raiz)
+    metadados = metadados_tipo
     metricas = carregar_metricas(ticker_normalizado, raiz)
     series_historicas = montar_series_anuais(ticker_normalizado, raiz)
     return {

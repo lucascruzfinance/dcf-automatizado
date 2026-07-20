@@ -22,6 +22,37 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 > `macro_anual` (Focus + convergência) alimentando o CDI do motor, e o painel
 > de Retornos (múltiplos implícitos, TIR/MOIC, grade bear/base/bull).
 
+### D-068 ⏳ — Validação em lote (12 tickers): achados e correção do erro do Excel p/ financeiras
+
+- **Situação:** Lucas pediu validação ponta a ponta da Semana 9 (dados
+  automáticos, ≥5 anos de histórico, Excel correto) para vários tickers.
+  Lote executado: DIRR3, MGLU3, SMFT3, VALE3, WEGE3, RENT3, RADL3 (reuso de
+  cache) + **PETR4, ABEV3, TOTS3 coletados DO ZERO** (42–53s cada, automação
+  completa) + ITUB4, BBAS3 (financeiras). Resultado: **12/12 pipelines OK**;
+  **10/10 Excel de não-financeiras OK** na auditoria estrutural (7 abas na
+  ordem, 8 inputs azuis, ~540 fórmulas/arquivo TODAS com referências válidas,
+  formatos milhar/percentual, 278 faixas navy, formatação condicional, nomes
+  WACC/g, checklist na aba Output, zero células de erro). Histórico coletado:
+  **7 exercícios anuais (2019–2025)** em todos — acima dos 5 pedidos.
+- **Correção aplicada:** o Excel para financeiras falhava com mensagem
+  enganosa ("bloco fcff ausente… rode a Semana 3"). `montar_contexto` agora
+  detecta `tipo=financeira` ANTES e explica: o Excel de 7 abas cobre só
+  não-financeiras (D-034); o valuation FCFE/Ke do banco fica no app/JSON;
+  Excel bancário é backlog v2.2.
+- **Achados SEM correção (expor, não travar):** (1) auditor CVM acusa
+  `dfc_amarra` em RENT3/PETR4/ABEV3 (caixa do DFC divulgado ≠ caixa do BP em
+  0,1–5% — escopo de "caixa e equivalentes" da própria companhia; o auditor
+  existe para expor isso); (2) auditor acusa `balanco_fecha` em ITUB4/BBAS3 —
+  falso-positivo estrutural: bancos não têm split AC/ANC (auditor foi
+  desenhado p/ não-financeiras; trilha financeira valida na v1.5); (3) o
+  Modelo Integrado mostra **3 anos históricos por contrato** da seção 5.10
+  (`ANOS_HISTORICOS_MODELO=3`) embora a base tenha 7 — a coluna histórica
+  ampliada (5 anos, padrão Direcional) é entrega EXPLÍCITA do Excel 9.0.5;
+  não alterei o layout v1 (vetado pelo 9.0.3: "não mexer no Excel").
+  TOTS3: setor CVM "Comunicação e Informática" sem regra → subtipo `outros`
+  com FCFF/WACC (default seguro funcionou). Targets de premissa automática
+  (PETR4 1,35; RADL3 −2,18; TOTS3 −1,70) são padrão D-024: REVISAR, não bug.
+
 ### D-065 ⏳ — Motor lê o CDI anual do macro; golden −0,04% a −8,5% explicado; Kd do WACC INTOCADO
 
 - **Situação:** a taxa de aplicação do caixa era a Selic spot constante (14,25%
