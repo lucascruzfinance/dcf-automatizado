@@ -287,6 +287,17 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   5 FCFE NF, 7 retornos, 2 taxas por ano — arquivos novos
   `test_coletor_macro.py` e `test_calculador_retornos.py`); `black --workers
   1`/`flake8` limpos.
+- **Validação em LOTE pedida por Lucas (mesma sessão, D-068):** 12 tickers —
+  golden 5 + RENT3/RADL3 (cache) + **PETR4/ABEV3/TOTS3 coletados do zero**
+  (42–53s cada) + ITUB4/BBAS3 (financeiras). 12/12 pipelines OK; 10/10 Excel
+  de não-financeiras aprovados na auditoria estrutural (abas/inputs azuis/
+  ~540 fórmulas com referências 100% válidas/formatos/navy/condicional/nomes
+  definidos/zero erros); histórico CVM com **7 exercícios anuais (2019–2025)**
+  em todos; preço/rf/CDI automáticos. Correção: Excel p/ financeira agora
+  falha com mensagem CLARA (cobre só não-financeiras, D-034). Achados
+  expostos sem travar: `dfc_amarra` RENT3/PETR4/ABEV3 (caixa DFC ≠ BP na
+  divulgação da cia), falso-positivo AC/ANC do auditor em bancos, e Modelo
+  Integrado com 3 anos históricos por contrato v1 (5 anos = entrega do 9.0.5).
 - **PRÓXIMA TAREFA:** Prompt 9.0.4 (front-end guiado).
 
 ### Sessão 18/07/2026 (Claude Fable 5) — Semana 9.0, Prompt 9.0.2 (Motor "padrão Direcional")
