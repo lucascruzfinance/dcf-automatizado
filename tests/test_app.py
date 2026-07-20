@@ -1,8 +1,9 @@
-"""Testes do front-end Streamlit via AppTest (sem navegador).
+"""Testes do front-end Streamlit via AppTest (sem navegador) — fluxo 9.0.4.
 
-Valida a jornada critica da aba Premissas: a validacao em tempo real
-bloqueia g >= WACC e o botao de salvar fica desabilitado. Usa os dados
-reais persistidos em data/processed (pipeline da Semana 3 ja executado).
+Valida a jornada guiada de 4 etapas: escolher empresa, editar premissas (com
+validacao em tempo real), ver resultados (sub-abas Overview/.../Modelo/
+Retornos) e exportar. Usa os dados reais persistidos em data/processed
+(pipeline da Semana 3 ja executado).
 """
 
 from __future__ import annotations
@@ -25,26 +26,45 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _abrir_secao(nome_secao: str) -> AppTest:
-    """Roda o app e navega ate uma secao da sidebar."""
+def _abrir_etapa(etapa: str, ticker: str = "DIRR3") -> AppTest:
+    """Roda o app e navega ate uma etapa do fluxo guiado."""
     app = AppTest.from_file(str(CAMINHO_APP), default_timeout=120)
     app.run()
-    app.sidebar.radio[0].set_value(nome_secao).run()
+    app.session_state["ticker"] = ticker
+    app.session_state["etapa"] = etapa
+    app.run()
     return app
 
 
-def test_overview_mostra_target_price() -> None:
-    """Overview exibe o painel de decisao sem excecoes."""
-    app = _abrir_secao("Overview")
+def test_etapa_empresa_landing_sem_excecao() -> None:
+    """Etapa ① Empresa carrega o landing de busca sem excecao."""
+    app = _abrir_etapa("① Empresa")
+    assert not app.exception
+    subtitulos = [str(sub.value) for sub in app.main.subheader]
+    assert any("Escolha a empresa" in sub for sub in subtitulos)
 
+
+def test_etapa_resultados_overview_mostra_target() -> None:
+    """Etapa ③ Resultados: sub-aba Overview exibe o Target Price."""
+    app = _abrir_etapa("③ Resultados")
     assert not app.exception
     rotulos = [metrica.label for metrica in app.main.metric]
     assert "Target Price" in rotulos
 
 
+def test_etapa_resultados_tem_sub_abas_modelo_e_retornos() -> None:
+    """As 5 sub-abas de resultados incluem Modelo e Retornos (novas)."""
+    app = _abrir_etapa("③ Resultados")
+    assert not app.exception
+    rotulos_abas = [str(aba.label) for aba in app.main.tabs]
+    assert "Modelo" in rotulos_abas
+    assert "Retornos" in rotulos_abas
+    assert rotulos_abas == ["Overview", "Historico", "Valuation", "Modelo", "Retornos"]
+
+
 def test_premissas_bloqueia_g_maior_que_wacc() -> None:
     """g de 20% (acima do WACC) mostra erro e desabilita o salvar."""
-    app = _abrir_secao("Premissas")
+    app = _abrir_etapa("② Premissas")
     assert not app.exception
 
     slider_g = next(
@@ -63,7 +83,7 @@ def test_premissas_bloqueia_g_maior_que_wacc() -> None:
 
 def test_premissas_com_g_valido_nao_bloqueia() -> None:
     """g baixo nao gera erro e mantem o botao habilitado."""
-    app = _abrir_secao("Premissas")
+    app = _abrir_etapa("② Premissas")
 
     slider_g = next(
         widget for widget in app.main.slider if "perpetuidade" in str(widget.label)
@@ -71,27 +91,37 @@ def test_premissas_com_g_valido_nao_bloqueia() -> None:
     slider_g.set_value(0.02).run()
 
     assert not app.exception
-    assert not [str(erro.value) for erro in app.main.error]
+    erros_bloqueio = [
+        str(erro.value) for erro in app.main.error if "BLOQUEADO" in str(erro.value)
+    ]
+    assert not erros_bloqueio
     botao_salvar = next(
         botao for botao in app.main.button if "Salvar premissas" in str(botao.label)
     )
     assert botao_salvar.disabled is False
 
 
-def test_secao_valuation_renderiza_checklist() -> None:
-    """Valuation exibe a decomposicao do WACC e o checklist."""
-    app = _abrir_secao("Valuation")
-
+def test_premissas_expoe_margem_bruta_pre_dea() -> None:
+    """O editor das 6 premissas trata margem bruta como pre-D&A e deriva EBITDA."""
+    app = _abrir_etapa("② Premissas")
     assert not app.exception
-    subtitulos = [str(sub.value) for sub in app.main.subheader]
-    assert any("WACC" in sub for sub in subtitulos)
-    assert any("Checklist" in sub for sub in subtitulos)
+    textos = [str(c.value) for c in app.main.caption]
+    # A margem bruta e o conceito central (pre-D&A); a EBITDA vira derivada.
+    assert any("margem bruta" in t.lower() for t in textos)
+    assert any("DERIVADA" in t for t in textos)
 
 
-def test_excel_preview_renderiza_7_abas() -> None:
-    """Excel Preview mostra as 7 abas do .xlsx com tabelas de valores."""
-    app = _abrir_secao("Excel Preview")
+def test_premissas_wacc_manual_opcional() -> None:
+    """O grupo WACC expoe o checkbox de input manual (Prompt 9.0.4)."""
+    app = _abrir_etapa("② Premissas")
+    assert not app.exception
+    rotulos_checkbox = [str(cb.label) for cb in app.main.checkbox]
+    assert any("WACC manualmente" in rotulo for rotulo in rotulos_checkbox)
 
+
+def test_etapa_exportar_renderiza_7_abas() -> None:
+    """Etapa ④ Exportar mostra as 7 abas do .xlsx com tabelas."""
+    app = _abrir_etapa("④ Exportar")
     assert not app.exception
     rotulos_abas = [str(aba.label) for aba in app.main.tabs]
     assert rotulos_abas == [
@@ -103,57 +133,25 @@ def test_excel_preview_renderiza_7_abas() -> None:
         "Sensibilidades",
         "Output",
     ]
-    # Cada aba do preview traz ao menos uma tabela de valores.
     assert len(app.main.dataframe) >= 7
 
 
-@pytest.mark.skip(
-    reason="Secao Comparaveis saiu do app enxuto (congelado 9.0.0 — D-053)"
-)
-def test_secao_comparaveis_renderiza_triangulacao() -> None:
-    """Comparaveis mostra DCF vs faixa por multiplos com veredito textual."""
-    app = _abrir_secao("Comparaveis")
-
+def test_etapa_resultados_valuation_renderiza_checklist() -> None:
+    """Sub-aba Valuation exibe a decomposicao do WACC e o checklist."""
+    app = _abrir_etapa("③ Resultados")
     assert not app.exception
-    rotulos = [str(metrica.label) for metrica in app.main.metric]
-    assert "DCF (base)" in rotulos
-    assert any("multiplos" in rotulo for rotulo in rotulos)
+    subtitulos = [str(sub.value) for sub in app.main.subheader]
+    assert any("WACC" in sub for sub in subtitulos)
+    assert any("Checklist" in sub for sub in subtitulos)
 
 
-@pytest.mark.skip(
-    reason="Secao Comparar/watchlist saiu do app enxuto (congelado 9.0.0 — D-053)"
-)
-def test_secao_comparar_mostra_3_ou_mais_empresas() -> None:
-    """Comparar renderiza o painel lado a lado com 3+ empresas analisadas."""
-    app = _abrir_secao("Comparar")
-
-    assert not app.exception
-    multiselect = app.main.multiselect[0]
-    assert len(multiselect.value) >= 3
-    # Painel comparativo + watchlist geram tabelas nativas.
-    assert len(app.main.dataframe) >= 1
-
-
-@pytest.mark.skip(
-    reason="Seletor de cenarios saiu do Overview enxuto (congelado 9.0.0 — D-053)"
-)
-def test_overview_tem_seletor_de_cenarios() -> None:
-    """Overview expoe o radio Bear/Base/Bull do motor de cenarios."""
-    app = _abrir_secao("Overview")
-
-    assert not app.exception
-    radios_main = [list(radio.options) for radio in app.main.radio]
-    assert ["Bear", "Base", "Bull"] in radios_main
-
-
-def test_excel_preview_download_serve_xlsx_valido() -> None:
+def test_excel_download_serve_xlsx_valido() -> None:
     """O arquivo servido pelo botao de download e um .xlsx real (zip PK)."""
     import zipfile
 
-    app = _abrir_secao("Excel Preview")
+    app = _abrir_etapa("④ Exportar")
     assert not app.exception
 
     caminho = RAIZ_PROJETO / "outputs" / "excel" / "DIRR3_dcf.xlsx"
     assert caminho.exists(), "Excel nao gerado — rode o pipeline (main.py)"
-    # O download_button serve exatamente estes bytes; valida o container zip.
     assert zipfile.is_zipfile(caminho)

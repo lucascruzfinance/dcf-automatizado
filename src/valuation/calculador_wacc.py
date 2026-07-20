@@ -335,7 +335,30 @@ def calcular_wacc(
     peso_divida = 1 - peso_equity
 
     # Formula: WACC = (E/V) x Ke_BRL + (D/V) x Kd x (1 - t).
-    wacc = peso_equity * ke_brl + peso_divida * kd_liquido
+    wacc_capm = peso_equity * ke_brl + peso_divida * kd_liquido
+
+    # Override manual (Prompt 9.0.4): premissa ``wacc_manual`` (decimal em
+    # (0, 1]) VENCE o build-up CAPM. A decomposicao acima continua persistida
+    # para transparencia (``wacc_capm_buildup``), mas o WACC USADO no VT/EV e
+    # o do analista. Sem a premissa, o build-up manda (comportamento v2).
+    wacc_manual = premissas.get("wacc_manual")
+    wacc_origem = "build_up_capm"
+    if (
+        isinstance(wacc_manual, (int, float))
+        and not isinstance(wacc_manual, bool)
+        and 0 < float(wacc_manual) <= 1
+    ):
+        wacc = float(wacc_manual)
+        wacc_origem = "manual_do_analista"
+        logger.info(
+            "WACC manual do analista (%s): %.4f vence o build-up CAPM %.4f.",
+            ticker_normalizado,
+            wacc,
+            wacc_capm,
+        )
+    else:
+        wacc = wacc_capm
+
     if wacc <= 0:
         raise ValueError(
             f"WACC nao positivo ({wacc:.4%}): reveja premissas de Ke, Kd e "
@@ -361,6 +384,8 @@ def calcular_wacc(
         "kd_liquido": kd_liquido,
         "peso_equity": peso_equity,
         "peso_divida": peso_divida,
+        "wacc_capm_buildup": wacc_capm,
+        "wacc_origem": wacc_origem,
         "wacc": wacc,
     }
 
