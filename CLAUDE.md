@@ -2,9 +2,11 @@
 
 Sistema de valuation por DCF para ações da B3. Estado atual e próxima tarefa:
 `CONTEXT.md` (fonte única de verdade do estado). Especificação v1.0: `docs/ROTEIRO.md`.
-Plano vigente — v2.1 "Padrão Smartfit" (semanas 8–10, prompts progressivos):
-`PROMPTS_FABLE.md`. Modelos Excel de referência (imutáveis) e seus mapas
-estruturais: `referencias/modelos_excel/`.
+Plano vigente — **v2.1: Semana 9.0 CONCLUÍDA** (6 prompts 9.0.0–9.0.5) e
+**Semana 10 PLANEJADA** (gráficos vivos no app): `PROMPTS_FABLE.md`. O Excel
+final segue o **padrão Direcional** (aba `Modelo` + FCFF/FCFE separadas, cores
+de Lucas), não o Smartfit — unit economics ficou para a v3.0. Modelos Excel de
+referência (imutáveis) e mapas: `referencias/modelos_excel/`.
 
 ## Protocolo de decisões autônomas (instrução permanente de Lucas, 12/07/2026)
 
@@ -28,7 +30,7 @@ solicitação, em TODAS as sessões.
 - ROIC/FCFF/LL negativos são válidos; não travar.
 - Campo CVM ausente → log (`logs/`), nunca quebra silenciosa.
 - Config em `config/*.json`, nunca hard-code setorial.
-- Regressão dourada: DIRR3 e MGLU3 não podem mudar sem explicação.
+- Regressão dourada TRIPLA: DIRR3, MGLU3 e SMFT3 não podem mudar sem explicação.
 - Ao fim de cada sessão: atualizar a Seção 8 do `CONTEXT.md` (sessão datada).
 
 ## Ambiente e comandos

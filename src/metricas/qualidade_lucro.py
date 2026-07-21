@@ -34,6 +34,7 @@ from src.projecao.projetor_dre import (
     carregar_metadados,
     empresa_usa_ret,
     normalizar_ticker,
+    normalizar_texto,
     resolver_raiz,
     salvar_json,
 )
@@ -80,9 +81,9 @@ def levantar_nao_recorrentes_ano0(
     datas = pd.to_datetime(marcados["DT_FIM_EXERC"], errors="coerce")
     marcados = marcados[datas == datas.max()]
     if "ORDEM_EXERC" in marcados.columns:
-        ultimos = marcados[
-            marcados["ORDEM_EXERC"].astype(str).str.upper().str.contains("LT")
-        ]
+        # Convencao unica do projeto: ORDEM_EXERC normalizada == "ultimo".
+        # (str.contains("LT") casava PENULTIMO tambem — pen-uLTimo.)
+        ultimos = marcados[marcados["ORDEM_EXERC"].map(normalizar_texto) == "ultimo"]
         if not ultimos.empty:
             marcados = ultimos
 

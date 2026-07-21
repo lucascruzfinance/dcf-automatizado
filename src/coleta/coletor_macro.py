@@ -356,9 +356,9 @@ def serie_convergente(
             resultado.append((por_ano[ano_base + primeiro - 1], "focus_mais_proximo"))
         elif ano < ultimo:
             resultado.append((valor_anterior, "focus_mais_proximo"))
-        elif ultimo == horizonte:
-            resultado.append((valor_ultimo, "focus"))
         else:
+            # Aqui ano > ultimo (ano == ultimo cai no primeiro if, pois e ano
+            # coberto), logo ultimo < horizonte e o denominador nao zera.
             # Formula: v_t = v_u + (meta - v_u) x (t - t_u) / (N - t_u).
             fracao = (ano - ultimo) / (horizonte - ultimo)
             valor = valor_ultimo + (meta - valor_ultimo) * fracao

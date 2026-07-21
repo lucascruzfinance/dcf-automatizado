@@ -1,6 +1,6 @@
-# CONGELADO v2.1 (Prompt 9.0.0 - Enxugamento): fora do nucleo, nao-mantido.
-# Removido do caminho critico (app/pipeline/main); reversivel. Ver a lista
-# do congelado em Humano_revisar.md (D-053).
+# DESCONGELADO na Semana 10 (revisao de 20/07/2026): re-alinhado ao motor
+# 9.0.x e coberto por teste. A re-integracao ao app (sub-abas de graficos) e a
+# entrega do Prompt 10.0.4. Ver Humano_revisar.md (D-078, reverte D-053).
 """Comparacao multi-empresa: Target vs Preco e upside lado a lado (Onda 4).
 
 Consome exclusivamente os JSONs persistidos pelo motor (projecao,

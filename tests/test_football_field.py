@@ -2,14 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from src.visualizacao.football_field import montar_metodologias
-
-# CONGELADO v2.1 (Prompt 9.0.0 — Enxugamento): football_field saiu do nucleo.
-# Testes preservados, mas pulados para a suite seguir verde. Ver
-# Humano_revisar.md (D-053). Para reativar, remover este pytestmark.
-pytestmark = pytest.mark.skip(reason="congelado 9.0.0 — fora do nucleo (D-053)")
 
 
 def comparaveis_sinteticos() -> dict:

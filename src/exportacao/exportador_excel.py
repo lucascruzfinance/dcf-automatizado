@@ -54,6 +54,10 @@ try:
         normalizar_ticker,
         resolver_raiz,
     )
+    from src.valuation.calculador_vt import (
+        carregar_convencao_desconto,
+        expoente_desconto,
+    )
 except ModuleNotFoundError as erro:
     if erro.name != "src":
         raise
@@ -66,6 +70,10 @@ except ModuleNotFoundError as erro:
         empresa_usa_ret,
         normalizar_ticker,
         resolver_raiz,
+    )
+    from src.valuation.calculador_vt import (
+        carregar_convencao_desconto,
+        expoente_desconto,
     )
 
 logger = logging.getLogger(__name__)
@@ -191,6 +199,10 @@ def montar_contexto(ticker: str, raiz_projeto: Path | None = None) -> dict[str, 
         "macro": macro,
         "auditoria": auditoria,
         "usa_ret": empresa_usa_ret(premissas, metadados),
+        # Convencao de desconto do motor (meio-periodo/stub) — as formulas do
+        # Excel usam o MESMO expoente que o motor, senao o VP explicito nao
+        # fecharia com os totais persistidos quando a convencao muda.
+        "convencao_desconto": carregar_convencao_desconto(raiz),
     }
 
 
@@ -2309,6 +2321,15 @@ def _aba_fcff(wb: Workbook, ctx: dict[str, Any], aba_modelo: Aba) -> Aba:
     aliquota_nopat = _numero(fcff.get("ano1", {}).get("aliquota_ir_nopat")) or 0.0
     wacc_usado = _numero(wacc_bloco.get("wacc"))
     g = _numero(vt.get("g"))
+    conv = ctx["convencao_desconto"]
+
+    def _exp(ano: int) -> float:
+        """Expoente de desconto do ano (mesma convencao do motor)."""
+        return expoente_desconto(ano, conv)
+
+    def _exp_txt(ano: int) -> str:
+        """Expoente formatado para a formula (8, nao 8.0, em periodo cheio)."""
+        return f"{_exp(ano):g}"
 
     # Layout vertical com registro de linhas.
     cursor = 3
@@ -2412,12 +2433,16 @@ def _aba_fcff(wb: Workbook, ctx: dict[str, Any], aba_modelo: Aba) -> Aba:
         return formula, valor
 
     linha_serie("fcff", "(=) FCFF", f_fcff, lambda t: fx("fcff", t), negrito=True)
-    linha_serie("t_anos", "t (anos)", None, lambda t: float(t), FORMATO_DIAS)
+    # t (anos) guarda o EXPOENTE de desconto (t, ou t-0,5 em meio-periodo) para
+    # a formula de VP referenciar — igual a convencao do motor.
+    linha_serie("t_anos", "t (desconto)", None, lambda t: _exp(t), FORMATO_MILHAR_2)
 
     def f_vp(t: int) -> tuple[str, float | None]:
         fluxo = fx("fcff", t)
         valor = (
-            fluxo / (1 + wacc_usado) ** t if fluxo is not None and wacc_usado else None
+            fluxo / (1 + wacc_usado) ** _exp(t)
+            if fluxo is not None and wacc_usado
+            else None
         )
         return f"={rl('fcff', t)}/(1+WACC)^{rl('t_anos', t)}", valor
 
@@ -2426,7 +2451,7 @@ def _aba_fcff(wb: Workbook, ctx: dict[str, Any], aba_modelo: Aba) -> Aba:
         "VP do FCFF",
         f_vp,
         lambda t: (
-            (fx("fcff", t) or 0.0) / (1 + wacc_usado) ** t if wacc_usado else None
+            (fx("fcff", t) or 0.0) / (1 + wacc_usado) ** _exp(t) if wacc_usado else None
         ),
     )
     linha_serie("roic", "ROIC (%)", None, lambda t: fx("roic", t), FORMATO_PERCENTUAL)
@@ -2469,7 +2494,7 @@ def _aba_fcff(wb: Workbook, ctx: dict[str, Any], aba_modelo: Aba) -> Aba:
     soma_vp = _numero(vt.get("soma_vp_fcff")) or _numero(ev_equity.get("soma_vp_fcff"))
     soma_python = (
         sum(
-            (fx("fcff", t) or 0.0) / (1 + wacc_usado) ** t
+            (fx("fcff", t) or 0.0) / (1 + wacc_usado) ** _exp(t)
             for t in range(1, HORIZONTE_PROJECAO + 1)
         )
         if wacc_usado
@@ -2503,9 +2528,9 @@ def _aba_fcff(wb: Workbook, ctx: dict[str, Any], aba_modelo: Aba) -> Aba:
         "vp_vt",
         "PV da perpetuidade",
         vp_vt,
-        formula=f"={_ref('', 2, aba.L('vt_bruto'))}/(1+WACC)^8",
+        formula=f"={_ref('', 2, aba.L('vt_bruto'))}/(1+WACC)^{_exp_txt(8)}",
         valor_python=(
-            vt_bruto / (1 + wacc_usado) ** 8
+            vt_bruto / (1 + wacc_usado) ** _exp(8)
             if vt_bruto is not None and wacc_usado
             else None
         ),
@@ -2727,9 +2752,6 @@ def _aba_fcff(wb: Workbook, ctx: dict[str, Any], aba_modelo: Aba) -> Aba:
             negrito=True,
         )
         chave_wacc_usado = "w_usado"
-    if manual:
-        # Ainda registra o WACC usado como celula propria p/ o nome definido.
-        pass
 
     g_valor = g
     linha_valor(
@@ -2828,6 +2850,15 @@ def _aba_fcfe(wb: Workbook, ctx: dict[str, Any], aba_modelo: Aba) -> Aba:
     ev_equity = projecao.get("ev_equity", {})
     ke = _numero(valuation.get("ke"))
     g = _numero(valuation.get("g"))
+    conv = ctx["convencao_desconto"]
+
+    def _exp(ano: int) -> float:
+        """Expoente de desconto do ano (mesma convencao do motor)."""
+        return expoente_desconto(ano, conv)
+
+    def _exp_txt(ano: int) -> str:
+        """Expoente formatado para a formula (8, nao 8.0, em periodo cheio)."""
+        return f"{_exp(ano):g}"
 
     def fx(campo: str, t: int) -> float | None:
         return _numero(fcfe.get(f"ano{t}", {}).get(campo))
@@ -2939,18 +2970,18 @@ def _aba_fcfe(wb: Workbook, ctx: dict[str, Any], aba_modelo: Aba) -> Aba:
         return formula, valor
 
     linha_serie("fcfe", "(=) FCFE", f_fcfe, lambda t: fx("fcfe", t), negrito=True)
-    linha_serie("t_anos", "t (anos)", None, lambda t: float(t), FORMATO_DIAS)
+    linha_serie("t_anos", "t (desconto)", None, lambda t: _exp(t), FORMATO_MILHAR_2)
 
     def f_vp(t: int) -> tuple[str, float | None]:
         fluxo = fx("fcfe", t)
-        valor = fluxo / (1 + ke) ** t if fluxo is not None and ke else None
+        valor = fluxo / (1 + ke) ** _exp(t) if fluxo is not None and ke else None
         return f"={rl('fcfe', t)}/(1+Ke_fcfe)^{rl('t_anos', t)}", valor
 
     linha_serie(
         "vp_fcfe",
         "VP do FCFE (ao Ke)",
         f_vp,
-        lambda t: ((fx("fcfe", t) or 0.0) / (1 + ke) ** t if ke else None),
+        lambda t: ((fx("fcfe", t) or 0.0) / (1 + ke) ** _exp(t) if ke else None),
     )
 
     cursor += 1
@@ -2999,7 +3030,7 @@ def _aba_fcfe(wb: Workbook, ctx: dict[str, Any], aba_modelo: Aba) -> Aba:
     soma_vp = _numero(valuation.get("soma_vp_fcfe"))
     soma_python = (
         sum(
-            (fx("fcfe", t) or 0.0) / (1 + ke) ** t
+            (fx("fcfe", t) or 0.0) / (1 + ke) ** _exp(t)
             for t in range(1, HORIZONTE_PROJECAO + 1)
         )
         if ke
@@ -3044,9 +3075,9 @@ def _aba_fcfe(wb: Workbook, ctx: dict[str, Any], aba_modelo: Aba) -> Aba:
         "vp_vt",
         "PV da perpetuidade",
         vp_vt,
-        formula=f"={_ref('', 2, aba.L('vt'))}/(1+Ke_fcfe)^8",
+        formula=f"={_ref('', 2, aba.L('vt'))}/(1+Ke_fcfe)^{_exp_txt(8)}",
         valor_python=(
-            vt_bruto / (1 + ke) ** 8 if vt_bruto is not None and ke else None
+            vt_bruto / (1 + ke) ** _exp(8) if vt_bruto is not None and ke else None
         ),
     )
     equity_fcfe = _numero(valuation.get("equity_value_fcfe"))
@@ -3223,16 +3254,23 @@ def _aba_sensibilidades(wb: Workbook, ctx: dict[str, Any]) -> Aba:
         + (_numero(ajustes.get("ativos_nao_operacionais")) or 0.0)
     )
 
+    conv = ctx["convencao_desconto"]
+
     def target_para(wacc: float, g: float) -> float | None:
         """Recalculo de APRESENTACAO da grade (mesma matematica do motor)."""
         if wacc <= g or wacc <= 0:
             return None
-        soma_vp = sum(f / (1 + wacc) ** t for t, f in enumerate(fluxos, start=1))
+        soma_vp = sum(
+            f / (1 + wacc) ** expoente_desconto(t, conv)
+            for t, f in enumerate(fluxos, start=1)
+        )
         base = fluxos[-1]
         if base < 0:
             base = _numero(fcff.get("ano8", {}).get("nopat")) or 0.0
         vt_bruto = base * (1 + g) / (wacc - g)
-        ev = soma_vp + vt_bruto / (1 + wacc) ** HORIZONTE_PROJECAO
+        ev = soma_vp + vt_bruto / (1 + wacc) ** expoente_desconto(
+            HORIZONTE_PROJECAO, conv
+        )
         return (ev + ajuste_liquido) * fator / acoes
 
     passos_wacc = [-0.015, -0.01, -0.005, 0.0, 0.005, 0.01, 0.015]

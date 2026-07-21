@@ -7,9 +7,39 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ---
 
-## [Não lançado] — v2.0 "Universalização" (em planejamento)
+## [Não lançado] — v2.1 "Padrão Direcional" — Semana 9.0 (CONCLUÍDA, 17→20/07/2026)
 
-### Planejado (5 ondas progressivas — ver `PROMPTS_FABLE.md`, IA: Claude Fable 5)
+Motor e apresentação reescritos ao padrão da Direcional; a auditoria multi-agente (5
+agentes) deu PASS em dados, Excel, front-end, DCF e sensibilidades. Suíte **192 passed /
+12 skipped**.
+
+### Adicionado / Alterado (prompts 9.0.0 → 9.0.5)
+- **9.0.0 Enxugamento:** projeto reduzido ao núcleo; 15 módulos de gráficos/BI congelados
+  (`# CONGELADO v2.1`, D-053) — voltam na Semana 10.
+- **9.0.1 Fidelidade à CVM:** BP/DRE/DFC batendo com a DFP/ITR (residual < 5%); novo
+  `auditor_cvm.py` (5 checagens).
+- **9.0.2 Motor "padrão Direcional":** DRE **pré-D&A** (margem bruta + SG&A; margem EBITDA
+  derivada; D&A linha própria), WK **multi-driver**, DFC **indireto**, BP **aberto** com
+  linha Check, alíquota anual, minoritários + LPA.
+- **9.0.3 FCFE + macro + retornos:** FCFE não-financeira ao Ke, bloco `macro_anual`
+  (CDI/IGP-M/câmbio), painel de retornos (TIR/MOIC/múltiplos).
+- **9.0.4 Front-end guiado:** app de 4 etapas (① Empresa → ② Premissas → ③ Resultados →
+  ④ Exportar), 6 premissas, WACC manual, sub-abas Modelo/Retornos.
+- **9.0.5 Excel "Modelo":** exportador reescrito em **8 abas** (Capa, Premissas, Modelo,
+  FCFF, FCFE, Macro, Sensibilidades, Avisos) com fórmulas nativas VIVAS que reproduzem o
+  motor, linha Check booleana e **cores de Lucas** (histórico azul / premissa verde /
+  fórmula preto). `dfc_simplificado` removido.
+
+### Planejado — Semana 10
+- Descongelar `src/visualizacao/` e religar os gráficos no app (Football Field
+  automatizado, tornado, waterfall, ROIC/ROIIC, sensibilidade viva, comparáveis,
+  bear/base/bull); resolver os achados menores da revisão.
+
+---
+
+## [Não lançado] — v2.0 "Universalização" (Ondas 1–4 CONCLUÍDAS em 13/07/2026)
+
+### Entregue (ver `PROMPTS_FABLE.md`, IA: Claude Fable 5)
 - **Onda 1 — Coleta universal:** mapeamento CVM por `CD_CONTA`, resolvedor de ticker,
   classificador de tipo/subtipo setorial, `limpeza.py` real com Parquet, relatório de
   qualidade de dados e coleta em lote. Meta: qualquer empresa da B3 entra no pipeline.

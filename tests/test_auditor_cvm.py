@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from src.coleta.auditor_cvm import auditar_empresa
+from src.coleta.auditor_cvm import auditar_empresa, montar_snapshot, verificar_dfc
 
 EXERCICIO = "2025-12-31"
 
@@ -182,6 +182,36 @@ def test_dfc_que_nao_amarra_gera_erro(tmp_path: Path) -> None:
         if item["categoria"] == "dfc_amarra" and item["status"] == "ERRO"
     ]
     assert any("nao amarra ao caixa do BP" in item["descricao"] for item in erros_dfc)
+
+
+def _snapshot_caixa(caixa_dfc: float, caixa_bp: float) -> tuple[dict, dict]:
+    """Snapshots minimos p/ testar so a amarracao cruzada DFC->BP do caixa."""
+    inicial = caixa_dfc - 50.0
+    dfc = [
+        _linha("6.05", "Variacao de Caixa", 50.0, "variacao_caixa", "dfc"),
+        _linha("6.05.01", "Saldo Inicial", inicial, "caixa_inicial_dfc", "dfc"),
+        _linha("6.05.02", "Saldo Final", caixa_dfc, "caixa_final_dfc", "dfc"),
+    ]
+    bp = [_linha("1.01.01", "Caixa", caixa_bp, "caixa_equivalentes", "bp_ativo")]
+    return montar_snapshot(dfc, EXERCICIO), montar_snapshot(bp, EXERCICIO)
+
+
+def test_dfc_diferenca_imaterial_vira_aviso_nao_erro() -> None:
+    """Escopo de caixa DFC != BP < 1% (PETR4/ABEV3) -> AVISO, nao ERRO."""
+    # Caixa DFC 100.000 vs BP 99.600 = 0,4% (imaterial; overdraft compensado).
+    snap_dfc, snap_bp = _snapshot_caixa(100_000.0, 99_600.0)
+    itens = verificar_dfc(snap_dfc, snap_bp, EXERCICIO)
+    cruzados = [i for i in itens if "caixa do BP" in i["descricao"]]
+    assert cruzados and cruzados[0]["status"] == "AVISO"
+    assert cruzados[0]["detalhes"]["diferenca_pct_caixa"] < 0.01
+
+
+def test_dfc_diferenca_material_permanece_erro() -> None:
+    """Desvio material (>1% do caixa, ex.: RENT3 5%) continua ERRO."""
+    snap_dfc, snap_bp = _snapshot_caixa(100_000.0, 94_000.0)  # 6% do caixa
+    itens = verificar_dfc(snap_dfc, snap_bp, EXERCICIO)
+    cruzados = [i for i in itens if "nao amarra ao caixa do BP" in i["descricao"]]
+    assert cruzados and cruzados[0]["status"] == "ERRO"
 
 
 def test_identidade_dre_com_sinal_invertido_vira_aviso(tmp_path: Path) -> None:

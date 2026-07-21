@@ -126,9 +126,10 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
 - **Data da última atualização:** 20/07/2026
-- **Versão alvo:** **v2.1 "Padrão Smartfit"** (semanas 8–10, 8 prompts do
-  `PROMPTS_FABLE.md` reescrito; v2.0 Ondas 1–4 concluídas; a antiga Onda 5 foi
-  redistribuída — parte virou as semanas 8–10, o resto virou backlog v2.2).
+- **Versão alvo:** **v2.1** — **Semana 9.0 CONCLUÍDA** (6 prompts 9.0.0 → 9.0.5
+  no `PROMPTS_FABLE.md`; Excel "Modelo" padrão **Direcional**, não Smartfit —
+  unit economics adiado p/ v3.0). **Semana 10 PLANEJADA** (gráficos vivos no
+  app). v2.0 Ondas 1–4 concluídas; backlog restante em v2.2.
 - **Fase atual:** v2.0 — **ONDAS 1, 2, 3 e 4 CONCLUÍDAS/ VALIDADAS em
   13/07/2026** (suíte 135 verde, auditoria da cadeia de dados, figuras
   conferidas contra os JSONs e app real validado no navegador; D-025/D-026).
@@ -174,6 +175,12 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   Decisões autônomas pendentes de revisão humana: **`Humano_revisar.md`**
   (D-001+, agora até D-073; D-063 sobre o Kd do WACC segue ABERTA — ver D-066).
 - **O que está PRONTO e VALIDADO:**
+  > ⚠️ **A lista de bullets abaixo é HISTÓRICA (estado da Semana 2/3, v1.0).**
+  > O estado ATUAL e correto está no cabeçalho desta Seção 8 (acima) e nos
+  > **logs de sessão datados** (17/07 → 20/07/2026) mais abaixo. Em caso de
+  > conflito, valem o cabeçalho e os logs datados. Números como "47 testes" ou
+  > "SEMANA 3 COM FALHAS" refletem a Semana 3 — a suíte atual é **192 passed,
+  > 12 skipped** e `verificar_semana3` imprime **SEMANA 3 OK**.
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
   - Templates de premissas criados em `data/premissas/` com campos individuais por ano.
@@ -203,15 +210,15 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - Validação atualizada: `pytest tests\ -v` verde com 47 testes; `flake8 .` verde; `src/verificar_semana2.py` rodou DIRR3 e MGLU3 com balanço fechado nos 8 anos.
   - `src/verificar_semana3.py` criado: executa DRE -> WK -> PP&E -> dívida -> FCFF -> WACC -> VT -> EV -> checklist para DIRR3 e MGLU3, imprime FCFF anual, painel-resumo e classificações E1-E8/S1-S4.
   - Validação de qualidade atual: `pytest tests\ -v` verde com 47 testes; `flake8 src\ tests\` verde.
-- **O que está EM PROGRESSO:**
-  - Validação humana dos números coletados e das premissas reais de DIRR3 e MGLU3
-    (as premissas atuais são plausíveis mas ainda não são tese de investimento).
-  - Validação visual humana dos 14 gráficos em `outputs/graficos/` e da jornada
-    completa no `streamlit run app.py`.
+- **O que está EM PROGRESSO / pendente de revisão humana (v2.1):**
+  - Premissas REAIS de DIRR3/MGLU3/SMFT3 (as automáticas são ponto de partida,
+    não tese — padrão D-024).
+  - Revisão do `kd_historico` derivado alto em nomes alavancados (D-063).
 - **PRÓXIMA TAREFA:**
-  - SEMANA 5 / Etapa 5 (restante): `exportador_bi.py` (tabelas planas para
-    Power BI em `outputs/bi/<TICKER>/`) e aba Excel Preview funcional no
-    `app.py` (renderizar as 7 abas + botão de download do `.xlsx`).
+  - **Semana 10** (planejada em `PROMPTS_FABLE.md`, 10.0.0 → 10.0.5): trazer os
+    gráficos de volta ao app (descongelar `src/visualizacao/`, football field
+    automatizado, tornado, waterfall, ROIC/ROIIC, sensibilidade viva,
+    comparáveis, bear/base/bull) + resolver os achados menores da revisão.
 - **Decisões de arquitetura tomadas nesta sessão:**
   - O coletor usa o cadastro de companhias abertas e os arquivos FCA da CVM para relacionar ticker negociado ao `CD_CVM`.
   - Como o FCA recente traz `CNPJ_Companhia` em vez de `CD_CVM`, o coletor cruza `FCA.CNPJ_Companhia` com `cad_cia_aberta.CNPJ_CIA` para obter o `CD_CVM`.
@@ -306,6 +313,75 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   expostos sem travar: `dfc_amarra` RENT3/PETR4/ABEV3 (caixa DFC ≠ BP na
   divulgação da cia), falso-positivo AC/ANC do auditor em bancos, e Modelo
   Integrado com 3 anos históricos por contrato v1 (5 anos = entrega do 9.0.5).
+
+### Sessão 20/07/2026 (Claude Fable 5) — Varredura linha a linha + destravar os 12 skipped
+
+- **Objetivo (pedido de Lucas):** varredura linha a linha de valuation/Excel e
+  orquestração (agentes que faltavam) + "fazer os 12 skipped".
+- **12 skipped destravados (D-078):** eram todos dos módulos congelados
+  (comparaveis 6, football_field 3, motor_cenarios 2, roic_roiic 1). Removi os
+  skips e o banner `# CONGELADO` de 14 módulos; passam SEM mudança de código.
+  **Verificados com dados REAIS do DIRR3** (não só fixtures): 7 gráficos geram
+  figura Plotly real; motor_cenarios dá bear<base<bull com base=target. Suíte:
+  **192+12 skip → 204 passed, 0 skipped**. (Re-integração ao app = Prompt
+  10.0.4; `exportador_bi` segue congelado.)
+- **Varreduras linha a linha (D-079):** valuation/Excel LIMPO (0 bug ativo);
+  orquestração ÍNTEGRA. Consertos: exportador passa a honrar a convenção de
+  desconto do motor (`expoente_desconto` em FCFF/FCFE/Sensibilidades —
+  output byte-idêntico com a config atual); removido no-op morto; `main.py`
+  "7 abas" → "8 abas".
+- **Validação:** `pytest tests -q` → **204 passed, 0 skipped**; `black
+  --workers 1`/`flake8` limpos; `verificar_semana3` OK.
+
+### Sessão 20/07/2026 (Claude Fable 5) — Revisão final, consertos, Semana 10 planejada, docs reescritas
+
+- **Objetivo (pedido de Lucas):** revisar todo o código e consertar erros,
+  reescrever TODA a documentação ao estado real, e planejar a **Semana 10**
+  (gráficos de volta ao app).
+- **5 agentes de revisão de código** (2 caíram por limite de sessão, mas
+  valuation/Excel e integração já tinham PASS na auditoria anterior).
+  Concluídos: Coleta/Métricas (achados menores), Motor (LIMPO), Documentação
+  (mapa de 38 correções).
+- **Consertos (D-076):** `qualidade_lucro.py` (ORDEM_EXERC `.contains("LT")`
+  casava PENÚLTIMO → `== "ultimo"`); `coleta_lote.py` (captura `Exception`, não
+  só `RuntimeError`); removidas 3 impurezas (constante morta
+  `TIMEOUT_SEGUNDOS`, ramo inalcançável no `serie_convergente`, `.upper()`
+  redundante). Não-corrigidos documentados (leasing no DFC = backlog D-042;
+  etc.).
+- **Semana 10 (D-075):** adicionada ao `PROMPTS_FABLE.md` (10.0.0 → 10.0.5) —
+  descongelar `src/visualizacao/`, football field automatizado, comparáveis
+  reais, cenários bear/base/bull, sensibilidade viva, gráficos no app.
+- **Docs reescritas (D-077):** README (7→8 abas, app 4 etapas, roadmap v2.1,
+  cores de Lucas), CONTEXT (banner histórico na lista PRONTO da Seção 8),
+  referencias/README (cores de Lucas ≠ WSP), CLAUDE, ROTEIRO (banner
+  histórico v1.0), CHANGELOG (v2.0/v2.1), CONTRIBUTING.
+- **Validação:** `pytest tests -q` → **192 passed, 12 skipped**; `black
+  --workers 1`/`flake8` limpos.
+
+### Sessão 20/07/2026 (Claude Fable 5) — Auditoria multi-agente da Semana 9 (5 agentes)
+
+- **Objetivo (pedido de Lucas):** verificação exaustiva com múltiplos agentes
+  simultâneos, um por área, testando cada situação.
+- **5 agentes paralelos, todos veredito PASS, 0 bug de motor:** (1) Dados CVM
+  — fonte oficial HTTPS segura, balanço fecha/DFC amarra nos 6 tickers,
+  extração 1:1, 6 anos, Ano 0 da CVM real, sem hardcode; (2) Excel — 668–747
+  fórmulas/ticker recalculadas com 0 divergências, Check "Ok"×8, cores,
+  FCFF/FCFE separadas, modelo vivo; (3) Front-end — 16/16 boots ok, 6
+  premissas, propagação premissa→demonstrativos+FCFF+FCFE comprovada (11/11),
+  navegador sem erro JS; (4) DCF/matemática — FCFF/FCFE/WACC/VT/TIR/MOIC
+  recalculados independente com 0 divergências, `verificar_semana3` OK; (5)
+  Sensibilidades — Excel bate 100% com o motor, grade bear/base/bull ok.
+- **Correção D-074:** `auditor_cvm.py::verificar_dfc` rebaixado — diferença
+  imaterial (< 1% do caixa) entre caixa DFC e BP vira AVISO (era ERRO;
+  PETR4/ABEV3 são escopo contábil, não erro); desvio material (RENT3 5,34%)
+  permanece ERRO. +2 testes.
+- **Achados sem correção (decisão de Lucas):** app NÃO tem gráficos Plotly
+  (congelados no 9.0.0, D-053 — descongelar é backlog reversível); cobertura
+  de mapeamento > 5% em ABEV3/VALE3 (subcontas reais, totais fecham); capex no
+  editor de vetores em vez de "Outros" (cosmético); grade colapsa com target
+  ≤ 0 (correto).
+- **Validação:** `pytest tests -q` → **192 passed, 12 skipped** (+2 do
+  auditor); `black --workers 1`/`flake8` limpos.
 
 ### Sessão 20/07/2026 (Claude Fable 5) — Prompt 9.0.5 (Excel "Modelo") — FECHA a Semana 9.0
 

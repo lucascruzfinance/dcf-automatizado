@@ -148,17 +148,18 @@ O sistema é organizado em **5 módulos sequenciais** que se comunicam via arqui
                                  │
                                  ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  MÓDULO 5 — DASHBOARD E OUTPUTS                     [100% Automático]   │
+│  MÓDULO 5 — APRESENTAÇÃO E OUTPUTS                  [100% Automático]   │
 │                                                                          │
-│  Football Field (7 metodologias)                                         │
-│  Waterfall de decomposição do EV                                        │
-│  Tabela de Sensibilidade WACC × g (ou Ke × g para financeiras)         │
-│  Tabela de Sensibilidade Receita × Margem EBITDA                        │
-│  Sensibilidade Setorial específica por setor                            │
-│  Histórico vs. Projetado (grade 2×2 com 4 métricas)                    │
-│  ROIC e ROIIC histórico vs. projetado                                   │
-│  Dashboard consolidado com Recomendação e Checklist                     │
-│  Front-end Streamlit + Exportação Excel com 7 abas                      │
+│  App Streamlit — fluxo guiado de 4 etapas:                              │
+│    ① Empresa → ② Premissas (as 6) → ③ Resultados → ④ Exportar          │
+│  ③ Resultados: Overview · Histórico · Valuation · Modelo · Retornos    │
+│  Excel "Modelo" de 8 abas (fórmulas vivas + cores de Lucas):           │
+│    Capa · Premissas · Modelo · FCFF · FCFE · Macro · Sensib. · Avisos  │
+│  Sensibilidades (WACC×g, Bear/Base/Bull) na aba Sensibilidades         │
+│                                                                          │
+│  [Semana 10] gráficos vivos no app: Football Field, tornado,           │
+│    waterfall, ROIC/ROIIC, sensibilidade viva, comparáveis              │
+│    (congelados no 9.0.0; descongelamento planejado)                    │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -218,9 +219,9 @@ O desenvolvimento deste projeto usa um paradigma de vibe coding assistido por IA
 | `pyarrow` | Processamento | Backend de leitura/escrita dos arquivos Parquet |
 | `plotly` | Visualização | Football Field, Waterfall, Sensibilidades, Dashboard |
 | `kaleido` | Exportação | Conversão de gráficos Plotly para PNG estático (inserção no Excel) |
-| `openpyxl` | Exportação | Geração do Excel com 7 abas, formatação condicional, gráficos embutidos |
+| `openpyxl` | Exportação | Geração do Excel "Modelo" de 8 abas com fórmulas nativas VIVAS que reproduzem o motor (aba Modelo + FCFF/FCFE separadas), linha Check e cores de Lucas |
 | `streamlit` | Front-end | Interface institucional interativa (input de premissas + dashboards) |
-| `streamlit-aggrid` | Front-end | Renderização das tabelas do Excel Preview com aparência de planilha |
+| `streamlit-aggrid` | Front-end | Renderização de tabelas na etapa ④ Exportar (preview das 8 abas) com aparência de planilha |
 | `pytest` | Qualidade | Testes unitários de cada função de cálculo |
 | `black` | Qualidade | Formatação automática e padronizada do código |
 | `flake8` | Qualidade | Linter para detecção de erros e violações de estilo |
@@ -249,7 +250,7 @@ O front-end é construído em Streamlit seguindo princípios de design de interf
 - **Tipografia com números tabulares.** Texto em fonte sans (Inter / IBM Plex Sans); todos os números financeiros em fonte monoespaçada (IBM Plex Mono) para alinhamento vertical das casas decimais.
 - **Cada elemento se justifica.** Sem ícone decorativo, gradiente gratuito ou sombra sem função. Todo output importante é auditável — o Target Price expõe o WACC e o g que o geraram.
 
-A navegação é uma sidebar fixa com seis seções que espelham a jornada do analista: **Overview**, **Histórico**, **Premissas**, **Valuation**, **Análise** e **Excel Preview**.
+A navegação é um **fluxo guiado de 4 etapas** na sidebar (**① Empresa → ② Premissas → ③ Resultados → ④ Exportar**). A etapa ③ Resultados tem 5 sub-abas (**Overview, Histórico, Valuation, Modelo, Retornos**). Os gráficos Plotly (Football Field, tornado, waterfall, ROIC/ROIIC, sensibilidade viva) foram **congelados no Prompt 9.0.0** (Enxugamento) e voltam ao app na **Semana 10** — hoje o app é todo tabelas; as sensibilidades vivem no Excel.
 
 ### Camada de BI complementar — Power BI
 
@@ -329,7 +330,7 @@ dcf-automatizado/
 │   │   ├── roic_roiic.py               # Reality check de ROIC e ROIIC
 │   │   └── dashboard_final.py          # Painel consolidado com Recomendação e Checklist
 │   └── exportacao/
-│       ├── exportador_excel.py         # Excel com 7 abas (fórmulas nativas + cor de input)
+│       ├── exportador_excel.py         # Excel "Modelo" de 8 abas (fórmulas vivas + cores de Lucas)
 │       └── exportador_bi.py            # Tabelas planas star-schema para o Power BI
 │
 ├── powerbi/                            # Painel Power BI (backlog pós-v1.0)
@@ -413,7 +414,7 @@ O checklist de consistência é executado ao final e classifica cada verificaç�
 - Persistir ROIC e ROIIC por ano no forecast como reality check do crescimento
 - Executar o checklist de consistência e sinalizar problemas
 - Gerar Football Field, Waterfall, Sensibilidades e Dashboard
-- Exportar o Excel com 7 abas formatadas profissionalmente
+- Exportar o Excel "Modelo" de 8 abas (Capa, Premissas, Modelo, FCFF, FCFE, Macro, Sensibilidades, Avisos)
 
 ### O Analista Faz — Não Existe Automação para Isso
 
@@ -434,17 +435,12 @@ Para cada empresa analisada, o sistema entrega automaticamente:
 
 | Output | Formato | Conteúdo |
 |--------|---------|----------|
-| Front-end Institucional | Streamlit | Seis seções navegáveis: Overview, Histórico, Premissas, Valuation, Análise, Excel Preview |
-| Modelo DCF Completo | `.xlsx` (7 abas) | Capa, Premissas, Modelo Integrado, Schedules, Valuation, Sensibilidades, Output |
-| Football Field | `.html` + `.png` | 7 metodologias com preço atual destacado |
-| Tabela WACC × g | `.html` + `.png` | 6×6 com formatação condicional e % do EV na perpetuidade |
-| Tabela Receita × Margem | `.html` + `.png` | Espaço de segurança visual do valuation |
-| Sensibilidade Setorial | `.html` + `.png` | Margem × VSO (construção), genérica (varejo) |
-| Waterfall do EV | `.html` + `.png` | Decomposição por componente com % de cada contribuição |
-| ROIC e ROIIC | `.html` + `.png` | Histórico vs. projetado com média e mediana históricas |
-| Dashboard Final | `.html` | Target Price, Recomendação, MOIC, Checklist consolidados |
-| Tabelas para BI | `.csv` / `.parquet` (star-schema) | Camada de dados plana que alimenta o painel Power BI |
-| Painel Power BI | `.pbix` (backlog pós-v1.0) | Dashboard executivo conectado às tabelas de `outputs/bi/` |
+| Front-end Institucional (v2.1) | Streamlit | Fluxo guiado de 4 etapas (① Empresa → ② Premissas → ③ Resultados → ④ Exportar); ③ com sub-abas Overview/Histórico/Valuation/Modelo/Retornos |
+| Modelo DCF Completo (v2.1) | `.xlsx` (8 abas) | Capa, Premissas, **Modelo** (3 demonstrativos abertos + schedules, com linha Check), **FCFF**, **FCFE** (abas separadas), Macro, Sensibilidades, Avisos — fórmulas vivas + cores de Lucas |
+| Sensibilidades (no Excel) | aba `Sensibilidades` | Matriz Target × (WACC, g) com formatação condicional + grade Bear/Base/Bull |
+| Football Field, tornado, waterfall, ROIC/ROIIC, sensibilidade viva, comparáveis | `.html` + `.png` | **CONGELADOS no 9.0.0** (D-053); descongelamento e re-integração ao app planejados na **Semana 10** |
+| Tabelas para BI | `.csv` / `.parquet` (backlog) | `exportador_bi.py` congelado no 9.0.0 (v2.2) |
+| Painel Power BI | `.pbix` (backlog v2.2) | Dashboard executivo conectado às tabelas de `outputs/bi/` |
 
 ---
 
@@ -531,23 +527,27 @@ pytest tests/ -v
 
 ## Roadmap
 
-A **v1.0 está concluída** (tag `versao 1.0`): provou a arquitetura com profundidade em duas
-empresas não-financeiras. A partir daqui, o eixo do projeto é a **Universalização** — fazer o
-sistema rodar com **qualquer empresa da B3**, pelo método correto do tipo, com dados e
-comparáveis reais, front-end multi-empresa e exportações profissionais. Esse plano está
-detalhado em **5 prompts progressivos** no arquivo [`PROMPTS_FABLE.md`](PROMPTS_FABLE.md),
-direcionados ao **Claude Fable 5** (a IA de implementação a partir da v2.0).
+A **v1.0** (tag `versao 1.0`) provou a arquitetura em duas não-financeiras. A **v2.0**
+universalizou (roda qualquer ticker da B3). A **v2.1 — Semana 9.0 está CONCLUÍDA** (20/07/2026):
+o projeto foi enxugado ao núcleo, a coleta ficou 100% fiel à CVM, o motor virou "padrão
+Direcional" (DRE **pré-D&A**, WK multi-driver, DFC indireto, BP aberto com check), ganhou
+**FCFE + macro anual + retornos**, o front-end virou um **fluxo guiado de 4 etapas** e o Excel
+foi reescrito como **"Modelo" de 8 abas** com FCFF/FCFE em abas separadas, fórmulas vivas e
+cores de Lucas. O plano está em [`PROMPTS_FABLE.md`](PROMPTS_FABLE.md), dirigido ao **Claude
+Fable 5**. A **Semana 10** (planejada) traz os gráficos de volta ao app.
 
 | Versão | Status | Escopo |
 |--------|--------|--------|
-| **v1.0** | ✅ Concluída | Pipeline completo validado para **DIRR3 (referência)** e **MGLU3 (prova de universalidade)**. Motor FCFF/WACC de ponta a ponta. Arquitetura de duas trilhas construída (trilha financeira ainda não validada). 8 taxas de crescimento individuais por ano. Football Field, WACC×g, Dashboard, Excel 7 abas com fórmulas nativas. Front-end institucional em Streamlit. |
-| **v2.0 — Universalização** | 🎯 Em planejamento | Meta: **rodar qualquer ticker da B3** sem editar código nem o mapeamento à mão. Entregue em 5 ondas progressivas (ver `PROMPTS_FABLE.md`): **(1)** coleta e mapeamento CVM universais (por `CD_CONTA`), classificação automática de tipo/subtipo setorial, relatório de qualidade de dados e coleta em lote; **(2)** motor de valuation completo e correto por tipo — trilha financeira (FCFE/Ke) validada para bancos, bridge EV→Equity completo, dívida amortizando, dividendos e receita financeira reais, cenários Bear/Base/Bull de primeira classe; **(3)** Comparáveis / CCA automáticos e triangulação (Football Field com comps reais); **(4)** front-end multi-empresa com seletor universal de ticker, sensibilidades vivas, tabelas editáveis, comparação entre empresas e Excel Preview funcional; **(5)** Excel dinâmico por tipo, `exportador_bi.py`, Power BI (`.pbix`), nota em PDF, Projetado vs. Realizado e orquestração/automação de dados em lote. |
-| **v3.0** | 🔭 Horizonte | LBO simplificado, modelos unitários de empreendimento para construtoras, build-up de receita setorial (VGV × VSO × PoC), research report institucional multipágina, consenso de analistas e cobertura ampliada de setores especiais. |
+| **v1.0** | ✅ Concluída | Pipeline validado para DIRR3 e MGLU3. Motor FCFF/WACC ponta a ponta. 8 taxas de crescimento individuais. Front-end e Excel de referência. |
+| **v2.0 — Universalização** | ✅ Concluída (Ondas 1–4) | Roda qualquer ticker da B3: coleta/mapeamento CVM universais (por `CD_CONTA`), classificação automática de tipo/subtipo, relatório de qualidade, coleta em lote; motor por tipo (FCFF/WACC e FCFE/Ke); comparáveis reais; app multi-empresa. |
+| **v2.1 — Semana 9.0 (Padrão Direcional)** | ✅ Concluída (9.0.0–9.0.5) | Enxugamento; fidelidade absoluta à CVM (residual < 5%, auditor); motor pré-D&A (WK multi-driver, DFC indireto, BP aberto com check); FCFF+FCFE+macro anual+retornos; front-end guiado de 4 etapas (6 premissas + WACC manual); Excel "Modelo" de 8 abas com fórmulas vivas + cores de Lucas. |
+| **v2.1 — Semana 10** | 🟡 Planejada | Descongelar `src/visualizacao/` e religar os gráficos no app: Football Field automatizado (comps reais + bear/base/bull + 52 semanas), tornado, waterfall, ROIC/ROIIC, sensibilidade viva, comparáveis. Resolve os achados menores da revisão. |
+| **v2.2 / v3.0** | 🔭 Horizonte | Excel bancário; `exportador_bi.py`/Power BI/PDF; unit economics setorial (VGV×VSO×PoC); LBO; research report multipágina. |
 
-> **Dívida técnica herdada da v1.0** (endereçada na v2.0): `exportador_bi.py` e a aba Excel
-> Preview do app ainda não existem; os comps do Football Field são placeholders; a trilha
-> financeira nunca foi validada contra um banco real; o motor v1 simplifica dívida constante,
-> payout 0% e caixa como plug. Os 5 prompts em `PROMPTS_FABLE.md` fecham esses pontos na ordem correta.
+> **Estado técnico da v2.1 (Semana 9.0):** suíte **192 passed / 12 skipped**, `black`/`flake8`
+> limpos, `verificar_semana3` **OK**. Auditoria multi-agente (5 agentes) deu PASS em dados,
+> Excel, front-end, DCF e sensibilidades. Backlog explícito: gráficos do app (Semana 10),
+> Excel bancário e camada BI (v2.2), unit economics (v3.0).
 
 ---
 
@@ -564,7 +564,7 @@ A principal referência teórica do projeto. As fórmulas de FCFF, FCFE, WACC, c
 Referência para o tratamento de empresas em situações especiais — prejuízo histórico, FCFF negativo nos anos iniciais, empresas em reestruturação. As soluções implementadas no sistema para FCFF negativo no último ano de projeção (uso do NOPAT normalizado como base do Valor Terminal) são derivadas desta obra.
 
 **KOLLER, Tim; GOEDHART, Marc; WESSELS, David. *Valuation: Measuring and Managing the Value of Companies*. 7. ed. McKinsey & Company / Wiley, 2020.**
-Referência para a estrutura do modelo integrado de três demonstrativos (DRE + BP + DFC), a definição de Capital Investido e NOPAT para o cálculo do ROIC, os schedules de Working Capital e PP&E, e os padrões de checklist de consistência do modelo. A estrutura de abas do Excel exportado pelo sistema é inspirada nos padrões WSP documentados nesta obra.
+Referência para a estrutura do modelo integrado de três demonstrativos (DRE + BP + DFC), a definição de Capital Investido e NOPAT para o cálculo do ROIC, os schedules de Working Capital e PP&E, e os padrões de checklist de consistência do modelo. A aba `Modelo` do Excel exportado é inspirada na **aba Modelo da Direcional** (modelo de referência do mentor); a **convenção de cores é a de Lucas** (histórico AZUL / premissa VERDE / fórmula PRETO), não a convenção WSP azul-input/verde-link.
 
 **PENMAN, Stephen H. *Financial Statement Analysis and Security Valuation*. 5. ed. McGraw-Hill, 2012.**
 Referência para a análise de demonstrações financeiras, identificação de itens não-recorrentes, qualidade do lucro (FCO/EBITDA como indicador de accruals) e o conceito de ROIIC (Return on Incremental Invested Capital) como métrica de criação de valor marginal.

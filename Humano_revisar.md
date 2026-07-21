@@ -22,6 +22,181 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 > `macro_anual` (Focus + convergência) alimentando o CDI do motor, e o painel
 > de Retornos (múltiplos implícitos, TIR/MOIC, grade bear/base/bull).
 
+## 20/07/2026 — Varredura linha a linha + destravar os 12 skipped (descongelamento parcial)
+
+> Lucas pediu a varredura linha a linha de valuation/Excel + orquestração (os 2 agentes
+> que caíram por limite) e "fazer os 12 skipped". Os 12 skipped eram TODOS dos módulos
+> congelados. Suíte foi de **192 passed/12 skipped → 204 passed/0 skipped**.
+
+### D-078 ⏳ — Descongelamento parcial: 14 módulos re-alinhados + 12 testes destravados (reverte D-053)
+
+- **Situação:** os 12 skipped eram de `test_comparaveis` (6), `test_football_field` (3),
+  `test_motor_cenarios` (2), `test_roic_roiic` (1) — pulados por causa do congelamento
+  D-053. A Semana 10 os descongela.
+- **Escolha:** removi os `pytest.mark.skip` dos 4 arquivos e troquei o banner
+  `# CONGELADO v2.1` por uma nota de "DESCONGELADO na Semana 10, re-alinhado e testado" em
+  14 módulos (12 de `src/visualizacao/` + `comparaveis.py` + `motor_cenarios.py`). Os
+  módulos importam e passam nos testes SEM alteração de código (as fixtures já batiam com
+  a estrutura de blocos atual). **Verificação com DADOS REAIS do DIRR3** (não só
+  fixtures): roic_roiic (8 traces), motor_cenarios (bear 17,15 < base 20,88 < bull 25,85,
+  base = target persistido), football_field (3 faixas), waterfall, tornado, 2
+  sensibilidades, histórico×projetado, dashboard — TODOS geram figura Plotly real.
+- **Nota:** isto NÃO religa os gráficos no app (isso é o Prompt 10.0.4) nem coleta
+  comparáveis reais (10.0.1) — os módulos estão descongelados, testados e prontos; a
+  re-integração ao front-end segue como Semana 10. `exportador_bi.py` continua congelado
+  (backlog v2.2).
+
+### D-079 ⏳ — Achados das varreduras linha a linha (valuation/Excel + orquestração)
+
+- **Valuation+Excel: LIMPO** (agente confirmou 0 bug ativo; recálculo de 670 fórmulas já
+  dera 0 divergências). 2 achados tratados:
+  1. **Convenção de desconto (latente):** o exportador descontava sempre em período cheio
+     (`^t`/`^8`) e ignorava `usar_convencao_meio_periodo`/`fracao_ano_stub` do motor.
+     Inativo hoje (config = período cheio, 0 divergências), mas quebraria as fórmulas vivas
+     se ligado. **Corrigido:** o exportador lê `carregar_convencao_desconto` e usa
+     `expoente_desconto` (a mesma função do motor) em FCFF/FCFE/Sensibilidades; a linha
+     "t (desconto)" passa a guardar o expoente real. Output byte-idêntico com a config
+     atual (recálculo integral segue 0 divergências).
+  2. **No-op morto** `if manual: pass` no build-up do WACC do exportador → removido.
+- **Orquestração/config: ÍNTEGRA** (cadeia conversa; módulos congelados só sob flag/import
+  tardio; ordem das etapas idêntica nos 3 orquestradores; configs consistentes). 1 achado
+  tratado: `main.py` dizia "Excel de 7 abas" em 2 pontos → **8 abas**. Achado deixado
+  como está (funciona): rótulo `main.py --setor construcao` vs subtipo `construcao_civil`
+  (o RET casa por substring; a classificação real vem do `_meta.json`).
+
+---
+
+## 20/07/2026 — Revisão final (5 agentes), consertos de código, Semana 10 planejada e docs reescritas
+
+> Lucas pediu: revisar TODO o código, consertar erros, validar objetivos da Semana 9,
+> reescrever TODA a documentação ao estado real, e adicionar a **Semana 10** ao
+> `PROMPTS_FABLE.md` para trazer os gráficos de volta ao app. Rodei 5 agentes de revisão
+> (2 caíram por limite de sessão, mas suas áreas — valuation/Excel e integração — já
+> tinham PASS na auditoria anterior). Consolido tudo aqui.
+
+### D-075 ⏳ — Semana 10 adicionada ao PROMPTS_FABLE (gráficos vivos no app)
+
+- **Situação:** a revisão apontou como lacuna nº 1 que o app não tem gráficos (congelados
+  no 9.0.0, D-053). Lucas pediu os gráficos de volta: football field automatizado,
+  tornado, waterfall, ROIC/ROIIC, sensibilidade viva, comparáveis, bear/base/bull.
+- **Escolha:** escrevi a **Semana 10** no `PROMPTS_FABLE.md` (prompts 10.0.0 → 10.0.5):
+  10.0.0 descongelar e re-alinhar os módulos ao motor 9.0.x; 10.0.1 comparáveis reais
+  (peers/quartis via yfinance); 10.0.2 motor de cenários bear/base/bull + resolver o
+  achado do target ≤ 0 (preservar dispersão de EV/Equity quando o alvo/ação satura em 0);
+  10.0.3 football field automatizado (6 critérios) + waterfall; 10.0.4 religar gráficos no
+  app (sub-abas Análise/Comparáveis/Comparar) + mover capex para o grupo "Outros"; 10.0.5
+  gráficos no Excel + granularizar mapeamento (achado ABEV3/VALE3) + auditoria dupla +
+  universalização B3 + fechamento. É **plano**, não implementação — reversível.
+
+### D-076 ⏳ — Consertos da revisão de código (5 achados reais dos agentes que concluíram)
+
+- **Agentes que concluíram:** Coleta/Métricas (ACHADOS, nenhum crítico), Motor de projeção
+  (LIMPO), Documentação (mapa de 38 correções). Agentes de Valuation/Excel e Orquestração
+  caíram por limite de sessão — mas ambos já deram PASS na auditoria multi-agente anterior
+  (Excel: 0 divergências em ~670 fórmulas; DCF: 0 divergências; integração OK), e os
+  fragmentos que deixaram apontavam "no bug there".
+- **Corrigido:**
+  1. **`qualidade_lucro.py:84` (M1):** `ORDEM_EXERC.str.contains("LT")` casava PENÚLTIMO
+     (pen-uLTimo) → trocado por `map(normalizar_texto) == "ultimo"` (convenção única do
+     projeto). Bug latente de contaminação por valor do ano anterior.
+  2. **`coleta_lote.py:127` (M3):** capturava só `RuntimeError`; a pós-coleta pode levantar
+     `ValueError`/`ArrowInvalid` (pandas/pyarrow) → agora `except Exception` (contrato "1
+     ticker não derruba o lote").
+  3. **`coletor_cvm.py:53` (I2):** constante morta `TIMEOUT_SEGUNDOS=60` (o real é 120 em
+     apoio_cvm) → removida.
+  4. **`coletor_macro.py:359` (I1):** ramo `elif ultimo == horizonte` inalcançável →
+     removido (o `else` é seguro).
+  5. **`resolvedor_ticker.py:158` (I4):** `.upper()` redundante (normalizar_ticker já
+     aplica) → removido.
+- **NÃO corrigido (documentado, não é defeito):** integração dos fluxos de caixa do
+  leasing ao DFC/BP (backlog D-042 — juros já entram, principal é backlog; balanço fecha);
+  reclassificação CP/LP no ano da captação (rótulo, não afeta totais); leque do
+  interpolador do gerador (≤0,2pp, mitigado a jusante); `percentual_para_decimal`
+  heurística nos campos legados do macro (não dispara na prática). Registrados como pontos
+  de atenção, sem mudança de comportamento.
+
+### D-077 ⏳ — Documentação reescrita ao estado v2.1 (mapa de 38 itens do agente de docs)
+
+- **Situação:** README, ROTEIRO, CONTEXT (corpo da Seção 8), referencias/README, CLAUDE,
+  CHANGELOG, CONTRIBUTING descreviam a v1.0 (Excel de 7 abas WSP, app de 6 seções, cores
+  WSP, "47 testes", "próxima tarefa Semana 5"). O agente de docs mapeou 38 correções (14
+  críticas).
+- **Corrigido:** README (número de abas 7→8 e nomes reais; app 6 seções → 4 etapas + 5
+  sub-abas; diagrama do Módulo 5; tabela de outputs; roadmap com v2.0/v2.1 concluídas e
+  Semana 10 planejada; McKinsey WSP → Direcional/cores de Lucas); CONTEXT (banner de
+  histórico na lista PRONTO da Seção 8; EM PROGRESSO e PRÓXIMA TAREFA atualizados; versão
+  alvo "6 prompts Semana 9.0"); referencias/README (**cores: exportador usa a de Lucas,
+  NÃO WSP** — item crítico); CLAUDE (Semana 9.0 concluída/Semana 10; golden triplo);
+  ROTEIRO (banner "HISTÓRICO v1.0"); CHANGELOG (entradas v2.0/v2.1); CONTRIBUTING (margem
+  bruta pré-D&A; escopo universalizado). PROMPTS_FABLE já traz a Semana 9.0 concluída no
+  header + calendário.
+
+---
+
+## 20/07/2026 — Auditoria multi-agente da Semana 9 (5 agentes paralelos, a pedido de Lucas)
+
+> Lucas pediu verificação exaustiva com múltiplos agentes simultâneos, um por
+> área. Rodei 5 agentes independentes em paralelo (cada um começou do zero,
+> testou de verdade e reportou com repro). Consolido os vereditos + a única
+> correção de código que saiu disso (D-074).
+
+### D-074 ⏳ — Auditor CVM: diferença DFC↔BP imaterial vira AVISO (era ERRO); todos os 5 vereditos PASS
+
+- **Vereditos dos 5 agentes (todos PASS, 0 bug de motor):**
+  1. **Dados CVM:** fonte oficial `https://dados.cvm.gov.br/dados` (TLS
+     verificado, sem `verify=False`/`eval`/`exec`/`subprocess`; conteúdo só
+     lido por pandas/ZipFile, nunca executado). Balanço fecha e DFC amarra nos
+     6 tickers; extração reproduz o bruto 1:1 (16/16); 6 anos de histórico;
+     Ano 0 flui da CVM real; coleta 100% config-driven (CD_CVM resolvido
+     dinâmico, sem mapa hardcoded).
+  2. **Excel:** recálculo de 668–747 fórmulas/ticker em 6 empresas → **0
+     divergências**, Check "Ok"×8, cores de Lucas corretas, FCFF/FCFE
+     separadas com targets batendo, modelo vivo (margem bruta ano3 +2pp muda
+     os dois targets), 0 erros literais.
+  3. **Front-end:** 16/16 boots sem exceção; 6 premissas expostas; margem
+     EBITDA derivada read-only; RET travado; WACC manual; validação g≥WACC
+     bloqueia. **Teste central de propagação (11/11):** editar margem bruta
+     −10pp + WACC manual 0,16 → lucro bruto/EBIT/LL/FCFF/FCFE/target mudam,
+     receita intacta, WACC vira manual, balanço fecha. Navegador sem erro JS
+     de app.
+  4. **DCF/matemática:** recálculo independente de FCFF/FCFE/WACC/VT/bridge/
+     TIR/MOIC nos 5 → 0 divergências; identidade FCFE=fcfe_via_fcff+resíduo
+     fecha; g<WACC e %perp<85% nos 5; `verificar_semana3` OK. Alvos extremos
+     (SMFT3 −3,93, WEGE3/VALE3 baixos) = **artefato do fade de margem das
+     premissas automáticas** (D-024), não bug.
+  5. **Sensibilidades/gráficos:** sensibilidade do Excel bate 100% com o motor
+     (0,0000%); grade bear/base/bull confere; aba Retornos do app renderiza.
+- **Correção aplicada (achado MÉDIO do agente 1) — D-074:** `auditor_cvm.py::
+  verificar_dfc` marcava como **ERRO** a diferença entre o caixa final do DFC
+  (6.05.02) e o caixa do BP (1.01.01) quando ela passava da tolerância apertada
+  (0,01%) e do conceito ampliado (caixa+aplicações) — mesmo sendo imaterial
+  (PETR4 0,12%, ABEV3 0,18–0,5%). Isso é ESCOPO CONTÁBIL da companhia
+  (overdrafts compensados no DFC, caixa restrito), não erro de extração, e
+  fazia `--estrito` (CI) reprovar dados fiéis. Agora: diferença < 1% do caixa
+  (`LIMITE_MATERIALIDADE_CAIXA_DFC`) → AVISO com `diferenca_pct_caixa`; só
+  desvio ≥ 1% fica ERRO. Calibração provada: PETR4/ABEV3 → AVISO (status
+  geral AVISO, 0 ERRO); **RENT3 2022 (5,34%) permanece ERRO** (material, real).
+  +2 testes (`test_dfc_diferenca_imaterial_vira_aviso_nao_erro`,
+  `test_dfc_diferenca_material_permanece_erro`).
+- **Achados NÃO corrigidos (não são bug — decisão pendente de Lucas):**
+  - **Gráficos do app:** o `app.py` NÃO tem nenhum gráfico Plotly. Football
+    field, tornado, waterfall, ROIC/ROIIC, sensibilidade "viva", comparáveis
+    foram CONGELADOS no 9.0.0 (banner `# CONGELADO v2.1`, D-053). As sub-abas
+    "Análise/Comparáveis/Comparar" que o plano do 9.0.4 listava NÃO foram
+    implementadas — o app tem só 5 sub-abas. As sensibilidades vivem no Excel
+    (corretas) e os retornos no app (corretos). **Se Lucas quiser os gráficos
+    de volta no app, é descongelar `src/visualizacao/` — backlog reversível,
+    não falha.**
+  - **[BAIXO] Cobertura de mapeamento > 5%** em alguns exercícios (ABEV3
+    passivo 5,6–8,6%; VALE3 ativo 2023 6,03%) — subcontas reais, não afeta
+    fidelidade (totais fecham). Oportunidade de granularidade do catálogo.
+  - **[cosmético] capex no editor** dos vetores anuais em vez do grupo
+    "Outros" (o plano 9.0.4 listava capex em Outros). Funcional, editável.
+  - **[observação] grade bear/base/bull colapsa** quando target ≤ 0 (SMFT3):
+    os 3 cenários truncam a 0. Consistente com responsabilidade limitada.
+
+---
+
 ## 20/07/2026 — Prompt 9.0.5 (Excel "Modelo" >= Direcional) — FECHA a Semana 9.0
 
 > Sessão do **Claude Fable 5**. Exportador reescrito DO ZERO: o Excel antigo

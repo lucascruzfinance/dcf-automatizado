@@ -91,6 +91,11 @@ IDENTIDADES_DRE = (
 )
 
 META_RESIDUAL_PCT = 0.05
+# Diferenca DFC->BP acima da tolerancia mas abaixo deste limite do caixa e
+# escopo contabil da propria companhia (overdrafts compensados, caixa restrito,
+# equivalentes de curtissimo prazo) — vira AVISO, nao ERRO. So desvio material
+# (acima de 1% do caixa) e ERRO real de amarracao.
+LIMITE_MATERIALIDADE_CAIXA_DFC = 0.01
 DEMONSTRATIVOS_REMAP = ("dre", "bp", "dfc", "dva")
 
 
@@ -475,17 +480,33 @@ def verificar_dfc(
                     )
                 )
             else:
+                # Diferenca imaterial (< 1% do caixa) = escopo contabil da
+                # companhia (overdrafts compensados no DFC, caixa restrito),
+                # nao erro de extracao: rebaixa para AVISO. Analogo ao
+                # tratamento dado a inversao de sinal da DRE (VALE3 CPV).
+                base = abs(caixa_final) if caixa_final else abs(caixa_bp)
+                imaterial = base > 0 and (
+                    abs(diferenca) <= LIMITE_MATERIALIDADE_CAIXA_DFC * base
+                )
                 itens.append(
                     _item(
                         "dfc_amarra",
                         exercicio,
-                        "Caixa final DFC nao amarra ao caixa do BP",
-                        "ERRO",
+                        (
+                            "Caixa final DFC difere do caixa do BP por escopo "
+                            "contabil imaterial (< 1% do caixa)"
+                            if imaterial
+                            else "Caixa final DFC nao amarra ao caixa do BP"
+                        ),
+                        "AVISO" if imaterial else "ERRO",
                         {
                             "caixa_dfc": caixa_final,
                             "caixa_bp": caixa_bp,
                             "diferenca": diferenca,
                             "diferenca_com_aplicacoes": diferenca_ampliada,
+                            "diferenca_pct_caixa": (
+                                abs(diferenca) / base if base > 0 else None
+                            ),
                         },
                     )
                 )

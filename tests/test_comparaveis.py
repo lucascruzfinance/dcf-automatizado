@@ -12,10 +12,6 @@ from src.valuation.comparaveis import (
     montar_triangulacao,
 )
 
-# CONGELADO v2.1 (Prompt 9.0.0 — Enxugamento): comparaveis saiu do nucleo.
-# Testes preservados, mas pulados para a suite seguir verde (Humano_revisar D-053).
-pytestmark = pytest.mark.skip(reason="congelado 9.0.0 — fora do nucleo (D-053)")
-
 
 def test_mediana_e_quartis_descartam_invalidos() -> None:
     """Mediana/quartis corretos; peer sem dado e multiplo negativo saem."""

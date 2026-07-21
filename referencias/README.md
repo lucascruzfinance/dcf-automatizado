@@ -11,10 +11,10 @@
 
 | Arquivo | O que é | Papel no projeto |
 |---|---|---|
-| `modelos_excel/Direcional_DIRR3_referencia.xlsx` | Modelo DCF da Direcional (DIRR3) do trainee InFinance | Benchmark da **v1.0** — definiu as 7 abas, fórmulas nativas e convenção de cores do exportador atual |
+| `modelos_excel/Direcional_DIRR3_referencia.xlsx` | Modelo DCF da Direcional (DIRR3) do trainee InFinance | **Benchmark da v2.1** — a aba `Modelo` do exportador (8 abas na v2.1) é inspirada na aba Modelo deste arquivo (3 demonstrativos abertos + FCFF) |
 | `modelos_excel/ESTRUTURA_DIRECIONAL.md` | Mapa estrutural do modelo acima (abas, linhas, mecânicas) | Consulta rápida sem abrir o xlsx |
-| `modelos_excel/Smartfit_SMFT3_referencia.xlsx` | "Smartfit Model — PEP 2025.2 — Grupo 4" (nome original), enviado pelo mentor Heitor Crespo (InFinance) em 13/07/2026 | Benchmark da **v2.1 "Padrão Smartfit"** (semanas 8–10 do `PROMPTS_FABLE.md`) — modelo operacional 3-statements com build-up por unit economics |
-| `modelos_excel/ESTRUTURA_SMARTFIT.md` | Mapa estrutural completo do modelo acima | **Documento primário de consulta das semanas 8–10** — os prompts referenciam as seções dele |
+| `modelos_excel/Smartfit_SMFT3_referencia.xlsx` | "Smartfit Model — PEP 2025.2 — Grupo 4" (nome original), enviado pelo mentor Heitor Crespo (InFinance) em 13/07/2026 | Referência conceitual; a v2.1 adotou o **padrão Direcional** e **adiou o unit economics do Smartfit para a v3.0** (receita = crescimento % anual, não VGV×POC) |
+| `modelos_excel/ESTRUTURA_SMARTFIT.md` | Mapa estrutural completo do modelo acima | Consulta das mecânicas do Smartfit (IFRS-16, WK multi-driver, dívida por instrumento) que inspiraram partes do motor |
 
 ## Como consultar os modelos
 
@@ -24,10 +24,12 @@
    formatação específica. Duas passadas: `load_workbook(caminho)` para
    fórmulas e `load_workbook(caminho, data_only=True)` para valores cacheados.
    Nunca salvar por cima dos arquivos de referência.
-3. Convenção de cores dos DOIS modelos (padrão WSP/InFinance, replicada pelo
-   exportador): **azul = input/premissa** (fundo amarelo-claro `FFFFCC` para
-   premissas-chave no Smartfit), **preto = fórmula**, **verde = link entre
-   abas**. O exportador do projeto segue esta convenção.
+3. Convenção de cores — atenção à DIFERENÇA (D-071):
+   - **Modelos de REFERÊNCIA** (Direcional/Smartfit) usam a convenção WSP/InFinance:
+     azul = input/premissa, preto = fórmula, verde = link entre abas.
+   - **O EXPORTADOR DO PROJETO usa a convenção de LUCAS** (NÃO a WSP):
+     **histórico da CVM = AZUL**, **premissa que o usuário escolhe = VERDE**,
+     **fórmula = PRETO**. Registrado em `Humano_revisar.md` (D-071).
 
 ## O que cada modelo ensina (resumo executivo)
 

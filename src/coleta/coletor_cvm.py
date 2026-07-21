@@ -50,7 +50,8 @@ from src.coleta.resolvedor_ticker import normalizar_ticker, resolver_ticker
 
 RAIZ_PROJETO = Path(__file__).resolve().parents[2]
 PASTA_LOGS = RAIZ_PROJETO / "logs"
-TIMEOUT_SEGUNDOS = 60
+# O timeout HTTP efetivo vive em apoio_cvm.TIMEOUT_SEGUNDOS (=120); nao
+# duplicar aqui para nao divergir.
 
 # nome_saida -> [(arquivo CSV da CVM, demonstracao padronizada do mapeamento)]
 DEMONSTRATIVOS: dict[str, list[tuple[str, str]]] = {

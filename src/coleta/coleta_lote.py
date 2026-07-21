@@ -124,7 +124,9 @@ def executar_lote(
             continue
         try:
             resultados[ticker] = processar_pos_coleta(ticker, raiz)
-        except RuntimeError as erro:
+        except Exception as erro:  # noqa: BLE001 - contrato: falha de 1 ticker
+            # nao derruba o lote (limpeza/qualidade pode levantar ValueError/
+            # ArrowInvalid de pandas/pyarrow, nao so RuntimeError).
             logger.error("Pos-coleta falhou para %s: %s", ticker, erro)
             resultados[ticker] = _resultado_falha("limpeza/qualidade", erro)
     return resultados

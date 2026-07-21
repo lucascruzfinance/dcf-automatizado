@@ -1,4 +1,4 @@
-# PROMPTS_FABLE.md — v2.1 · **Semana 9.0 (17/07 → 24/07/2026)** · Automação fiel dos 3 demonstrativos + Excel "Modelo" (padrão Direcional) com FCFF/FCFE
+# PROMPTS_FABLE.md — v2.1 · **Semana 9.0 (CONCLUÍDA) + Semana 10 (gráficos vivos no app)**
 
 > **Público-alvo deste documento: o Claude Fable 5 (IA de implementação do projeto).**
 > O Fable lê os documentos de contexto, escreve/edita o código Python e o front-end,
@@ -6,11 +6,16 @@
 > analítico (premissas reais, validação numérica, commits) e o **Claude Code** é o
 > gerador/curador destes prompts e o revisor final.
 >
-> **Onde paramos:** a Semana 8 fechou até o **Prompt 8.2** (DRE completa 8.1; IFRS-16 +
-> capex expansão/manutenção 8.2). A "D&A por safra" do 8.2 foi **revertida a pedido de
-> Lucas** (17/07/2026, D-047/D-048): a depreciação volta a ser simples. **Este documento
-> foi reescrito do zero** para conter **APENAS a Semana 9.0 (17/07 → 24/07/2026)**. As
-> Semanas 10+ NÃO estão aqui — serão planejadas depois.
+> **Onde paramos:** a **Semana 9.0 está CONCLUÍDA** (prompts 9.0.0 a 9.0.5, 17/07 →
+> 20/07/2026): projeto enxugado ao núcleo, fidelidade absoluta à CVM, motor "padrão
+> Direcional" (DRE pré-D&A, WK multi-driver, DFC indireto, BP aberto), FCFF+FCFE+macro
+> anual+retornos, front-end guiado de 4 etapas e o Excel "Modelo" de 8 abas com fórmulas
+> vivas. A auditoria multi-agente (5 agentes) deu PASS em dados, Excel, front-end, DCF e
+> sensibilidades. **A Semana 10 foi ADICIONADA a este documento** (pedido de Lucas,
+> 20/07/2026) para resolver a lacuna nº 1 da revisão: **o app não tem gráficos** — todos
+> foram congelados no 9.0.0 (D-053). A Semana 10 descongela e religa as visualizações no
+> app (football field automatizado, tornado, waterfall, ROIC/ROIIC, sensibilidade viva,
+> comparáveis, bear/base/bull) e resolve os achados menores da revisão.
 >
 > **Como usar:** os prompts abaixo (9.0.0 → 9.0.5) são **progressivos e sequenciais**.
 > Cada um só começa depois que o anterior fechou sua "Definição de Pronto" (DoD). Cada
@@ -19,9 +24,10 @@
 > **Cole um prompt por vez no Claude Fable 5.**
 >
 > **Calendário:**
-> | Semana | Período | Tema | Prompts |
-> |---|---|---|---|
-> | **9.0** | 17/07 → 24/07/2026 | Enxugar o projeto + automação fiel dos 3 demonstrativos + Excel "Modelo" (≥ Direcional) com FCFF/FCFE | 9.0.0 … 9.0.5 |
+> | Semana | Período | Tema | Prompts | Status |
+> |---|---|---|---|---|
+> | **9.0** | 17/07 → 20/07/2026 | Enxugar o projeto + automação fiel dos 3 demonstrativos + Excel "Modelo" (≥ Direcional) com FCFF/FCFE | 9.0.0 … 9.0.5 | ✅ CONCLUÍDA |
+> | **10** | 20/07 → 27/07/2026 | Gráficos vivos no app: descongelar as visualizações + football field automatizado + comparáveis reais + sensibilidade viva + resolver achados da revisão | 10.0.0 … 10.0.5 | 🟡 PLANEJADA |
 >
 > Esta Semana 9.0 **absorve e substitui** o que faltava do plano anterior do 8.3 em
 > diante (DFC indireto, BP aberto, dívida, WK multi-driver, macro, retornos, front-end
@@ -862,8 +868,364 @@ usando a aba `Modelo` como fonte. **Exceção ao Direcional:** a receita é proj
 
 ## Ao final
 
-`CONTEXT.md` + `Humano_revisar.md`. **Fecha a Semana 9.0.** A próxima semana será
-planejada depois (não está neste documento).
+`CONTEXT.md` + `Humano_revisar.md`. **Fecha a Semana 9.0.** A próxima tarefa é a
+**Semana 10** (abaixo): trazer os gráficos de volta ao app.
+
+---
+---
+
+# SEMANA 10 — Gráficos vivos no app (descongelamento) + football field automatizado + comparáveis reais + achados da revisão
+
+> **Contexto (pedido de Lucas, 20/07/2026):** a auditoria multi-agente que fechou a
+> Semana 9.0 apontou como **lacuna nº 1** que **o app não tem nenhum gráfico**. Football
+> field, tornado, waterfall EV, ROIC/ROIIC, sensibilidade "viva" e comparáveis foram
+> **congelados no Prompt 9.0.0** (Enxugamento, D-053) — os módulos existem em
+> `src/visualizacao/` com o banner `# CONGELADO v2.1`, mas saíram do app/pipeline. Hoje o
+> app é 100% tabelas: as sensibilidades vivem só no Excel e os retornos só como tabela. A
+> Semana 10 **descongela e religa** essas visualizações no app, com **todos os critérios
+> do football field automatizados**, e resolve os achados menores da revisão. Também
+> incorpora os itens que o Apêndice C reservava para a "Semana 10" (auditoria dupla do
+> Excel + universalização B3).
+>
+> **Cuidado de contrato (o mais importante da semana):** os módulos congelados foram
+> escritos contra o motor da **v2.0 (pré-9.0.2)**. Desde então o motor mudou de paradigma
+> (DRE **pré-D&A**, WK **multi-driver**, blocos **`fcfe`/`fcfe_valuation`/`retornos`/
+> `macro_anual`**, WACC com **`wacc_manual`/`wacc_origem`**, balanço com
+> **`verificacao_balanco`**). Descongelar NÃO é só apagar o banner — é **re-alinhar cada
+> gráfico à estrutura de blocos atual** e re-provar contra os JSONs persistidos de hoje.
+>
+> **Princípio 3 continua valendo:** o app **NUNCA recalcula valuation em JS**. Os gráficos
+> leem os blocos persistidos pelo motor Python; a "sensibilidade viva" recalcula chamando
+> o **motor Python** (não fórmulas no navegador).
+
+## REGRA DE PRECEDÊNCIA DA SEMANA 10
+
+1. **Gráficos são de APRESENTAÇÃO** — nenhum número nasce num gráfico. Cada barra/ponto/
+   célula vem de um bloco persistido pelo motor (ou de uma coleta de mercado explícita).
+   Onde um gráfico precise de um valor por cenário, ele vem do **bloco `cenarios`**
+   (motor de cenários), não de matemática no `.py` do gráfico.
+2. **"Automatizado" quer dizer sem placeholder e sem hard-code:** os peers do football
+   field vêm de coleta real (yfinance) por subtipo; a faixa de 52 semanas vem do mercado
+   coletado; bear/bull vêm do motor de cenários rodando a cadeia de verdade. Se um insumo
+   faltar, a barra/painel **omite com aviso** — nunca inventa (Princípio 7).
+3. **Tema institucional único:** todos os gráficos usam `src/visualizacao/
+   tema_institucional.py` (já retido no núcleo). Nada de estilos ad-hoc.
+4. **Backlog que sai do backlog:** os itens "auditoria dupla do Excel" e "universalização
+   B3" (Apêndice C, marcados "Semana 10") entram nos Prompts 10.0.4/10.0.5.
+
+---
+
+# PROMPT 10.0.0 — Descongelar as visualizações e re-alinhar ao motor 9.0.x
+
+## Papel e contexto
+
+Você é o **Claude Fable 5**. Leia `CONTEXT.md`, `Humano_revisar.md` (D-053 tem a lista
+exata do que foi congelado), e os 12 módulos de `src/visualizacao/` + `src/valuation/
+comparaveis.py` + `src/valuation/motor_cenarios.py`. Este prompt é a **fundação** da
+Semana 10: sem re-alinhar os módulos ao motor atual, todos os gráficos quebram.
+
+## Objetivo
+
+Descongelar `src/visualizacao/` (exceto os que já estão no núcleo: `tema_institucional.py`
+e `apoio_cenarios.py`), `src/valuation/comparaveis.py` e `src/valuation/motor_cenarios.py`,
+e **re-alinhá-los à estrutura de blocos do motor 9.0.x**, sem religar no app ainda (isso é
+o 10.0.4). Ao fim deste prompt os módulos importam, rodam e passam nos seus testes — mas o
+app segue enxuto.
+
+## Especificação técnica detalhada
+
+- **Remover o banner `# CONGELADO v2.1`** dos módulos descongelados e restaurar os imports
+  onde forem consumidos internamente (ainda NÃO no `app.py`).
+- **Re-alinhar aos blocos atuais** (o ponto sensível). Auditar cada módulo contra o que o
+  motor persiste hoje: `dre` (pré-D&A: `ebit_ex_depreciacao`, `depreciacao_amortizacao`
+  como linha própria, `ll_antes_minoritarios`, `participacao_minoritarios`, `lpa`),
+  `wk` (multi-driver: `nwc`/`nwc_multi_driver`, `delta_nwc`), `ppe`, `divida`, `balanco`
+  (`verificacao_balanco`), `dfc` (indireto; o `dfc_simplificado` foi REMOVIDO no 9.0.5 —
+  qualquer módulo que o lia deve ler o `dfc` superset), `fcff`, `fcfe`, `fcfe_valuation`,
+  `retornos` (`tir_moic`, `multiplos`, `cenarios`), `wacc` (`wacc`, `wacc_capm_buildup`,
+  `wacc_origem`), `valor_terminal`, `ev_equity`. Corrigir toda referência a campo/bloco
+  que mudou de nome ou saiu.
+- **`roic_roiic.py`:** os campos ROIC/ROIIC hoje vivem no bloco `fcff` (por ano). Garantir
+  que a série projetada lê de lá; a histórica das métricas.
+- **`historico_vs_projetado.py`:** confrontar histórico da CVM (`montar_series_anuais`)
+  com a projeção pré-D&A; conferir os rótulos (margem bruta, EBITDA, etc.).
+- **Re-habilitar os testes congelados:** remover os `pytest.mark.skip(reason="congelado
+  9.0.0 …")` de `tests/test_football_field.py`, `test_roic_roiic.py`,
+  `test_motor_cenarios.py`, `test_comparaveis.py` e adaptar as fixtures/asserts à
+  estrutura de blocos atual. Os testes devem ficar **verdes**, não skipados.
+- **Não tocar no app/main/pipeline** ainda (só os módulos e seus testes).
+
+## Definição de Pronto (DoD)
+
+- Os módulos importam sem erro; `python -c "import src.visualizacao.football_field"` etc.
+  passam. `pytest tests/test_football_field.py tests/test_roic_roiic.py
+  tests/test_motor_cenarios.py tests/test_comparaveis.py -q` **verde e SEM skips** de
+  congelamento. `black`/`flake8` limpos. Suíte geral segue verde.
+- Nenhuma referência a `dfc_simplificado` ou a campos pré-D&A antigos (ex.: `margem_ebitda`
+  como driver de projeção) sobra nos módulos descongelados.
+
+## O que NÃO fazer
+
+- NÃO religar os gráficos no `app.py` (é o 10.0.4). NÃO redesenhar os gráficos (é
+  re-alinhamento, não redesign). NÃO tocar no motor de valuation.
+
+## Ao final
+
+`CONTEXT.md` + `Humano_revisar.md` (registrar o descongelamento — reverte a D-053).
+
+---
+
+# PROMPT 10.0.1 — Comparáveis reais automatizados (peers, múltiplos, quartis)
+
+## Papel e contexto
+
+Você é o **Claude Fable 5**. Com os módulos descongelados (10.0.0), leia
+`src/valuation/comparaveis.py`, `config/setores.json` (peers por subtipo) e
+`src/coleta/coletor_mercado.py`. O football field e a aba Comparáveis dependem de peers
+reais.
+
+## Objetivo
+
+Fazer o `comparaveis.py` coletar e persistir **múltiplos reais de mercado dos peers** por
+subtipo, com quartis, de forma automatizada e robusta — o insumo dos comps do football
+field e da tabela de comparáveis.
+
+## Especificação técnica detalhada
+
+- **Peers por subtipo** em `config/setores.json` (lista de tickers comparáveis por
+  subtipo; se ausente, aviso e barra de comps omitida — nunca placeholder).
+- **Coleta via yfinance** (padrão do projeto): EV/EBITDA, P/L, EV/Receita e P/VP dos peers,
+  com fallback offline para o que já estiver persistido. Peer sem dado → registrar em
+  `_registrar_peer_excluido` e seguir.
+- **Estatística:** Q1 / mediana / Q3 por múltiplo (base das faixas do football field).
+  Persistir `data/processed/<TICKER>_comparaveis.json` (peers usados, múltiplos brutos,
+  quartis, data da coleta, fonte).
+- **Denominadores do motor:** o target implícito por múltiplo usa o EBITDA/receita/LL/PL
+  **projetado pelo motor** (nunca um número solto).
+- **Financeiras:** P/L e P/VP (sem EV/EBITDA).
+
+## Definição de Pronto (DoD)
+
+- `data/processed/<TICKER>_comparaveis.json` gerado para DIRR3, MGLU3, SMFT3 (não-fin.) e
+  ao menos uma financeira, com quartis reais e peers reais (sem placeholder). Robustez:
+  ticker sem peers no config → aviso, sem quebra.
+- `tests/test_comparaveis.py` cobrindo quartis, exclusão de peer sem dado e denominadores
+  do motor. `pytest`/`black`/`flake8` verdes.
+
+## O que NÃO fazer
+
+- NÃO usar os placeholders da v1.0 (`comps_placeholder_*` do config). NÃO inventar peer.
+
+## Ao final
+
+`CONTEXT.md` + `Humano_revisar.md`.
+
+---
+
+# PROMPT 10.0.2 — Motor de cenários Bear/Base/Bull automatizado + achado do target ≤ 0
+
+## Papel e contexto
+
+Você é o **Claude Fable 5**. Leia `src/valuation/motor_cenarios.py` e o bloco `cenarios`
+do config (`config/parametros.json`: `cenarios.bear/bull` com deltas de crescimento,
+margem, WACC e g). O football field e a grade bear/base/bull dependem daqui.
+
+## Objetivo
+
+Rodar Bear/Base/Bull **pelo motor de verdade** (não por aproximação), persistindo um bloco
+`cenarios` com o target de cada cenário, e **resolver o achado da revisão**: quando o
+target do caso base é ≤ 0, a grade bear/base/bull colapsa (os três saturam em zero) e
+perde poder discriminante.
+
+## Especificação técnica detalhada
+
+- **Cada cenário** aplica os deltas de config às premissas (crescimento ×fator, margem
+  ±pp, WACC ±pp, g ±pp), roda a **cadeia completa do motor** numa raiz/estado isolado (sem
+  poluir o caso base persistido) e coleta EV, Equity e Target. Persistir bloco `cenarios`
+  = `{bear, base, bull}` com `{ev, equity_value, target_price, upside, premissas_delta}`.
+- **Achado do target ≤ 0 (D-073):** manter o **preço-alvo por ação truncado em zero**
+  (responsabilidade limitada — correto), MAS **preservar a discriminação** expondo também
+  `equity_value` e `ev` por cenário (que NÃO saturam) e um rótulo claro
+  (`target_saturado_em_zero: true`). O football field/grade passam a mostrar a dispersão
+  real de EV/Equity mesmo quando o target por ação é 0 nos três — o usuário vê que Bull ≠
+  Bear no valor da firma, ainda que o equity por ação seja ≤ 0 nos três.
+- **Coerência:** o cenário `base` do bloco `cenarios` tem que bater com o `ev_equity`
+  persistido (mesma matemática, mesma premissa).
+
+## Definição de Pronto (DoD)
+
+- Bloco `cenarios` persistido para DIRR3/MGLU3/SMFT3; `base` idêntico ao `ev_equity`;
+  Bull > Base > Bear em EV para todos. Para SMFT3 (target ≤ 0), o EV/Equity discrimina os
+  três cenários mesmo com target por ação saturado — flag `target_saturado_em_zero`
+  presente. `pytest`/`black`/`flake8` verdes.
+
+## O que NÃO fazer
+
+- NÃO recalcular cenário em JS. NÃO deixar o cenário sobrescrever o caso base persistido.
+
+## Ao final
+
+`CONTEXT.md` + `Humano_revisar.md` (registrar a resolução do achado do target ≤ 0).
+
+---
+
+# PROMPT 10.0.3 — Football field automatizado (todos os critérios) + waterfall EV
+
+## Papel e contexto
+
+Você é o **Claude Fable 5**. Com peers reais (10.0.1) e cenários (10.0.2), leia
+`src/visualizacao/football_field.py` e `waterfall_ev.py`. Este é o gráfico-assinatura que
+Lucas pediu "funcionando corretamente com todos os critérios que o compõem automatizados".
+
+## Objetivo
+
+Gerar o **Football Field** com TODAS as faixas automatizadas e o **Waterfall** do bridge
+EV→Equity, ambos prontos para o app (10.0.4).
+
+## Especificação técnica detalhada
+
+O football field compõe (todas automatizadas, cada uma opcional por disponibilidade de
+dado, com aviso quando faltar):
+
+1. **DCF Bear / Base / Bull** — do bloco `cenarios` (10.0.2), em EV e em preço-alvo por
+   ação; quando o alvo por ação satura em 0, usar a dispersão de EV/Equity (rótulo claro).
+2. **Comps EV/EBITDA** — faixa Q1–mediana–Q3 dos peers (10.0.1) × EBITDA projetado do
+   motor → alvo implícito.
+3. **Comps P/L** — Q1–mediana–Q3 × LL projetado (ou LPA × ações).
+4. **Múltiplo de Saída** — `target_por_multiplo_saida` (apoio_cenarios) sobre o EBITDA₈.
+5. **Faixa de 52 semanas** — do mercado coletado (`<TICKER>_mercado.json`).
+6. **Preço atual** — linha vertical de referência.
+
+- **Waterfall EV→Equity:** Soma VP(FCFF) → +VP(VT) → =EV → −Dívida bruta → +Caixa →
+  +Aplicações → −Minoritários → +Coligadas → +Não-operacionais → =Equity, com os valores
+  do `ev_equity.ajustes_bridge`.
+- Salvar PNGs em `outputs/graficos/<TICKER>_football_field.png` e `_waterfall_ev.png` (o
+  Excel do 10.0.5 os reincorpora) e devolver a figura Plotly para o app.
+
+## Definição de Pronto (DoD)
+
+- Football field de DIRR3/MGLU3/SMFT3 com as 6 faixas quando há dado (e omissão explícita
+  quando não há), preço atual marcado; waterfall fechando EV→Equity. `tests/
+  test_football_field.py` cobrindo: barras presentes por disponibilidade, comps a partir
+  dos quartis reais, faixa de 52 semanas do mercado, e o caso target ≤ 0 (dispersão por
+  EV). `pytest`/`black`/`flake8` verdes.
+
+## O que NÃO fazer
+
+- NÃO usar placeholder de comps. NÃO inventar 52 semanas sem mercado coletado.
+
+## Ao final
+
+`CONTEXT.md` + `Humano_revisar.md`.
+
+---
+
+# PROMPT 10.0.4 — Religar os gráficos no app: sub-abas Análise / Comparáveis / Comparar + achado do capex
+
+## Papel e contexto
+
+Você é o **Claude Fable 5**. Leia `app.py` inteiro (fluxo guiado de 4 etapas do 9.0.4) e
+`tests/test_app.py`. Este é o prompt que **entrega o que Lucas pediu**: os gráficos vivos
+dentro do app.
+
+## Objetivo
+
+Reintegrar as visualizações à **etapa ③ Resultados** do app, com sub-abas novas, mantendo
+o Princípio 3 (o app apresenta; o motor calcula). Resolver também o achado cosmético do
+capex.
+
+## Especificação técnica detalhada
+
+- **Etapa ③ Resultados** passa a ter as sub-abas (ordem): **Overview, Histórico,
+  Valuation, Modelo, Retornos** (as 5 atuais) **+ Análise, Comparáveis, Comparar**
+  (novas). Todos os gráficos via `st.plotly_chart` com o tema institucional:
+  - **Análise:** ROIC/ROIIC (histórico × projetado), **tornado** (sensibilidade do target
+    às premissas) e **sensibilidade viva** WACC×g e Receita×Margem. "Viva" = o usuário
+    ajusta um controle e o app chama o **motor Python** para recalcular a grade
+    (não recalcula em JS); ou, no mínimo, lê a grade do motor de cenários e destaca a
+    célula do caso atual.
+  - **Comparáveis:** o **football field** (10.0.3), a **tabela de comparáveis** (peers,
+    múltiplos, quartis do 10.0.1) e o **waterfall** EV→Equity.
+  - **Comparar:** painel multi-empresa lado a lado (`comparacao_empresas`) + watchlist das
+    empresas já analisadas.
+  - (Opcional) o **dashboard_final** como visão executiva no Overview.
+- **Achado do capex (D-073, cosmético):** no editor de premissas da etapa ②, mover o vetor
+  **`capex_receita` para o grupo "⑥ Outros"** (a lista de premissas de Lucas coloca o
+  capex em "Outros"); o editor de vetores "①②③" fica só com crescimento, margem bruta e
+  SG&A. Sem mudança de comportamento, só de agrupamento.
+- **Financeiras:** as sub-abas de gráficos degradam com aviso claro onde não se aplicam
+  (ex.: football field de banco usa P/L e P/VP; sem EV/EBITDA).
+- **Robustez:** gráfico sem dado → mensagem amigável, nunca exceção. O app continua
+  subindo para todos os tickers.
+
+## Definição de Pronto (DoD)
+
+- No navegador (SMFT3 e mais um): etapa ③ com as 8 sub-abas; football field, tornado,
+  waterfall, ROIC/ROIIC e sensibilidade renderizam como gráficos Plotly reais; Comparar
+  mostra ≥ 3 empresas; capex agora no grupo "Outros". Zero erro de console.
+- `tests/test_app.py` estendido (AppTest): as sub-abas novas existem e renderizam sem
+  exceção; o capex aparece no grupo Outros; nenhuma funcionalidade das 5 sub-abas antigas
+  perdida. `pytest` geral verde; `black`/`flake8` limpos.
+
+## O que NÃO fazer
+
+- NÃO recalcular valuation em JS (sensibilidade viva chama o motor Python). NÃO remover as
+  tabelas atuais — os gráficos SOMAM às tabelas, não as substituem.
+
+## Ao final
+
+`CONTEXT.md` + `Humano_revisar.md`.
+
+---
+
+# PROMPT 10.0.5 — Gráficos no Excel + granularidade do mapeamento + auditoria dupla + fechamento da Semana 10
+
+## Papel e contexto
+
+Você é o **Claude Fable 5**. Fecha a Semana 10. Leia `src/exportacao/exportador_excel.py`
+(8 abas do 9.0.5) e `config/mapeamento_cvm.json`.
+
+## Objetivo
+
+(1) Reincorporar os gráficos ao Excel; (2) resolver o achado da cobertura de mapeamento
+> 5%; (3) auditoria dupla do Excel recalculado; (4) universalização B3 e fechamento.
+
+## Especificação técnica detalhada
+
+- **Gráficos no Excel:** embutir os PNGs (football field, waterfall, ROIC/ROIIC, dashboard)
+  numa aba (ex.: reforçar `Sensibilidades`/`Avisos` ou uma aba `Gráficos`), como a
+  Direcional faz — sem quebrar o recálculo das fórmulas nas abas de números.
+- **Achado da cobertura > 5% (D-073, BAIXO):** granularizar `config/mapeamento_cvm.json`
+  para os residuais nomeados que a auditoria da ABEV3 (passivo 5,6–8,6%) e VALE3 (ativo
+  2023 6,03%) expôs — mapear as subcontas reais ("Imposto de Renda a Recuperar",
+  "Provisão para Benefícios/Assistência Médica", "Outros Passivos" etc.) por CD_CONTA/nome,
+  reduzindo o residual **sem** mudar nenhum total (o balanço já fecha — é só granularidade).
+  Re-rodar o auditor e mostrar a cobertura melhorando.
+- **Auditoria dupla do Excel (antiga Semana 10.1):** rodar o avaliador de fórmulas
+  (`tests/apoio_avaliador_excel.py`) sobre os 5 tickers golden + 3 novos, confirmando 0
+  divergências e Check "Ok"×8; documentar como teste permanente.
+- **Universalização B3 (antiga Semana 10.2):** lote de ≥ 12 empresas de setores variados
+  ponta a ponta (coleta → motor → Excel → app), casos de borda catalogados; premissa→efeito
+  provado (mudar 1 premissa muda todos os demonstrativos + FCFF + FCFE + gráficos).
+
+## Definição de Pronto (DoD)
+
+- Excel dos 5 golden com gráficos embutidos abrindo sem reparo e recalculando sem mudar
+  valores; cobertura de mapeamento da ABEV3/VALE3 abaixo de 5% (ou o residual restante
+  explicado linha a linha); lote de ≥ 12 empresas verde; `pytest`/`black`/`flake8` limpos;
+  `verificar_semana3` OK.
+- **A Semana 10 fecha o "DCF Automatizado" completo:** dados automáticos e fiéis à CVM →
+  motor por tipo → Excel "Modelo" com FCFF/FCFE → app guiado com **gráficos vivos** →
+  football field/comparáveis/sensibilidades automatizados.
+
+## O que NÃO fazer
+
+- NÃO mudar nenhum total do balanço ao granularizar o mapeamento (é só nomear residual).
+  NÃO reintroduzir unit economics/build-up de receita (segue v3.0).
+
+## Ao final
+
+`CONTEXT.md` + `Humano_revisar.md`. **Fecha a Semana 10 e a v2.1 "Padrão Smartfit".**
 
 ---
 ---

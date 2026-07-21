@@ -372,9 +372,9 @@ def etapa_graficos(ticker: str) -> None:
 
 
 def etapa_excel(ticker: str) -> Path:
-    """Exporta o Excel institucional de 7 abas."""
+    """Exporta o Excel institucional "Modelo" de 8 abas."""
     caminho = exportar_excel(ticker, RAIZ_PROJETO)
-    print(f"    Excel de 7 abas: {caminho}")
+    print(f"    Excel 'Modelo' de 8 abas: {caminho}")
     return caminho
 
 
@@ -542,7 +542,7 @@ def executar_pipeline(
             lambda: etapa_graficos(ticker),
         )
     caminho = executar_etapa(
-        total, total, "Excel de 7 abas", lambda: etapa_excel(ticker)
+        total, total, "Excel 'Modelo' de 8 abas", lambda: etapa_excel(ticker)
     )
 
     duracao_total = time.perf_counter() - inicio_total

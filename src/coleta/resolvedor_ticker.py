@@ -155,7 +155,7 @@ def construir_cadastro_b3(raiz_projeto: Path) -> pd.DataFrame:
     coluna_ticker = encontrar_coluna_ticker(list(valores.columns))
     valores = valores.copy()
     valores["ticker"] = valores[coluna_ticker].map(
-        lambda valor: normalizar_ticker(valor).upper() if pd.notna(valor) else ""
+        lambda valor: normalizar_ticker(valor) if pd.notna(valor) else ""
     )
     valores = valores[valores["ticker"].str.len().between(5, 7)]
 

@@ -46,7 +46,7 @@ O detalhamento semana a semana está em [`ROTEIRO.md`](ROTEIRO.md).
 ### Convenções financeiras
 - **Sinais:** despesas e saídas de caixa sempre negativas; receitas e entradas positivas.
 - **Anos de projeção:** sempre 8, nomeados `ano1` a `ano8`.
-- **8 valores individuais:** crescimento de receita, margem EBITDA e CAPEX/Receita têm 8 campos separados. **Nunca** replicar uma taxa única pelos 8 anos.
+- **8 valores individuais:** crescimento de receita, **margem bruta (pré-D&A)**, **SG&A % receita**, alíquota anual e CAPEX/Receita têm 8 campos separados. **Nunca** replicar uma taxa única pelos 8 anos. (A margem EBITDA é DERIVADA na v2.1, não é mais input.)
 - **Valores negativos válidos:** ROIC, FCFF e LL podem ser negativos. O código não deve travar nesses casos.
 - **Tributação:** empresas gerais → 34% sobre o EBT; construtoras no RET → 4% sobre a Receita Bruta.
 
@@ -85,7 +85,7 @@ refactor: padroniza nome da coluna receita_liquida entre módulos
 
 ## 6. O Que NÃO Fazer
 
-- **Não expandir o escopo da v1.0** para além de DIRR3 + MGLU3 sem decisão explícita.
-- **Não reimplementar o motor de cálculo em JavaScript** — o Python é a fonte única de verdade.
+- **Regressão dourada TRIPLA:** DIRR3, MGLU3 e SMFT3 são o golden — não mudar seus targets sem explicar por driver (a v2.0 universalizou o escopo; qualquer ticker da B3 roda).
+- **Não reimplementar o motor de cálculo em JavaScript** — o Python é a fonte única de verdade (o app apresenta; o motor calcula).
 - **Não commitar** `.env`, a pasta `data/`, a pasta `outputs/` ou a `.venv` (todos no `.gitignore`).
 - **Não hard-codar** valores que deveriam ser premissas ou vir de config.

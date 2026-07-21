@@ -1,6 +1,15 @@
-# ROTEIRO.md — Especificação de Desenvolvimento para o Codex
+# ROTEIRO.md — Especificação de Desenvolvimento (HISTÓRICO v1.0)
 
-> **Público-alvo deste documento: o Codex (IA de desenvolvimento).**
+> ⚠️ **ESPECIFICAÇÃO HISTÓRICA da v1.0 — SUPERADA pela v2.0/v2.1.** Este documento
+> descreve o plano original da v1.0 (2 tickers, Excel de 7 abas padrão WSP, app de 6
+> seções). Vários pontos NÃO refletem mais o estado atual: o motor virou **pré-D&A**
+> (margem bruta + SG&A; margem EBITDA é derivada), o Excel virou **"Modelo" de 8 abas**
+> com **cores de Lucas** (histórico azul / premissa verde / fórmula preto) e o app virou
+> um **fluxo guiado de 4 etapas**. Para o estado real e o plano vigente, veja
+> **`CONTEXT.md`** (Seção 8) e **`PROMPTS_FABLE.md`** (Semana 9.0 concluída + Semana 10).
+> As FÓRMULAS canônicas de DCF (FCFF/FCFE/WACC/VT) desta spec continuam válidas.
+
+> **Público-alvo original: o Codex (IA de desenvolvimento da v1.0; hoje o implementador é o Claude Fable 5).**
 > Este é o plano técnico sequenciado do projeto DCF Automatizado, da fundação até a
 > v1.0 (prazo 06/08/2026). Leia este arquivo junto com o `CONTEXT.md` no início de
 > cada sessão. O `CONTEXT.md` diz o ESTADO ATUAL e a PRÓXIMA TAREFA; este `ROTEIRO.md`
