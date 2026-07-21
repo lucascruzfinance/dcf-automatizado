@@ -13,10 +13,9 @@ A aritmetica e IDENTICA a do bloco ``dfc`` gravado pelo schedule de divida
 (mesmo LL, D&A, Delta NWC total, capex, captacoes, amortizacoes e
 dividendos) — este modulo apenas ABRE as linhas e VERIFICA as amarracoes:
 soma das variacoes por conta = -Delta NWC; caixa EoP = caixa do balanco
-(dif < 1e-6). O bloco legado e preservado em ``dfc_simplificado`` ate o
-Excel do 9.0.5 migrar os consumidores (contrato do prompt); o bloco ``dfc``
-vira um SUPERSET (campos legados + linhas abertas) para nao quebrar
-consumidores atuais (checklist, exportador).
+(dif < 1e-6). O bloco ``dfc`` e um SUPERSET (campos legados + linhas
+abertas); o bloco de transicao ``dfc_simplificado`` foi REMOVIDO no 9.0.5
+(o Excel novo consome o DFC indireto direto e nada mais lia o legado).
 """
 
 from __future__ import annotations
@@ -171,9 +170,10 @@ def projetar_dfc_indireto(
 ) -> dict[str, Any]:
     """Abre o DFC indireto do ticker e persiste na estrutura de projecao.
 
-    Persiste: ``dfc`` (superset com as linhas abertas), ``dfc_simplificado``
-    (copia do bloco legado, contrato do 9.0.2 ate o Excel migrar) e
-    ``verificacao_dfc`` (amarracao caixa DFC = caixa BP por ano).
+    Persiste: ``dfc`` (superset com as linhas abertas) e ``verificacao_dfc``
+    (amarracao caixa DFC = caixa BP por ano). O bloco ``dfc_simplificado``
+    (transicao do 9.0.2) foi REMOVIDO no 9.0.5: o Excel novo consome o DFC
+    indireto direto e nenhum outro modulo lia o legado.
     """
     raiz = resolver_raiz(raiz_projeto)
     ticker_normalizado = normalizar_ticker(ticker)
@@ -185,16 +185,8 @@ def projetar_dfc_indireto(
         raise RuntimeError(f"Bloco dfc ausente em {caminho} — rode a divida antes.")
     superset, verificacao, avisos = montar_dfc_indireto(conteudo)
 
-    # dfc_simplificado preserva o formato LEGADO puro (sem as linhas novas).
-    conteudo["dfc_simplificado"] = {
-        chave: {
-            campo: valor
-            for campo, valor in linha.items()
-            if not campo.startswith("variacao_")
-            and campo not in ("caixa_inicial", "delta_emprestimos", "fcfin")
-        }
-        for chave, linha in dfc_legado.items()
-    }
+    # Remocao do legado (9.0.5): arquivos antigos deixam de carregar o bloco.
+    conteudo.pop("dfc_simplificado", None)
     conteudo["dfc"] = superset
     conteudo["verificacao_dfc"] = verificacao
     salvar_json(caminho, conteudo)

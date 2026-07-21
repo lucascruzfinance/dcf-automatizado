@@ -78,22 +78,16 @@ def test_dfc_indireto_abre_o_delta_wk_por_conta(tmp_path: Path) -> None:
         )
 
 
-def test_dfc_simplificado_preserva_o_formato_legado(tmp_path: Path) -> None:
-    """O bloco dfc_simplificado mantem o contrato v2 (sem linhas abertas)."""
+def test_dfc_simplificado_foi_removido(tmp_path: Path) -> None:
+    """9.0.5: o bloco de transicao dfc_simplificado nao e mais persistido."""
     _rodar_cadeia(tmp_path)
     caminho = tmp_path / "data" / "processed" / "TEST3_projecao.json"
     conteudo = json.loads(caminho.read_text(encoding="utf-8"))
-    simplificado = conteudo["dfc_simplificado"]
-
+    assert "dfc_simplificado" not in conteudo
+    # O superset dfc mantem os campos legados (fco/fci/fcf) + linhas abertas.
     for ano in range(1, 9):
-        linha = simplificado[f"ano{ano}"]
+        linha = conteudo["dfc"][f"ano{ano}"]
         assert "fco" in linha and "fci" in linha and "fcf" in linha
-        assert not any(campo.startswith("variacao_contas") for campo in linha)
-        assert "caixa_inicial" not in linha
-        # Valores identicos ao superset (mesma aritmetica, so sem abertura).
-        assert float(linha["fco"]) == pytest.approx(
-            float(conteudo["dfc"][f"ano{ano}"]["fco"])
-        )
 
 
 def test_dfc_indireto_reporta_quando_nao_amarra(tmp_path: Path) -> None:

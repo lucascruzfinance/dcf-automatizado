@@ -162,9 +162,17 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   `retornos` (múltiplos implícitos, TIR/MOIC, grade bear/base/bull) — golden
   re-explicado (D-065): DIRR3 20,8806 | MGLU3 0,7713 | SMFT3 −3,9300 (canal
   único: receita financeira Selic spot → CDI anual; FCFF byte-idêntico).
-  **Próxima tarefa: Prompt 9.0.4** (front-end guiado). Decisões autônomas
-  pendentes de revisão humana: **`Humano_revisar.md`** (D-001+, agora até
-  D-067; D-063 sobre o Kd do WACC segue ABERTA — ver D-066).
+  **Prompt 9.0.4 (Front-end guiado) e Prompt 9.0.5 (Excel "Modelo")
+  CONCLUÍDOS em 20/07/2026 — a Semana 9.0 está FECHADA** (ver as duas sessões
+  datadas do 20/07 abaixo): app em fluxo guiado de 4 etapas com as 6
+  premissas + abas Modelo/Retornos + WACC manual (D-069/D-070); exportador
+  reescrito do zero em 8 abas (Modelo + FCFF/FCFE separadas) com fórmulas
+  vivas que reproduzem o motor, cores de Lucas e linha Check (D-071/D-072).
+  Revisão consolidada 9.0→9.5 (D-073): máquina correta, dados automáticos,
+  preços-justos são premissa automática (padrão D-024). **Próxima tarefa: a
+  Semana pós-9.0 será planejada depois** (fora do `PROMPTS_FABLE.md`).
+  Decisões autônomas pendentes de revisão humana: **`Humano_revisar.md`**
+  (D-001+, agora até D-073; D-063 sobre o Kd do WACC segue ABERTA — ver D-066).
 - **O que está PRONTO e VALIDADO:**
   - Estrutura inicial de pastas e pacotes Python criada.
   - Arquivos de configuração criados: `config/setores.json`, `config/mapeamento_cvm.json` e `config/parametros.json`.
@@ -299,6 +307,38 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   divulgação da cia), falso-positivo AC/ANC do auditor em bancos, e Modelo
   Integrado com 3 anos históricos por contrato v1 (5 anos = entrega do 9.0.5).
 
+### Sessão 20/07/2026 (Claude Fable 5) — Prompt 9.0.5 (Excel "Modelo") — FECHA a Semana 9.0
+
+- **Objetivo:** reescrever o exportador do zero para um Excel >= Direcional:
+  aba **Modelo** (3 demonstrativos abertos + schedules) + **FCFF e FCFE em
+  abas SEPARADAS**, fórmulas vivas, cores de Lucas. Revisar toda a Semana 9.
+- **Entregue (D-071):** `exportador_excel.py` REESCRITO — 8 abas (Capa,
+  Premissas, **Modelo** ~110 linhas, **FCFF**, **FCFE**, Macro,
+  Sensibilidades, Avisos). Modelo com DRE pré-D&A + BP aberto (subtotais +
+  linha Check booleana `IF(ROUND(...)="Ok")`) + DFC indireto + WK (dias ×
+  driver) + Dívida + PP&E; históricos CVM (azuis) + 8 projetados (fórmulas
+  pretas). FCFF/FCFE em abas próprias referenciando `Modelo!`. **Cores de
+  Lucas** (histórico AZUL / premissa VERDE / fórmula PRETO — substitui a WSP).
+  Mecanismo `escrever_calculo` (classe `Aba`): fórmula nativa só entra se
+  reproduz o motor; matriz de valores paralela alimenta o preview do app.
+- **`dfc_simplificado` REMOVIDO (D-072):** migração do 9.0.2 concluída (nada
+  mais lia o legado; o Excel novo consome o `dfc` indireto direto).
+- **Verificação (mini-avaliador de fórmulas novo, `tests/apoio_avaliador_
+  excel.py`):** recalcula ~670 fórmulas/workbook. Nos 5 tickers: **0
+  divergentes, Check "Ok" x8, 0 erros literais**; colunas históricas = CVM;
+  **modelo vivo** (margem bruta ano 3 +2pp → Target FCFF e FCFE mudam).
+- **Revisão consolidada 9.0→9.5 (D-073):** máquina correta (balanço fecha,
+  DFC amarra, blocos presentes, dados automáticos com 8 anos de histórico).
+  Preços-justos com premissa AUTOMÁTICA: DIRR3 COMPRA +73% (coerente —
+  receita 1,5→4,3 bi, ROIC 25%), demais VENDA/negativo (padrão D-024, exige
+  revisão do analista; D-063 do Kd segue o item-chave).
+- **Validação:** `pytest tests -q` → **190 passed, 12 skipped** (test_
+  exportador_excel.py reescrito com recálculo integral, Check, cores, modelo
+  vivo, histórico=CVM; test_dfc_indireto atualizado); `black --workers 1`/
+  `flake8` limpos. Excel gerado p/ os 5 (Modelo 103–117 linhas vs 40 antes).
+- **PRÓXIMA TAREFA:** Semana 9.0 FECHADA. A próxima semana será planejada
+  depois (fora deste `PROMPTS_FABLE.md`).
+
 ### Sessão 20/07/2026 (Claude Fable 5) — Prompt 9.0.4 (Front-end guiado) + verificação do 9.0.3
 
 - **Objetivo:** (pedido de Lucas) verificar o 9.0.3 ponta a ponta (front +
@@ -332,7 +372,8 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   2 do WACC manual, test_app.py reescrito com Modelo/Retornos/WACC manual — 3
   testes antes skipados do app voltaram a rodar no fluxo novo); `black
   --workers 1`/`flake8` limpos.
-- **PRÓXIMA TAREFA:** Prompt 9.0.5 (novo conteúdo do Excel de 9 abas).
+- **PRÓXIMA TAREFA (feita depois):** Prompt 9.0.5 (Excel "Modelo") — ver a
+  sessão do 9.0.5 acima, que FECHA a Semana 9.0.
 
 ### Sessão 18/07/2026 (Claude Fable 5) — Semana 9.0, Prompt 9.0.2 (Motor "padrão Direcional")
 

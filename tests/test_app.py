@@ -119,21 +119,22 @@ def test_premissas_wacc_manual_opcional() -> None:
     assert any("WACC manualmente" in rotulo for rotulo in rotulos_checkbox)
 
 
-def test_etapa_exportar_renderiza_7_abas() -> None:
-    """Etapa ④ Exportar mostra as 7 abas do .xlsx com tabelas."""
+def test_etapa_exportar_renderiza_8_abas() -> None:
+    """Etapa ④ Exportar mostra as 8 abas do .xlsx 'Modelo' (9.0.5)."""
     app = _abrir_etapa("④ Exportar")
     assert not app.exception
     rotulos_abas = [str(aba.label) for aba in app.main.tabs]
     assert rotulos_abas == [
         "Capa",
         "Premissas",
-        "Modelo Integrado",
-        "Schedules",
-        "Valuation",
+        "Modelo",
+        "FCFF",
+        "FCFE",
+        "Macro",
         "Sensibilidades",
-        "Output",
+        "Avisos",
     ]
-    assert len(app.main.dataframe) >= 7
+    assert len(app.main.dataframe) >= 8
 
 
 def test_etapa_resultados_valuation_renderiza_checklist() -> None:

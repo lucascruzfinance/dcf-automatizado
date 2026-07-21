@@ -1273,12 +1273,12 @@ def etapa_resultados(
 # ---------------------------------------------------------------------------
 
 
-@st.cache_data(show_spinner="Montando o preview das 7 abas...")
+@st.cache_data(show_spinner="Montando o preview das 8 abas...")
 def preview_excel_cacheado(
     ticker: str,
     versao: tuple[float, float],
 ) -> dict[str, list[tuple[str, pd.DataFrame]]]:
-    """Preview das 7 abas em cache; ``versao`` invalida apos novo pipeline."""
+    """Preview das 8 abas em cache; ``versao`` invalida apos novo pipeline."""
     return montar_preview_por_aba(ticker, RAIZ_PROJETO)
 
 
@@ -1291,11 +1291,11 @@ def _versao_dados(ticker: str) -> tuple[float, float]:
 
 
 def etapa_exportar(ticker: str, financeira: bool) -> None:
-    """Preview das 7 abas do Excel + download do .xlsx (Prompt 9.0.4 etapa ④)."""
+    """Preview das 8 abas do Excel 'Modelo' + download (Prompt 9.0.5)."""
     st.subheader("④ Exportar")
     if financeira:
         st.info(
-            "O exportador Excel de 7 abas cobre a trilha nao-financeira; o "
+            "O exportador Excel 'Modelo' cobre a trilha nao-financeira; o "
             "modelo bancario (FCFE/Ke) chega depois (backlog v2.2). Use as "
             "abas Overview/Valuation da etapa ③ para os resultados do banco."
         )
@@ -1303,15 +1303,16 @@ def etapa_exportar(ticker: str, financeira: bool) -> None:
 
     caminho_xlsx = caminho_excel(ticker, RAIZ_PROJETO)
     st.caption(
-        "Preview fiel das 7 abas geradas pelo exportador. O download entrega "
-        "o .xlsx real, com formulas nativas, formatacao condicional e a "
-        "convencao de cores de banco."
+        "Preview das 8 abas geradas pelo exportador (Capa, Premissas, Modelo, "
+        "FCFF, FCFE, Macro, Sensibilidades, Avisos). O download entrega o "
+        ".xlsx real com formulas vivas e a convencao de cores de Lucas "
+        "(historico AZUL / premissa VERDE / formula PRETO)."
     )
 
     coluna_gerar, coluna_baixar, coluna_info = st.columns([1, 1, 2])
     with coluna_gerar:
         if st.button("Regerar Excel", width="stretch"):
-            with st.spinner("Exportando o Excel de 7 abas..."):
+            with st.spinner("Exportando o Excel de 8 abas..."):
                 exportar_excel(ticker, RAIZ_PROJETO)
             st.toast("Excel atualizado a partir do pipeline persistido.")
     if caminho_xlsx.exists():

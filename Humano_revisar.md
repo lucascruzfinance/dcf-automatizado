@@ -22,6 +22,74 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 > `macro_anual` (Focus + convergência) alimentando o CDI do motor, e o painel
 > de Retornos (múltiplos implícitos, TIR/MOIC, grade bear/base/bull).
 
+## 20/07/2026 — Prompt 9.0.5 (Excel "Modelo" >= Direcional) — FECHA a Semana 9.0
+
+> Sessão do **Claude Fable 5**. Exportador reescrito DO ZERO: o Excel antigo
+> (aba "Modelo Integrado" de 40 linhas com DRE de margem EBITDA) era o
+> principal fracasso do projeto. O novo gera 8 abas no padrão Direcional, com
+> a aba **Modelo** (~110 linhas: 3 demonstrativos abertos + schedules) e
+> **FCFF/FCFE em abas SEPARADAS**, tudo com fórmulas vivas e as cores de Lucas.
+
+### D-071 ⏳ — Exportador reescrito: 8 abas, cores de Lucas, fórmulas vivas que reproduzem o motor
+
+- **Situação:** o exportador de 7 abas (WSP) colava a DRE antiga e o BP com 55%
+  em "outros" — inutilizável. O 9.0.5 pede >= Direcional.
+- **Escolha:** `exportador_excel.py` reescrito. 8 abas (Capa, Premissas,
+  **Modelo**, **FCFF**, **FCFE**, Macro, Sensibilidades, Avisos). A aba Modelo
+  reproduz a mecânica da Direcional: DRE bruta→líquida→lucro bruto→SG&A→EBIT
+  ex-D&A→**D&A linha própria**→EBIT→EBT→IR→minoritários→LL→LPA; BP aberto com
+  subtotais e **linha Check** `IF(ROUND(ativo)=ROUND(passivo+PL),"Ok",dif)`;
+  DFC indireto (FCO/FCI/FCFin, caixa BoP/EoP); WK (conta = dias × driver);
+  Dívida (BoP/captação/amortização/EoP); PP&E (BoP/CAPEX/D&A/EoP). FCFF e FCFE
+  em abas PRÓPRIAS que referenciam `Modelo!` (como a Direcional). **Cores de
+  Lucas** (D-071): histórico da CVM = AZUL, premissa = VERDE, fórmula = PRETO
+  (substitui a convenção WSP azul/preto/verde, que tinha semântica diferente).
+- **Mecanismo `escrever_calculo` (classe `Aba`):** cada célula projetada é
+  fórmula nativa; o exportador recalcula em Python com os MESMOS operandos e só
+  grava a fórmula se ela reproduz o valor do motor (senão grava o valor +
+  comentário). Rastreia uma matriz de valores paralela → o preview do app e o
+  .xlsx nascem da mesma construção (nunca divergem).
+- **Verificação (mini-avaliador de fórmulas, novo `tests/apoio_avaliador_
+  excel.py`):** recalcula TODAS as ~670 fórmulas de cada workbook. Resultado
+  nos 5 tickers (DIRR3/MGLU3/SMFT3/VALE3/WEGE3): **0 fórmulas divergentes, 0
+  erros de avaliação, linha Check = "Ok" nos 8 anos, 0 erros literais
+  (#REF!/#DIV/0!/#VALUE!/#NAME?)**. Colunas históricas do Modelo = CVM
+  (auditor 9.0.1). **Modelo vivo comprovado:** editar margem bruta do ano 3
+  (+2pp) propaga pelas fórmulas até o Target da aba FCFF E o da aba FCFE nos 5.
+- **Blocos condicionais:** empresa sem leasing → bloco Arrendamento omitido
+  (DIRR3 não tem; MGLU3/SMFT3 têm). Contas do WK só aparecem quando o motor as
+  projeta.
+
+### D-072 ⏳ — `dfc_simplificado` REMOVIDO (migração do 9.0.2 concluída)
+
+- **Escolha:** o bloco de transição `dfc_simplificado` (criado no 9.0.2 até o
+  Excel migrar) foi removido do `dfc_indireto.py` — o Excel novo consome o DFC
+  indireto (`dfc`) direto e nenhum outro consumidor lia o legado (grep
+  confirmou). `pop("dfc_simplificado")` também limpa arquivos antigos ao
+  re-rodar. Teste atualizado (`test_dfc_simplificado_foi_removido`).
+
+### D-073 ⏳ — Revisão consolidada 9.0→9.5: máquina correta, preços-justos são premissa automática (D-024)
+
+- **Pedido de Lucas:** revisar se TUDO da Semana 9 funciona (dados
+  automáticos, front, back, resultados, coerência dos preços-justos).
+- **Máquina (correto):** 5/5 balanço fecha, DFC amarra, blocos críticos
+  presentes (dre/balanco/dfc/fcff/fcfe/fcfe_valuation/retornos); dados 100%
+  automáticos (preço yfinance, rf T-bond, CDI SGS) com **8 exercícios anuais
+  de histórico** (2018–2025, acima dos 5 pedidos); Excel com fórmulas que
+  reproduzem o motor byte a byte.
+- **Preços-justos (HONESTO):** com premissas AUTOMÁTICAS, só DIRR3 dá COMPRA
+  (+73%); MGLU3 −85%, SMFT3 **−3,93 (negativo)**, VALE3 −44%, WEGE3 −80% dão
+  VENDA. **DIRR3 é coerente com a realidade:** receita histórica 1,5→4,3 bi
+  (2020–25), projeção fade 15%→6%, margem bruta ~37%, ROIC ~25% — tese
+  defensável. Os alvos baixos/negativos dos demais são o **padrão D-024**
+  (premissa automática NÃO é tese; skew conservador + bridges grandes +
+  WACC/Kd altos da D-063). SMFT3 negativo segue artefato (D-048/D-060). **A
+  correção é do analista** — o fluxo guiado do 9.0.4 e as células verdes do
+  Excel 9.0.5 existem exatamente para isso. A pendência D-063 (Kd derivado 46%
+  MGLU3) continua o principal item a revisar para os alvos alavancados.
+
+---
+
 ## 20/07/2026 — Prompt 9.0.4 (Front-end guiado) + verificação do 9.0.3 no navegador
 
 > Sessão do **Claude Fable 5**. Lucas pediu (1) verificar o 9.0.3 ponta a ponta
