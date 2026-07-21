@@ -74,12 +74,20 @@ Entradas mais recentes primeiro. IDs sequenciais `D-nnn` para referência.
 > (2 caíram por limite de sessão, mas suas áreas — valuation/Excel e integração — já
 > tinham PASS na auditoria anterior). Consolido tudo aqui.
 
-### D-075 ⏳ — Semana 10 adicionada ao PROMPTS_FABLE (gráficos vivos no app)
+### D-075 ⏳ — Semana 10 no PROMPTS_FABLE (gráficos vivos no app); doc FINALIZADO p/ Opus 4.8
 
 - **Situação:** a revisão apontou como lacuna nº 1 que o app não tem gráficos (congelados
   no 9.0.0, D-053). Lucas pediu os gráficos de volta: football field automatizado,
   tornado, waterfall, ROIC/ROIIC, sensibilidade viva, comparáveis, bear/base/bull.
-- **Escolha:** escrevi a **Semana 10** no `PROMPTS_FABLE.md` (prompts 10.0.0 → 10.0.5):
+- **Finalização (pedido de Lucas):** reescrevi o `PROMPTS_FABLE.md` deixando **APENAS a
+  Semana 10** (removido todo o conteúdo/prompts da Semana 9 — histórico fica no CONTEXT/
+  CHANGELOG), com o implementador trocado para **Claude Opus 4.8** (faz TODO o código,
+  confere cada erro/funcionalidade, o front-end, gráficos/tabelas e o Excel). Adicionei uma
+  seção §0 "Estado atual do repositório" (fundação: motor pré-D&A, blocos persistidos, Excel
+  8 abas/cores de Lucas, app 4 etapas, módulos descongelados D-078, comandos da venv) para
+  o Opus começar com contexto total. Os 6 prompts (10.0.0…10.0.5) ficaram mais detalhados e
+  específicos (assinaturas reais dos módulos, contratos de bloco, DoD com navegador). 557
+  linhas (era 1088). Prompts 10.0.0 → 10.0.5:
   10.0.0 descongelar e re-alinhar os módulos ao motor 9.0.x; 10.0.1 comparáveis reais
   (peers/quartis via yfinance); 10.0.2 motor de cenários bear/base/bull + resolver o
   achado do target ≤ 0 (preservar dispersão de EV/Equity quando o alvo/ação satura em 0);
