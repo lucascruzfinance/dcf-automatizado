@@ -70,12 +70,12 @@
   "dpo": 43,
   "custo_divida_kd": 0.12,
   "crescimento_perpetuidade_g": 0.035,
-  "beta": 0.47708604531518006,
+  "beta": 0.5,
   "erp": 0.045,
   "crp": 0.03,
   "payout_dividendos": 0.4,
   "acoes_fully_diluted": 4195829691.0,
   "premissas_automaticas": true,
   "origem_premissas": "geradas automaticamente: ancoras historicas + defaults do subtipo (industria); REVISAR antes de usar como tese",
-  "gerado_em": "2026-07-18T12:59:53"
+  "gerado_em": "2026-07-23T17:55:58"
 }

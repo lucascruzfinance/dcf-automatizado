@@ -140,6 +140,31 @@ build-up por unit economics exige método específico por setor. A função
 
 ---
 
+## ⏳ A-8 — O motor usa o número ORIGINAL, não o reapresentado (achado de 22/07/2026)
+
+Cada exercício aparece **duas vezes** na base da CVM: como `ORDEM_EXERC =
+ÚLTIMO` na DFP do próprio ano, e como `PENÚLTIMO` na DFP do ano seguinte (a
+coluna comparativa). O motor filtra `ÚLTIMO` — ou seja, **o número como foi
+divulgado na época**, não como a empresa o reapresentou depois.
+
+Medido em 5 tickers: das 891 linhas anuais que existem nas duas versões, **47
+(5,3%) divergem**. Exemplos reais:
+
+| ticker | conta | exercício | ÚLTIMO (original) | PENÚLTIMO (reapresentado) |
+|---|---|---|---:|---:|
+| VALE3 | 3.01 receita | 2020 | 208.528.759 | 206.098.000 |
+| VALE3 | 3.02 CPV | 2020 | −98.567.494 | −90.948.000 |
+| ABEV3 | 3.06.01 rec. financeiras | 2023 | 2.670.300 | 2.494.161 |
+| WEGE3 | 3.06.01 rec. financeiras | 2022 | 1.105.994 | 1.197.270 |
+
+**A decisão é sua:**
+- **(a) manter `ÚLTIMO`** — é reprodutível e é o número que o mercado viu na
+  época. **(recomendada)**
+- (b) preferir a versão mais recente de cada exercício (pega reapresentação e
+  reclassificação, mas o histórico muda retroativamente a cada DFP nova).
+
+---
+
 ## Convenções já travadas (não precisam de decisão — só para você saber)
 
 - **Cores do Excel:** histórico = AZUL, premissa = VERDE, fórmula = PRETO (as
