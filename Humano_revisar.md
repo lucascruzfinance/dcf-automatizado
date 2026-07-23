@@ -93,8 +93,9 @@ trabalho) ou aceitar que banco vive só no app. Hoje está como backlog v2.2.
 15 módulos foram congelados no enxugamento da Semana 9 e 14 já foram
 descongelados e re-testados com dados reais (football field, tornado, waterfall,
 ROIC/ROIIC, sensibilidades, comparáveis, cenários). **Eles funcionam, mas ainda
-não aparecem no app** — religá-los é a Semana 10, já planejada em
-`PROMPTS_FABLE.md`.
+não aparecem no app** — religá-los é a Semana 11, planejada em
+`PROMPTS_OPUS.md` (só as faixas próprias do football field; comparáveis
+automatizados foram adiados no reescopo da conversa franca).
 
 Sobra um caso: **`src/exportacao/exportador_bi.py`** continua congelado (export de
 tabelas planas para Power BI). **A decisão é sua:** apagar de vez ou manter

@@ -237,7 +237,8 @@ O desenvolvimento deste projeto usa um paradigma de vibe coding assistido por IA
 |------------|-----|
 | VS Code | Editor principal com suporte a Python, Jupyter e Git integrado |
 | OpenAI Codex CLI | Geração autônoma de código na v1.0 (papel assumido pelo Claude Fable 5 a partir da v2.0) |
-| Claude Fable 5 | IA de implementação a partir da v2.0 — lê os documentos de contexto, escreve/edita código e front-end, roda os testes (ver [`PROMPTS_FABLE.md`](PROMPTS_FABLE.md)) |
+| Claude Fable 5 | IA de implementação da v2.0 e da Semana 9.0 — leu os documentos de contexto, escreveu/editou código e front-end, rodou os testes |
+| Claude Opus 4.8 | IA de implementação a partir das Semanas 10–11 (reescopo "conversa franca") — ver [`PROMPTS_OPUS.md`](PROMPTS_OPUS.md) |
 | Claude Code | Geração/curadoria dos prompts cirúrgicos e revisão final de código |
 | GitHub Copilot | Assistência contextual em código dentro do VS Code |
 | Git + GitHub | Controle de versão e publicação do repositório |
@@ -272,7 +273,7 @@ dcf-automatizado/
 ├── CONTEXT.md                          # Documento central de contexto para sessões de IA
 ├── README.md                           # Este arquivo
 ├── CLAUDE.md                           # Guia operacional do repositório (Claude Code)
-├── PROMPTS_FABLE.md                    # Plano vigente em prompts progressivos (Semana 9.0)
+├── PROMPTS_OPUS.md                     # Plano vigente em prompts progressivos (Semanas 10–11)
 ├── Humano_revisar.md                   # SÓ o que ainda exige uma decisão de Lucas (A-1..A-7)
 ├── docs/                               # Documentação histórica/consolidada
 │   ├── TUTORIAL.md                     # Passo a passo de uso do app (4 etapas + Excel)
@@ -540,8 +541,12 @@ o projeto foi enxugado ao núcleo, a coleta ficou 100% fiel à CVM, o motor viro
 Direcional" (DRE **pré-D&A**, WK multi-driver, DFC indireto, BP aberto com check), ganhou
 **FCFE + macro anual + retornos**, o front-end virou um **fluxo guiado de 4 etapas** e o Excel
 foi reescrito como **"Modelo" de 8 abas** com FCFF/FCFE em abas separadas, fórmulas vivas e
-cores de Lucas. O plano está em [`PROMPTS_FABLE.md`](PROMPTS_FABLE.md), dirigido ao **Claude
-Fable 5**. A **Semana 10** (planejada) traz os gráficos de volta ao app.
+cores de Lucas. O plano vigente está em [`PROMPTS_OPUS.md`](PROMPTS_OPUS.md), dirigido ao
+**Claude Opus 4.8**: **Semana 10** (motor enxuto e explicável — Kd/beta como input, WC de 4
+contas, sem IFRS-16 pesado, valuation/retornos/múltiplos consolidados, **DDM para financeiras**,
+macro reformatada, formatação BR no Excel) e **Semana 11** (front-end institucional com gráficos
+vivos: ROIC/ROIIC, margens, retorno em blocos, waterfall EV→Equity, sensibilidade, football field
+enxuto + aba de Ajuda).
 
 | Versão | Status | Escopo |
 |--------|--------|--------|
