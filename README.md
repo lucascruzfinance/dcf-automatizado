@@ -10,7 +10,11 @@
 > humano, ela decide sozinha pela melhor opção disponível, executa, e registra a decisão em
 > **[`Humano_revisar.md`](Humano_revisar.md)** — data, situação, escolha tomada, alternativas
 > e justificativa. O humano revisita o arquivo e aprova ou pede reversão. Nenhuma decisão
-> registrada lá é definitiva até a revisão humana.
+> registrada lá é definitiva até a revisão humana. Desde 22/07/2026 esse arquivo guarda só
+> as decisões **em aberto**; o histórico executado está em
+> [`docs/historico_decisoes.md`](docs/historico_decisoes.md).
+>
+> 📘 **Como usar o app:** [`docs/TUTORIAL.md`](docs/TUTORIAL.md).
 
 ---
 
@@ -269,8 +273,10 @@ dcf-automatizado/
 ├── README.md                           # Este arquivo
 ├── CLAUDE.md                           # Guia operacional do repositório (Claude Code)
 ├── PROMPTS_FABLE.md                    # Plano vigente em prompts progressivos (Semana 9.0)
-├── Humano_revisar.md                   # Decisões autônomas da IA aguardando revisão
+├── Humano_revisar.md                   # SÓ o que ainda exige uma decisão de Lucas (A-1..A-7)
 ├── docs/                               # Documentação histórica/consolidada
+│   ├── TUTORIAL.md                     # Passo a passo de uso do app (4 etapas + Excel)
+│   ├── historico_decisoes.md           # Arquivo morto das decisões D-001..D-079 da IA
 │   ├── ROTEIRO.md                      # Plano de desenvolvimento semana a semana (spec v1.0)
 │   ├── CHANGELOG.md                    # Histórico de versões e entregas por semana
 │   └── CONTRIBUTING.md                 # Convenções de código e fluxo de desenvolvimento

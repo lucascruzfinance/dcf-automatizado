@@ -172,8 +172,10 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   Revisão consolidada 9.0→9.5 (D-073): máquina correta, dados automáticos,
   preços-justos são premissa automática (padrão D-024). **Próxima tarefa: a
   Semana pós-9.0 será planejada depois** (fora do `PROMPTS_FABLE.md`).
-  Decisões autônomas pendentes de revisão humana: **`Humano_revisar.md`**
-  (D-001+, agora até D-073; D-063 sobre o Kd do WACC segue ABERTA — ver D-066).
+  Decisões que ainda dependem de Lucas: **`Humano_revisar.md`** (itens A-1 a
+  A-7 desde 22/07/2026; A-2, o Kd derivado do WACC, é a mais relevante). O
+  histórico executado D-001…D-079 foi arquivado em
+  **`docs/historico_decisoes.md`**. Uso do app: **`docs/TUTORIAL.md`**.
 - **O que está PRONTO e VALIDADO:**
   > ⚠️ **A lista de bullets abaixo é HISTÓRICA (estado da Semana 2/3, v1.0).**
   > O estado ATUAL e correto está no cabeçalho desta Seção 8 (acima) e nos
@@ -253,6 +255,45 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 22/07/2026 (Claude Opus 4.8) — Enxugamento do Humano_revisar + verificação ponta a ponta + TUTORIAL
+
+- **Pedido de Lucas:** (1) reduzir o `Humano_revisar.md` ("1500 linhas é
+  absurdo") a só o que exige decisão dele; (2) verificar se o programa não tem
+  erro, se o app funciona para tickers diferentes e se o Excel sai correto;
+  (3) escrever o passo a passo de uso do app.
+- **Humano_revisar.md: 1.520 → 160 linhas.** Os 79 registros `D-nnn` foram
+  movidos íntegros para **`docs/historico_decisoes.md`** (arquivo morto). O
+  arquivo da raiz virou 7 itens `A-1…A-7`, cada um com o D-nnn de origem, o
+  dado que sustenta a pergunta e as opções: A-1 alvos automáticos irreais,
+  A-2 Kd derivado (44–168%), A-3 Excel não cobre bancos, A-4 destino dos
+  módulos congelados (`exportador_bi.py`), A-5 truncamento da TIR em zero,
+  A-6 principal do leasing fora do DFC, A-7 unit economics na v3.0. Mais uma
+  seção de convenções já travadas (não precisam de decisão).
+- **Verificação executada (tudo com a `.venv`):** 204 testes passam, 0 skipped;
+  black e flake8 limpos em 97 arquivos. **14 tickers** com pipeline OK —
+  incluindo **SUZB3 e KLBN11 coletados do zero** (61s e 45s, score 96), o que
+  reconfirma a universalização. **App:** 36 renders (9 tickers × 4 etapas via
+  AppTest) sem uma exceção; app subiu no navegador em `localhost:8601` e as 4
+  etapas renderizaram. **Excel:** 12 arquivos regerados, 8 abas na ordem,
+  668–747 fórmulas cada, **0 célula de erro e 0 referência inválida**;
+  recalculando as fórmulas com o mini-avaliador, target/equity/EV/WACC/VT/
+  FCFF ano a ano batem com o motor em 12 casas decimais nos 12 tickers.
+  **Cadeia premissa→efeito provada:** margem bruta −10pp + WACC manual 0,16 no
+  DIRR3 → target 20,88 → 3,74 no JSON E no Excel recalculado; restaurado depois.
+  Balanço fecha em todos (resíduo ≤ 2,4e-07) e o DFC amarra com diferença 0,0.
+- **Achado (sem bug):** os Excel de PETR4/RENT3/RADL3/TOTS3 estavam no formato
+  ANTIGO de 7 abas (gerados em 19/07, antes do 9.0.5) — regerados nesta sessão.
+  Nada no código; era só arquivo velho no `outputs/`.
+- **Achado corrigido na documentação:** `main.py` só aceita `--setor
+  construcao|varejo` e DIRR3/MGLU3 (CLI legada v1); a CLI universal é
+  `python -m src.pipeline TICKER...`. Registrado no TUTORIAL.
+- **`docs/TUTORIAL.md` (novo):** como ligar o app, o que cada controle da
+  sidebar faz, o que preencher em cada um dos 6 grupos de premissas (com
+  formato e efeito), as 5 sub-abas de Resultados, as 8 abas do Excel e a
+  convenção de cores, receitas de linha de comando e o fluxo recomendado.
+- **Ponteiros atualizados:** CLAUDE.md (regra de tamanho do Humano_revisar +
+  link do tutorial), README.md (árvore de arquivos + banner do protocolo).
 
 ### Sessão 19/07/2026 (Claude Fable 5) — Semana 9.0, Prompt 9.0.3 (FCFE + macro anual + retornos)
 

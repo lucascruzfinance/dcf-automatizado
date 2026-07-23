@@ -13,10 +13,17 @@ referência (imutáveis) e mapas: `referencias/modelos_excel/`.
 Quando encontrar erro, ambiguidade, conflito entre documentos ou uma escolha
 que caberia ao humano: **NÃO pare para perguntar.** Escolha sozinho a melhor
 opção disponível, execute, e registre a decisão em **`Humano_revisar.md`** com
-data, situação, escolha tomada, alternativas consideradas e justificativa
-(IDs sequenciais `D-nnn`, mais recente primeiro). O humano revisa o arquivo
-periodicamente e pode reverter qualquer decisão. Isso vale para TODA
-solicitação, em TODAS as sessões.
+data, situação, escolha tomada, alternativas consideradas e justificativa.
+O humano revisa o arquivo periodicamente e pode reverter qualquer decisão. Isso
+vale para TODA solicitação, em TODAS as sessões.
+
+**Regra de tamanho (22/07/2026):** `Humano_revisar.md` guarda SÓ o que ainda
+exige uma escolha de Lucas sobre o app atual (itens `A-n`, hoje A-1 a A-7).
+Decisão já executada e estabilizada não fica lá — o histórico `D-001…D-079` está
+em `docs/historico_decisoes.md`. Ao registrar algo novo, pergunte-se "isto exige
+uma escolha dele?"; se não, o lugar é o CHANGELOG ou a Seção 8 do CONTEXT.
+
+Tutorial de uso do app (4 etapas, Excel de 8 abas): `docs/TUTORIAL.md`.
 
 ## Regras que quebram builds se ignoradas
 
