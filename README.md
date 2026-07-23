@@ -276,6 +276,7 @@ dcf-automatizado/
 ├── Humano_revisar.md                   # SÓ o que ainda exige uma decisão de Lucas (A-1..A-7)
 ├── docs/                               # Documentação histórica/consolidada
 │   ├── TUTORIAL.md                     # Passo a passo de uso do app (4 etapas + Excel)
+│   ├── TUTORIAL_MINI.md                # Versão direta do tutorial, só os cliques e comandos
 │   ├── historico_decisoes.md           # Arquivo morto das decisões D-001..D-079 da IA
 │   ├── ROTEIRO.md                      # Plano de desenvolvimento semana a semana (spec v1.0)
 │   ├── CHANGELOG.md                    # Histórico de versões e entregas por semana

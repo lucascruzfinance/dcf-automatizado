@@ -3,6 +3,9 @@
 > Escrito em 22/07/2026 contra o estado real do repositório (app de 4 etapas,
 > Excel de 8 abas). Cada passo abaixo foi executado de verdade antes de virar
 > texto.
+>
+> ⚡ **Só quer os cliques e comandos, sem explicação?**
+> [`TUTORIAL_MINI.md`](TUTORIAL_MINI.md).
 
 ---
 
