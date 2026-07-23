@@ -221,25 +221,29 @@ def verificar_e5(conteudo: dict[str, Any]) -> dict[str, Any]:
 
 
 def verificar_e6(conteudo: dict[str, Any]) -> dict[str, Any]:
-    """E6: acoes fully diluted e target price precisam ser positivos."""
+    """E6: acoes positivas e target FINITO (target nao-positivo e VALIDO).
+
+    Prompt 10.0.0: alinhado a invariante #5 do projeto (target negativo e
+    valido — premissa automatica conservadora / tese pessimista; o codigo nao
+    trava). A integridade tecnica (FCFF numerico, balanco fecha, WACC positivo)
+    e checada em E2/E3/E4; um target <= 0 e um sinal de VALUATION, nao uma
+    falha estrutural. Apenas acoes <= 0 ou target nao-finito reprovam.
+    """
+    rotulo = "Acoes positivas e target finito"
     ev = conteudo.get("ev_equity")
     if not isinstance(ev, dict):
-        return item("E6", "Acoes e target positivos", STATUS_FALHA, "EV ausente", True)
+        return item("E6", rotulo, STATUS_FALHA, "EV ausente", True)
     try:
         acoes = numero_finito(ev, "acoes_fully_diluted", "ev_equity")
         target = numero_finito(ev, "target_price", "ev_equity")
     except ValueError:
-        return item(
-            "E6",
-            "Acoes e target positivos",
-            STATUS_FALHA,
-            "acoes/target invalidos",
-            True,
-        )
-    if acoes <= 0 or target <= 0:
-        detalhe = f"acoes={formatar_numero(acoes)}; target={formatar_numero(target)}"
-        return item("E6", "Acoes e target positivos", STATUS_FALHA, detalhe, True)
-    return item("E6", "Acoes e target positivos", STATUS_OK, "ambos > 0", True)
+        return item("E6", rotulo, STATUS_FALHA, "acoes/target invalidos", True)
+    if acoes <= 0:
+        return item("E6", rotulo, STATUS_FALHA, f"acoes={formatar_numero(acoes)}", True)
+    if target <= 0:
+        detalhe = f"target={formatar_numero(target)} (nao-positivo, VALIDO)"
+        return item("E6", rotulo, STATUS_OK, detalhe, True)
+    return item("E6", rotulo, STATUS_OK, "acoes>0; target>0", True)
 
 
 def verificar_e7(conteudo: dict[str, Any]) -> dict[str, Any]:

@@ -59,14 +59,15 @@
   "dso": 103,
   "dio": 302,
   "dpo": 27,
-  "custo_divida_kd": 0.12,
+  "custo_divida_kd": 0.159,
+  "spread_divida_sobre_cdi": 0.02,
   "crescimento_perpetuidade_g": 0.035,
-  "beta": 0.560828145170699,
+  "beta": 1.0151,
   "erp": 0.045,
   "crp": 0.03,
   "payout_dividendos": 0.3,
   "acoes_fully_diluted": 520003784.0,
   "premissas_automaticas": true,
   "origem_premissas": "geradas automaticamente: ancoras historicas + defaults do subtipo (construcao_civil); REVISAR antes de usar como tese",
-  "gerado_em": "2026-07-18T12:59:33"
+  "gerado_em": "2026-07-23T19:46:35"
 }

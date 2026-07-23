@@ -1,9 +1,12 @@
 """Calculador de WACC em BRL nominal com decomposicao completa.
 
-Fluxo:
-    Rf_USD (^TNX) -> Ke_USD (CAPM com beta re-alavancado por Hamada e CRP) ->
-    Ke_BRL (diferencial de inflacao) -> Kd historico -> pesos E/V e D/V ->
-    WACC = (E/V) x Ke_BRL + (D/V) x Kd x (1 - t).
+Fluxo (Prompt 10.0.0 — inputs explicaveis):
+    Rf_USD (^TNX) -> Ke_USD (CAPM com beta INPUT direto, sem Hamada, + CRP) ->
+    Ke_BRL (diferencial de inflacao) -> Kd INPUT (premissa custo_divida_kd,
+    default CDI + spread) -> pesos E/V e D/V -> WACC = (E/V) x Ke_BRL +
+    (D/V) x Kd x (1 - t). O beta re-alavancado por Hamada e o Kd derivado do
+    historico foram removidos como DRIVERS (o Kd derivado sobra como
+    referencia exibida): ambos produziam numeros que o analista nao defende.
 """
 
 from __future__ import annotations
@@ -54,6 +57,9 @@ RF_USD_FALLBACK = 0.044
 IPCA_LONGO_PRAZO_PADRAO = 0.035
 CPI_EUA_LONGO_PRAZO_PADRAO = 0.020
 ANOS_KD_HISTORICO = 3
+# Fallback do Kd apenas quando a premissa custo_divida_kd estiver ausente
+# (o gerador ja define o default = CDI do ano + spread).
+KD_INPUT_PADRAO = 0.12
 
 logger = logging.getLogger(__name__)
 
@@ -293,8 +299,13 @@ def calcular_wacc(
     if rf <= 0:
         raise ValueError(f"Rf em USD precisa ser positivo, recebido {rf}.")
 
-    beta_desalavancado = ler_premissa_numerica(
-        premissas, ("beta_desalavancado", "beta")
+    # Beta = INPUT do analista (Bloomberg), usado DIRETAMENTE no CAPM.
+    # Prompt 10.0.0: fim da re-alavancagem de Hamada + clamp [0,5; 1,8] como
+    # driver. O beta informado JA e o beta alavancado da acao (vs Ibovespa),
+    # nao um beta desalavancado a re-alavancar — isso elimina o "beta 0,5x"
+    # colado no piso do clamp e torna o Ke defensavel em uma frase.
+    beta = ler_premissa_numerica(
+        premissas, ("beta", "beta_alavancado", "beta_desalavancado")
     )
     erp_eua = ler_premissa_numerica(premissas, ("erp_eua", "erp"))
     crp_brasil = ler_premissa_numerica(premissas, ("crp_brasil", "crp"))
@@ -313,19 +324,31 @@ def calcular_wacc(
     divida_media, pl_medio = calcular_medias_estrutura_capital(conteudo)
     divida_sobre_equity = divida_media / pl_medio
 
-    # Formula de Hamada: beta_L = beta_U x [1 + (D/E) x (1 - t)].
-    beta_realavancado = beta_desalavancado * (
-        1 + divida_sobre_equity * (1 - aliquota_ir)
-    )
-
-    # CAPM em USD com premio de risco Brasil (CRP).
-    ke_usd = rf + beta_realavancado * (erp_eua + crp_brasil)
+    # CAPM em USD com premio de risco Brasil (CRP). Beta usado DIRETO, sem
+    # re-alavancagem (10.0.0): o D/E abaixo fica so como informacao exibida.
+    ke_usd = rf + beta * (erp_eua + crp_brasil)
 
     # Diferencial de inflacao: converte o custo de equity de USD para BRL.
     ke_brl = ((1 + ke_usd) * (1 + ipca)) / (1 + cpi_eua) - 1
 
+    # Kd = INPUT do analista (premissa custo_divida_kd; default CDI + spread
+    # no gerador). Prompt 10.0.0: o Kd derivado do historico (despesa/divida
+    # media) explodia para 44-168% em nomes pouco alavancados e DEIXOU DE SER
+    # driver do WACC — vira apenas REFERENCIA exibida (kd_referencia_historico).
+    # O parametro kd_historico segue injetavel para testes offline.
     if kd_historico is None:
-        kd_historico = calcular_kd_historico(ticker_normalizado, raiz)
+        kd_historico = ler_premissa_numerica(
+            premissas, ("custo_divida_kd", "kd"), padrao=KD_INPUT_PADRAO
+        )
+    kd_referencia_historico: float | None = None
+    try:
+        kd_referencia_historico = calcular_kd_historico(ticker_normalizado, raiz)
+    except (RuntimeError, ValueError) as erro:
+        logger.info(
+            "Kd historico de referencia indisponivel para %s (%s).",
+            ticker_normalizado,
+            erro,
+        )
     # Formula: Kd liquido = Kd x (1 - t) — escudo fiscal da divida.
     kd_liquido = kd_historico * (1 - aliquota_ir)
 
@@ -368,18 +391,28 @@ def calcular_wacc(
     resultado = {
         "ticker": ticker_normalizado,
         "rf_usd": rf,
-        "beta_desalavancado": beta_desalavancado,
+        # Beta INPUT usado direto (sem Hamada). As chaves *_desalavancado e
+        # *_realavancado sao mantidas por compatibilidade (Excel/app) e agora
+        # valem AMBAS o beta informado (sem re-alavancagem).
+        "beta_input": beta,
+        "beta_desalavancado": beta,
+        "beta_realavancado": beta,
+        "beta_origem": "input_do_analista_sem_hamada",
         "divida_media": divida_media,
         "patrimonio_liquido_medio": pl_medio,
         "divida_sobre_equity": divida_sobre_equity,
-        "beta_realavancado": beta_realavancado,
         "erp_eua": erp_eua,
         "crp_brasil": crp_brasil,
         "ke_usd": ke_usd,
         "ipca": ipca,
         "cpi_eua": cpi_eua,
         "ke_brl": ke_brl,
+        # kd_historico = Kd INPUT efetivamente usado no WACC (nome mantido por
+        # compatibilidade do Excel/app); a referencia derivada fica ao lado.
         "kd_historico": kd_historico,
+        "kd_input": kd_historico,
+        "kd_referencia_historico": kd_referencia_historico,
+        "kd_origem": "input_custo_divida_kd",
         "aliquota_ir": aliquota_ir,
         "kd_liquido": kd_liquido,
         "peso_equity": peso_equity,
@@ -465,16 +498,15 @@ def imprimir_decomposicao_wacc(resultado: dict[str, Any]) -> None:
     print("-" * 72)
     linhas = [
         ("Rf USD (^TNX)", resultado["rf_usd"], "%"),
-        ("Beta desalavancado", resultado["beta_desalavancado"], "x"),
-        ("D/E (medio 1-8)", resultado["divida_sobre_equity"], "x"),
-        ("Beta re-alavancado", resultado["beta_realavancado"], "x"),
+        ("Beta (input, sem Hamada)", resultado["beta_input"], "x"),
+        ("D/E (medio 1-8, info)", resultado["divida_sobre_equity"], "x"),
         ("ERP EUA", resultado["erp_eua"], "%"),
         ("CRP Brasil", resultado["crp_brasil"], "%"),
         ("Ke USD", resultado["ke_usd"], "%"),
         ("IPCA LP", resultado["ipca"], "%"),
         ("CPI EUA LP", resultado["cpi_eua"], "%"),
         ("Ke BRL", resultado["ke_brl"], "%"),
-        ("Kd historico", resultado["kd_historico"], "%"),
+        ("Kd (input CDI+spread)", resultado["kd_historico"], "%"),
         ("Aliquota IR", resultado["aliquota_ir"], "%"),
         ("Kd liquido", resultado["kd_liquido"], "%"),
         ("Peso Equity (E/V)", resultado["peso_equity"], "%"),

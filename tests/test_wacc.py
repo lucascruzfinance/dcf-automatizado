@@ -108,9 +108,13 @@ def test_ke_brl_maior_que_ke_usd_quando_ipca_maior(tmp_path: Path) -> None:
     assert resultado["ke_brl"] > resultado["ke_usd"]
 
 
-def test_beta_realavancado_maior_com_divida(tmp_path: Path) -> None:
-    """Hamada eleva o beta quando ha divida na estrutura (D/E > 0)."""
-    criar_meta_e_premissas(tmp_path)
+def test_beta_usado_direto_sem_hamada(tmp_path: Path) -> None:
+    """10.0.0: beta INPUT entra direto no CAPM (sem re-alavancagem Hamada).
+
+    Mesmo com divida na estrutura (D/E > 0), o beta usado = beta informado —
+    nao ha mais o fator (1 + D/E x (1 - t)) inflando o Ke.
+    """
+    criar_meta_e_premissas(tmp_path, beta_desalavancado=1.1)
     criar_projecao_wacc(tmp_path, divida_bruta=400.0, patrimonio_liquido=600.0)
 
     resultado = calcular_wacc(
@@ -120,7 +124,11 @@ def test_beta_realavancado_maior_com_divida(tmp_path: Path) -> None:
         kd_historico=0.12,
     )
 
-    assert resultado["beta_realavancado"] > resultado["beta_desalavancado"]
+    assert resultado["divida_sobre_equity"] > 0
+    assert resultado["beta_input"] == pytest.approx(1.1)
+    assert resultado["beta_realavancado"] == pytest.approx(1.1)
+    assert resultado["beta_realavancado"] == pytest.approx(resultado["beta_input"])
+    assert resultado["beta_origem"] == "input_do_analista_sem_hamada"
 
 
 def test_kd_liquido_menor_com_escudo_fiscal(tmp_path: Path) -> None:
@@ -208,6 +216,28 @@ def test_kd_historico_de_dados_brutos(tmp_path: Path) -> None:
     media_despesas = (100.0 + 120.0 + 140.0) / 3
     media_divida = (1000.0 + 1100.0 + 1200.0) / 3
     assert kd == pytest.approx(media_despesas / media_divida)
+
+
+def test_kd_input_da_premissa_entra_no_wacc(tmp_path: Path) -> None:
+    """10.0.0: sem injecao, o WACC usa a premissa custo_divida_kd (input).
+
+    O Kd derivado do historico deixou de ser driver; vira so referencia.
+    """
+    criar_meta_e_premissas(tmp_path)
+    criar_projecao_wacc(tmp_path)
+    premissas_path = tmp_path / "data" / "premissas" / "TEST3_premissas.json"
+    premissas = json.loads(premissas_path.read_text(encoding="utf-8"))
+    premissas["custo_divida_kd"] = 0.135
+    salvar_json(premissas_path, premissas)
+
+    # kd_historico=None => le a premissa (nao deriva do historico).
+    resultado = calcular_wacc("TEST3", raiz_projeto=tmp_path, rf_usd=0.044)
+
+    assert resultado["kd_historico"] == pytest.approx(0.135)
+    assert resultado["kd_input"] == pytest.approx(0.135)
+    assert resultado["kd_origem"] == "input_custo_divida_kd"
+    # Sem base historica no fixture, a referencia derivada fica indisponivel.
+    assert resultado["kd_referencia_historico"] is None
 
 
 def test_wacc_manual_vence_build_up(tmp_path: Path) -> None:

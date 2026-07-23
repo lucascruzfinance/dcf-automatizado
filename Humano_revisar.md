@@ -45,7 +45,21 @@ flag `premissas_automaticas: true`):
 
 ---
 
-## ⏳ A-2 — Kd derivado do histórico sai absurdo em nomes alavancados (ex-D-063 / D-065 / D-066)
+## ✅ A-2 — Kd derivado do histórico sai absurdo em nomes alavancados — RESOLVIDO em 23/07/2026 (Prompt 10.0.0)
+
+**Resolução:** o `calculador_wacc` **não deriva mais** o Kd. Agora o WACC usa a
+**premissa `custo_divida_kd` (INPUT do analista)**, com default = **CDI do ano +
+spread (2pp)**; o Kd derivado do histórico virou apenas referência exibida
+(`kd_referencia_historico`). Efeito: WACC saiu da faixa absurda (44–168% de Kd)
+para faixa sã — DIRR3 14,5%, MGLU3 19,0%. No mesmo prompt o **beta** virou INPUT
+usado direto no CAPM (sem Hamada, sem clamp [0,5;1,8]) — fim do "beta 0,5x"
+(agora é o beta de mercado real, ex.: WEGE3 0,555, exibido e sobrescrevível).
+Também: **E6 do `verificar_semana3`** deixou de reprovar target ≤ 0 (alinhado à
+invariante #5: negativo é válido). Reverta se discordar.
+
+<details><summary>Texto original da pendência (histórico)</summary>
+
+## ⏳ A-2 (original) — Kd derivado do histórico sai absurdo em nomes alavancados (ex-D-063 / D-065 / D-066)
 
 O `calculador_wacc` deriva o custo da dívida dividindo despesa financeira pelo
 saldo médio de dívida. Nos casos em que a empresa tem pouca dívida bruta e muita
@@ -73,6 +87,8 @@ mostra na sub-aba Modelo.
 
 Enquanto não decidir: dá para contornar caso a caso na etapa ② → grupo ⑥ →
 slider "Kd — custo da dívida", ou informando o WACC direto no grupo ⑤.
+
+</details>
 
 ---
 

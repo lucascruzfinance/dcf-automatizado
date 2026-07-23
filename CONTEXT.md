@@ -125,7 +125,8 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
-- **Data da última atualização:** 20/07/2026
+- **Data da última atualização:** 23/07/2026 (Semana 10 iniciada — Prompt
+  10.0.0 parcial: Kd e beta viraram INPUT no motor; ver sessão datada abaixo)
 - **Versão alvo:** **v2.1** — **Semana 9.0 CONCLUÍDA** (6 prompts 9.0.0 → 9.0.5
   no `PROMPTS_FABLE.md`; Excel "Modelo" padrão **Direcional**, não Smartfit —
   unit economics adiado p/ v3.0). **Semana 10 PLANEJADA** (gráficos vivos no
@@ -255,6 +256,49 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 23/07/2026 (Claude Opus 4.8) — Semana 10, Prompt 10.0.0 (parcial): Kd e beta viram INPUT (fim dos "números estranhos")
+
+- **Contexto:** após a "conversa franca" (reescopo em `PROMPTS_OPUS.md`, que
+  substituiu o `PROMPTS_FABLE.md`), Lucas pediu para começar a Semana 10. O
+  Prompt 10.0.0 ataca a raiz dos números que ele não conseguia defender: beta
+  "0,5x" colado no piso do clamp e Kd derivado de 44–168%.
+- **Entregue nesta sessão (núcleo do 10.0.0 — CÁLCULO):**
+  - **`calculador_wacc.py`:** o WACC deixou de **derivar** o Kd (despesa
+    financeira ÷ dívida média, que explodia) — agora usa a **premissa
+    `custo_divida_kd` (INPUT)**; o Kd derivado sobra só como referência exibida
+    (`kd_referencia_historico`, em try/except que nunca trava). O **beta** deixou
+    de ser desalavancado/re-alavancado por Hamada + clamp [0,5;1,8]: é **INPUT
+    usado direto no CAPM** (`beta_input`; `beta_realavancado == beta`, sem o
+    fator (1+D/E(1-t))). Novos campos: `beta_origem`, `kd_input`, `kd_origem`.
+  - **`gerador_premissas.py`:** default do Kd = **CDI do ano 1 + spread**
+    (`_cdi_ano1` lê o `macro_anual`; spread 0,02) e grava `spread_divida_sobre_cdi`
+    (o Kd por ano passa a acompanhar o CDI); default do **beta = beta de mercado
+    bruto** (yfinance ~5a, `beta_mercado`), com clamp só de sanidade ampla
+    `[0,3; 2,0]` — sem Hamada, sem clamp estreito.
+  - **`exportador_excel.py`:** a aba WACC acompanhou o motor — fórmula do beta
+    re-alavancado virou `=w_beta` (sem Hamada) e os rótulos viraram "Beta (input
+    Bloomberg)"/"Beta usado (sem re-alavancagem)"/"Kd (input CDI+spread)". O
+    avaliador de fórmulas segue com **0 divergências**.
+  - **`verificar_semana3.py` (E6):** alinhado à **invariante #5** (target
+    negativo é VÁLIDO) — E6 reprova só por ações ≤ 0 ou target não-finito; um
+    target ≤ 0 é resultado de valuation, não falha estrutural (a integridade
+    técnica está em E2/E3/E4). Sem isso a re-baseline honesta do beta derrubaria
+    a Semana 3 por MGLU3.
+- **Efeito (re-baseline explicado por driver):** WACC saiu da faixa absurda para
+  **sã** — DIRR3 **14,52%** (target R$ 16,8, COMPRA), MGLU3 **18,96%** (beta
+  bruto 2,0 → target −0,1, VENDA — VÁLIDO). Premissas dos golden regeneradas:
+  Kd de todos = **15,9%** (CDI 13,9% + 2%); beta = mercado bruto (DIRR3 1,015 /
+  MGLU3 2,0 / SMFT3 1,686 / **WEGE3 0,555** — agora o beta REAL de uma defensiva,
+  não o piso do clamp; exibido com proveniência e sobrescrevível).
+- **Validação:** `pytest tests -q` → **205 passed** (test_wacc reescrito:
+  `test_beta_usado_direto_sem_hamada` + `test_kd_input_da_premissa_entra_no_wacc`);
+  `black --workers 1`/`flake8` limpos; `verificar_semana3` → **SEMANA 3 OK**.
+- **FALTA no 10.0.0 (próxima sessão):** default das 4 premissas = **média-5a
+  achatada** (hoje ainda interpola/fade; exige janelas 5a em
+  `metricas_historicas.py`); **payout/minoritários/outras** → média histórica
+  achatada; **remover `caixa_minimo`** (acoplado à política de dívida flat do
+  10.0.1); ajuste do painel ② do app (grupo "Outros" sem payout/minoritários).
 
 ### Sessão 22/07/2026 (Claude Opus 4.8) — Enxugamento do Humano_revisar + verificação ponta a ponta + TUTORIAL
 

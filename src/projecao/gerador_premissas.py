@@ -37,9 +37,11 @@ LIMITES_CAPEX_RECEITA = (-0.30, -0.005)
 LIMITES_MARGEM_BRUTA = (0.01, 0.95)
 LIMITES_SGNA = (0.0, 0.90)
 LIMITES_DEDUCOES = (0.0, 0.90)
-# Beta desalavancado de PARTIDA: clamp de sanidade (acao em colapso da bolsa
-# produz beta estatistico > 2 e WACC absurdo; o analista sobrescreve).
-LIMITES_BETA = (0.5, 1.8)
+# Beta e INPUT do analista (Bloomberg); o clamp abaixo e apenas de sanidade
+# AMPLA (evita valor patologico de acao em colapso), NAO um driver que molda o
+# Ke — 10.0.0 removeu a re-alavancagem de Hamada e o clamp estreito [0,5; 1,8].
+LIMITES_BETA_SANIDADE = (0.3, 2.0)
+SPREAD_DIVIDA_SOBRE_CDI_PADRAO = 0.02
 G_PERPETUIDADE_PADRAO = 0.035
 KD_PADRAO = 0.12
 BETA_PADRAO = 1.0
@@ -105,6 +107,32 @@ def _metricas(ticker: str, raiz: Path) -> dict[str, Any]:
     if not caminho.exists():
         return {}
     return carregar_json(caminho)
+
+
+def _cdi_ano1(raiz: Path) -> float | None:
+    """CDI esperado do ano 1 (bloco macro_anual persistido); None se ausente.
+
+    Base do default do Kd (CDI + spread), padrao Direcional/aula: o custo da
+    divida sai das ultimas emissoes ~ CDI + spread, nunca de despesa/divida
+    media (que estoura em nomes pouco alavancados).
+    """
+    caminho = raiz / "data" / "raw" / "macro" / "macro_brasil.json"
+    if not caminho.exists():
+        return None
+    try:
+        macro = carregar_json(caminho)
+    except RuntimeError:
+        return None
+    macro_anual = macro.get("macro_anual") if isinstance(macro, dict) else None
+    if not isinstance(macro_anual, dict):
+        return None
+    linha = macro_anual.get("ano1")
+    if not isinstance(linha, dict):
+        return None
+    cdi = linha.get("cdi")
+    if isinstance(cdi, bool) or not isinstance(cdi, (int, float)) or cdi < 0:
+        return None
+    return float(cdi)
 
 
 def _defaults_dre_completa(subtipo: str, raiz: Path) -> dict[str, float]:
@@ -353,10 +381,27 @@ def gerar_premissas_nao_financeira(
     premissas["dso"] = round(_numero(agregados.get("dso_media_3a"), 45.0))
     premissas["dio"] = round(_numero(agregados.get("dio_media_3a"), 45.0))
     premissas["dpo"] = round(_numero(agregados.get("dpo_media_3a"), 45.0))
-    premissas["custo_divida_kd"] = KD_PADRAO
+    # Kd = INPUT do analista; default = CDI do ano 1 + spread (padrao
+    # Direcional/aula: ultimas emissoes ~ CDI + spread). Sem macro, KD_PADRAO.
+    cdi_ano1 = _cdi_ano1(raiz)
+    if cdi_ano1 is not None:
+        premissas["custo_divida_kd"] = round(
+            cdi_ano1 + SPREAD_DIVIDA_SOBRE_CDI_PADRAO, 5
+        )
+        # Faz o Kd POR ANO acompanhar o CDI projetado (schedule_divida).
+        premissas["spread_divida_sobre_cdi"] = SPREAD_DIVIDA_SOBRE_CDI_PADRAO
+    else:
+        premissas["custo_divida_kd"] = KD_PADRAO
     premissas["crescimento_perpetuidade_g"] = G_PERPETUIDADE_PADRAO
-    premissas["beta"] = _clamp(
-        _numero(agregados.get("beta_desalavancado"), BETA_PADRAO), LIMITES_BETA
+    # Beta = INPUT do analista (Bloomberg). Default = beta de MERCADO bruto
+    # (yfinance ~5a, ja alavancado), com clamp so de sanidade ampla; sem
+    # desalavancar/re-alavancar por Hamada (10.0.0) — entra direto no CAPM.
+    premissas["beta"] = round(
+        _clamp(
+            _numero(agregados.get("beta_mercado"), BETA_PADRAO),
+            LIMITES_BETA_SANIDADE,
+        ),
+        4,
     )
     premissas["erp"] = ERP_PADRAO
     premissas["crp"] = CRP_PADRAO
