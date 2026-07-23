@@ -708,8 +708,15 @@ def calcular_metricas_historicas(
             "roic",
             "roiic",
         ):
-            agregados[f"{campo}_media_3a"] = _media_metrica(metricas, campo, 3)
-            agregados[f"{campo}_mediana_3a"] = _mediana_metrica(metricas, campo, 3)
+            # Janelas 3a (retrocompat) e 5a (Prompt 10.0.0: o default das
+            # premissas passa a ser a media de 5 anos achatada nos 8 anos).
+            for janela in (3, 5):
+                agregados[f"{campo}_media_{janela}a"] = _media_metrica(
+                    metricas, campo, janela
+                )
+                agregados[f"{campo}_mediana_{janela}a"] = _mediana_metrica(
+                    metricas, campo, janela
+                )
         agregados["margem_ebitda_maxima"] = max(
             (
                 linha["margem_ebitda"]

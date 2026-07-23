@@ -189,8 +189,11 @@ histórico da empresa, média dos últimos 5 anos, e fletadas nos 8 anos):
 - `minoritarios_pct_ll` → média histórica de `participação minoritários / LL`, achatada.
 - Outras receitas/despesas operacionais e **equivalência patrimonial** → média histórica achatada
   (ou dobradas em "outros resultados operacionais" constante), nunca input.
-- **`caixa_minimo` → REMOVER.** Sem cash sweep no modelo, caixa mínimo não tem função. Retire a
-  premissa e qualquer uso dela.
+- **`caixa_minimo` → SAI do painel de premissas, mas NÃO é removido do código.** Decisão de Lucas
+  (23/07/2026): a política de dívida atual é MANTIDA (ver 10.0.1), e o caixa mínimo é o **piso que
+  dispara a captação** de dívida nova — tem função. Portanto ele deixa de ser slider do analista e
+  **permanece como parâmetro da política de dívida** (`politica_divida.caixa_minimo_pct_receita`
+  em `config/parametros.json`, hoje 2% da receita).
 
 **Rentabilidade do caixa = CDI:** confirme que `schedule_divida.py` usa a taxa de aplicação do
 caixa = **CDI do ano** (`macro_anual`), nunca uma taxa derivada do histórico (o "29%" do WEGE3).
@@ -203,35 +206,43 @@ mediana; documente a regra) **fletada nos 8 anos** — em vez do CAGR/fade atual
 ano a ano** (o editor 8× do app continua funcionando: o analista pode escrever a narrativa).
 Registrar `premissas_automaticas: true` até o analista editar (mantém o comportamento do A-1).
 
-**App (`app.py`, etapa ② Premissas):** o grupo "⑥ Outros" perde payout, minoritários e caixa
-mínimo (agora derivados) e passa a conter apenas **Kd** (com o default CDI+spread visível), **beta**
-(input, default yfinance visível), **g** e o vetor **capex_receita**. Mostre, ao lado de cada
-premissa de vetor, os **valores históricos** que formaram a média (referência — ver Prompt 10.0.5
-para o formato no Excel).
+**App (`app.py`, etapa ② Premissas):** o grupo "⑥ Outros" perde payout e minoritários (agora
+derivados do histórico) e o **slider de caixa mínimo** (vira parâmetro fixo da política de dívida),
+passando a conter apenas **Kd** (com o default CDI+spread visível), **beta** (input, default yfinance
+visível), **g** e o vetor **capex_receita**. Mostre, ao lado de cada premissa de vetor, os **valores
+históricos** que formaram a média (referência — ver Prompt 10.0.5 para o formato no Excel).
+
+> **STATUS (23/07/2026): Kd e beta CONCLUÍDOS e validados.** O `calculador_wacc` usa a premissa
+> `custo_divida_kd` (default CDI+spread) e o beta INPUT direto (sem Hamada/clamp); o `gerador_
+> premissas` define esses defaults; o Excel e o `verificar_semana3` (E6 alinhado à invariante #5)
+> acompanharam. Caixa já rendia CDI (D-065). **Falta neste prompt:** default média-5a achatada dos 4
+> vetores + payout/minoritários/outras via histórico achatado + ajuste do painel ②.
 
 ## Definição de Pronto (DoD)
 
-- Nenhum ticker produz Kd derivado absurdo: WACC de todos os golden fica em faixa econômica
-  sensata (Kd = CDI+spread, sem 44–168%). Beta aparece como input com proveniência; nenhum "0,5x"
-  vindo de clamp. Caixa rende CDI; `caixa_minimo` não existe mais no código.
-- `gerador_premissas.py` gera default = média-5a achatada nos 4 vetores; override ano a ano segue
-  funcionando; payout/minoritários/outras viram média histórica achatada.
+- ✅ Nenhum ticker produz Kd derivado absurdo: WACC dos golden em faixa sã (Kd = CDI+spread, sem
+  44–168%). ✅ Beta é input com proveniência; nenhum "0,5x" vindo de clamp. ✅ Caixa rende CDI.
+- `caixa_minimo` **sai do painel de premissas** (segue como parâmetro da política de dívida — NÃO é
+  removido do código).
+- `gerador_premissas.py` gera default = **média-5a achatada** nos 4 vetores (com o override ano a ano
+  intacto); payout/minoritários/outras viram **média histórica achatada** (deixam de ser input).
 - `pytest`/`black`/`flake8` verdes; `verificar_semana3` OK; **golden re-explicado por driver** no
   `CONTEXT.md` (o target VAI mudar — explique o quanto e por quê).
 
 ## O que NÃO fazer
 
-- NÃO manter o Kd derivado como *driver* do WACC. NÃO manter caixa mínimo. NÃO remover o editor 8×
+- NÃO manter o Kd derivado como *driver* do WACC. **NÃO remover o caixa mínimo do código** (só do
+  painel de premissas — ele alimenta a captação da política de dívida). NÃO remover o editor 8×
   (o override por ano é a alma do projeto). NÃO tocar no Excel/gráficos ainda.
 
 ## Ao final
 
-`CONTEXT.md` + `Humano_revisar.md` (fechar A-2; anotar a re-baseline do golden).
+`CONTEXT.md` + `Humano_revisar.md` (A-2 já fechada; anotar a re-baseline do golden).
 
 ---
 ---
 
-# PROMPT 10.0.1 — Schedules enxutos: working capital de 4 contas, PP&E, fim do IFRS-16 pesado, dívida flat e DFC completo
+# PROMPT 10.0.1 — Schedules enxutos: working capital de 4 contas, PP&E, fim do IFRS-16 pesado, dívida (amortização ATUAL, documentada) e DFC completo
 
 ## Papel e contexto
 
@@ -244,9 +255,10 @@ pela média histórica com suavização de *outliers*.
 
 ## Objetivo
 
-Deixar os schedules **simples e explicáveis**: WC de 4 contas, dívida flat sem revolver, DFC
-indireto completo com o financiamento (dividendos) e o encadeamento de caixa, e **remover a mecânica
-IFRS-16** mantendo só a linha de arrendamento no BP.
+Deixar os schedules **simples e explicáveis**: WC de 4 contas, **manter a política de amortização de
+dívida ATUAL** (perfil CP/LP + captação para caixa mínimo) e **documentá-la com clareza** (Lucas quer
+entender e manter, não simplificar para flat), DFC indireto completo com o financiamento (dividendos)
+e o encadeamento de caixa, e **remover a mecânica IFRS-16** mantendo só a linha de arrendamento no BP.
 
 ## Especificação técnica detalhada
 
@@ -275,16 +287,37 @@ explicitamente que o EBITDA passa a ser **ex-ajuste de leasing** e que, para nom
 pesado (SMFT3, RENT3, RADL3), o número não é comparável ao EBITDA pós-IFRS-16 do mercado — isso é
 uma simplificação deliberada de explicabilidade.
 
-**Dívida (`schedule_divida.py`):** manter a política **flat** (`divida_bruta_constante_sem_
-amortizacao`): dívida bruta constante, **sem revolver, sem nova dívida, sem novo equity**
-(`delta_divida = 0`, `delta_equity = 0`). Juros = Kd (input do 10.0.0) × saldo. Deixe **claro em
-comentário e no Excel** que o modelo **não amortiza** (é premissa explícita, não esquecimento).
+**Dívida (`schedule_divida.py`) — MANTER a política de amortização ATUAL (decisão de Lucas,
+23/07/2026); NÃO simplificar para flat.** A política vigente é boa e defensável; o objetivo aqui é
+**deixá-la CLARA** (código, Excel e app/Ajuda). Como ela funciona hoje (documentar exatamente assim):
+1. **Estoque inicial (Ano 0, da CVM):** dívida de curto prazo (CP) e de longo prazo (LP).
+2. **Amortização programada:** a **CP do Ano 0 amortiza inteira no ano 1**; a **LP amortiza linear**
+   em `prazo_amortizacao_lp_anos` (config, hoje **5 anos** → 1/5 do saldo por ano).
+3. **Juros = Kd × dívida de ABERTURA** do ano (convenção de saldo inicial: remove a circularidade
+   juros/captação; a dívida captada no ano só paga juros no ano seguinte).
+4. **Captação de dívida nova:** se o caixa projetado do ano cair **abaixo do caixa mínimo**
+   (`caixa_minimo_pct_receita` × receita), a empresa **capta a diferença** no fim do ano (nova
+   tranche, amortização linear em 5 anos, 1 ano de carência, ao Kd do ano). **É o caixa mínimo que
+   dispara isto** — por isso ele NÃO é removido (10.0.0), só sai do painel de premissas.
+5. **Reclassificação CP/LP no fechamento:** a CP do ano = amortização programada para o ano seguinte;
+   o resto é LP.
+6. **Emissão por emissão (opcional):** a tabela de premissa `instrumentos_divida` (saldo, taxa,
+   `ano_vencimento` bullet ou `curva_amortizacao`) modela cada debênture individualmente — método
+   "calendário da ANBIMA" da aula. Preservar intacto.
+- **O que ENTREGAR aqui:** comentários/`docstring` explicando 1–6 no `schedule_divida.py`; uma nota
+  na aba do Excel (ex.: em `Avisos` ou ao lado do schedule de dívida) descrevendo a política em
+  linguagem de analista; e o texto correspondente na aba de Ajuda do app (Prompt 11.0.4). O Kd usado
+  é o input do 10.0.0 (premissa `custo_divida_kd` / `spread_divida_sobre_cdi`). **Sem revolver
+  formal** (a captação para caixa mínimo já cumpre o papel, sem circularidade).
 
 **DFC indireto (`dfc_indireto.py`) — completar o financiamento e o encadeamento de caixa** (padrão
 Madero/WEGE3):
 - **FCO** = LL + D&A − ΔNWC.
 - **FCI** = − CAPEX.
-- **FCF** (financiamento) = − Dividendos Pagos (= −payout × LL) + Δdívida (0) + Δequity (0).
+- **FCF** (financiamento) = − Dividendos Pagos (= −payout × LL) **− Amortização + Captação**
+  (= −div + Δdívida líquida) + Δequity (0). **Atenção:** como a política de dívida NÃO é flat
+  (amortiza CP/LP e capta para caixa mínimo), Δdívida ≠ 0 — o FCF tem que refletir amortização e
+  captação (já é assim no `schedule_divida`; garanta que o `dfc` exponha as linhas separadas).
 - **Caixa BOP** = Caixa EOP do ano anterior; **Variação de caixa** = FCO + FCI + FCF; **Caixa EOP**
   = BOP + Variação. Persistir todas as linhas no bloco `dfc`.
 - **Check do balanço em TODOS os anos, inclusive os históricos 2020–2025** (`verificacao_balanco`
@@ -295,13 +328,16 @@ Madero/WEGE3):
 - `wk` com 4 contas + Current/Quick Ratio por ano; WC achatado sem salto no ano 1. Leasing pesado
   removido do resultado/FCFE, `passivo_arrendamento` constante no BP; balanço fecha (resíduo ≤ 1e-6)
   em TODOS os anos, históricos inclusos. DFC amarra (Caixa EOP = Caixa do BP) com dividendos no FCF.
-- Dívida flat documentada como premissa. `pytest`/`black`/`flake8` verdes; `verificar_semana3` OK;
-  golden re-explicado (leasing fora + WC 4 contas mudam o número — quantifique).
+- **Política de dívida ATUAL mantida** (perfil CP/LP + captação para caixa mínimo + instrumentos
+  opcionais) e **documentada** no código, no Excel e no texto da Ajuda (11.0.4). `pytest`/`black`/
+  `flake8` verdes; `verificar_semana3` OK; golden re-explicado (leasing fora + WC 4 contas mudam o
+  número — quantifique).
 
 ## O que NÃO fazer
 
-- NÃO reintroduzir revolver. NÃO manter WC de 6 contas. NÃO deixar a D&A do direito de uso no
-  resultado. NÃO deixar o Check só nos anos projetados.
+- **NÃO tornar a dívida flat** (Lucas quer manter a amortização atual). NÃO reintroduzir revolver
+  formal (a captação para caixa mínimo já cobre, sem circularidade). NÃO manter WC de 6 contas. NÃO
+  deixar a D&A do direito de uso no resultado. NÃO deixar o Check só nos anos projetados.
 
 ## Ao final
 
@@ -864,7 +900,8 @@ lote (não-financeiras + financeiras) ponta a ponta.
 - **Enxugar o README à realidade:** remover/rebaixar as promessas de Power BI, "football field com 7
   metodologias", comparáveis automatizados e unit economics (que **não** estão vivos). Descrever
   fielmente: coleta CVM automatizada + auditor; motor pré-D&A enxuto (4 premissas, Kd/beta input, WC
-  4 contas, sem IFRS-16 pesado, dívida flat); **FCFF/WACC para não-financeiras e DDM para
+  4 contas, sem IFRS-16 pesado, dívida com amortização CP/LP + captação documentada); **FCFF/WACC
+  para não-financeiras e DDM para
   financeiras**; Excel de 8 abas com formatação BR; app guiado com **gráficos vivos** (ROIC/ROIIC,
   margens, retorno em blocos, waterfall, heatmap, football field enxuto) e aba de Ajuda. Atualizar o
   roadmap (v2.1 fechada; backlog explícito: Excel bancário completo, comparáveis automatizados, unit
@@ -917,12 +954,12 @@ terminar no meio de um prompt, registre o ponto exato no `CONTEXT.md` e retome d
 |---|---|---|
 | Kd = input (CDI+spread), fim do Kd derivado | A-2 + aula ("últimas emissões") + WEGE3 (48%) | 10.0.0 |
 | Beta = input (Bloomberg), fim do clamp/0,5x | conversa + aula (beta vs Ibovespa) | 10.0.0 |
-| Caixa = CDI; caixa mínimo removido | aula + WEGE3 (29% absurdo) | 10.0.0 |
+| Caixa = CDI; caixa mínimo sai do painel (segue na política de dívida) | aula + WEGE3 (29% absurdo) | 10.0.0 |
 | Premissas = 4 + média-5a achatada (override mantido) | conversa + Madero/WEGE3 | 10.0.0 |
 | Payout/minoritários/outras = média histórica achatada | conversa | 10.0.0 |
 | WC de 4 contas (365 dias, achatado) | Madero + aula + WEGE3 | 10.0.1 |
 | IFRS-16 pesado removido (leasing só linha no BP) | conversa (simplicidade) | 10.0.1 |
-| Dívida flat, sem revolver, sem nova dívida/equity | aula (evitar circular) + conversa | 10.0.1 |
+| Dívida: amortização ATUAL mantida e documentada (CP no ano 1 + LP linear 5a + captação p/ caixa mínimo + instrumentos opcionais) | decisão de Lucas 23/07 | 10.0.1 |
 | DFC com dividendos + Caixa BOP→EOP | Madero + WEGE3 | 10.0.1 |
 | Espinha do valuation (Soma VP FCFF %, VP VT %, Dív. Bruta, Caixa, Dív. Líq., Equity) | Direcional FCFF | 10.0.2 |
 | FCFE ao Ke; remover target da FCFF | aula + conversa | 10.0.2 |

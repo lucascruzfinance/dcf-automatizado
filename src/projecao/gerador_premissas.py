@@ -13,6 +13,7 @@ remove a flag no salvamento).
 from __future__ import annotations
 
 import logging
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -135,6 +136,91 @@ def _cdi_ano1(raiz: Path) -> float | None:
     return float(cdi)
 
 
+def _carregar_bruto(ticker: str, raiz: Path, demonstrativo: str) -> pd.DataFrame:
+    """Carrega um JSON bruto da CVM em DataFrame; vazio quando ausente."""
+    caminho = raiz / "data" / "raw" / "cvm" / f"{ticker}_{demonstrativo}.json"
+    if not caminho.exists():
+        return pd.DataFrame()
+    return pd.DataFrame(carregar_json(caminho))
+
+
+def _serie_anual(dados: pd.DataFrame, nome: str, n: int = 5) -> dict[int, float]:
+    """Ultimos n valores anuais (31/12, ULTIMO) de uma conta, por ano.
+
+    Base do "achatamento pela media de 5 anos" (10.0.0): devolve {ano: valor}
+    filtrando ruido de ITR trimestral e escolhendo a conta consolidada (menor
+    CD_CONTA) e o arquivo mais recente por exercicio.
+    """
+    if dados.empty or "nome_padronizado" not in dados.columns:
+        return {}
+    if "valor_padronizado" not in dados.columns:
+        return {}
+    sel = dados[dados["nome_padronizado"] == nome].copy()
+    sel = sel[sel["valor_padronizado"].notna()]
+    if sel.empty:
+        return {}
+    if "ORDEM_EXERC" in sel.columns:
+        ordem = sel["ORDEM_EXERC"].map(
+            lambda v: unicodedata.normalize("NFKD", str(v))
+            .encode("ascii", "ignore")
+            .decode("ascii")
+            .strip()
+            .lower()
+        )
+        sel = sel[ordem == "ultimo"]
+    sel["_data"] = pd.to_datetime(sel.get("DT_FIM_EXERC"), errors="coerce")
+    sel = sel[sel["_data"].notna()]
+    sel = sel[(sel["_data"].dt.month == 12) & (sel["_data"].dt.day == 31)]
+    if sel.empty:
+        return {}
+    if "CD_CONTA" in sel.columns:
+        sel["_prio"] = sel["CD_CONTA"].astype(str).str.len()
+    else:
+        sel["_prio"] = 0
+    if "ano_arquivo" in sel.columns:
+        sel["_arq"] = pd.to_numeric(sel["ano_arquivo"], errors="coerce")
+    else:
+        sel["_arq"] = 0
+    por_ano: dict[int, float] = {}
+    for data, grupo in sel.groupby("_data"):
+        if grupo["_arq"].notna().any():
+            grupo = grupo[grupo["_arq"] == grupo["_arq"].max()]
+        grupo = grupo.sort_values("_prio")
+        por_ano[int(data.year)] = float(grupo.iloc[0]["valor_padronizado"])
+    anos = sorted(por_ano)[-n:]
+    return {ano: por_ano[ano] for ano in anos}
+
+
+def _media_pct_hist(
+    numerador: dict[int, float],
+    denominador: dict[int, float],
+    n: int = 5,
+    usar_abs: bool = True,
+) -> float | None:
+    """Media das razoes num/den nos ultimos n anos comuns (den != 0)."""
+    anos = sorted(set(numerador) & set(denominador))[-n:]
+    razoes: list[float] = []
+    for ano in anos:
+        den = denominador[ano]
+        if den == 0:
+            continue
+        num = abs(numerador[ano]) if usar_abs else numerador[ano]
+        razoes.append(num / den)
+    if not razoes:
+        return None
+    return sum(razoes) / len(razoes)
+
+
+def _vetor_flat(valor: float) -> dict[int, float]:
+    """Vetor de 8 valores ACHATADO (10.0.0): mesmo valor em todos os anos.
+
+    O default das premissas passa a ser a media historica de 5 anos fletada
+    nos 8 anos (padrao Madero/WEGE3). O analista sobrescreve ano a ano no app
+    para escrever a narrativa — o editor 8x continua existindo.
+    """
+    return {ano: valor for ano in range(1, HORIZONTE_PROJECAO + 1)}
+
+
 def _defaults_dre_completa(subtipo: str, raiz: Path) -> dict[str, float]:
     """Defaults setoriais da DRE completa (config/setores.json)."""
     setores = carregar_json(raiz / "config" / "setores.json")
@@ -191,36 +277,50 @@ def _ancoras_dre_completa(
     Sao PONTOS DE PARTIDA — o analista revisa.
     """
     da_pct_rl = _da_pct_receita_ano0(ticker, raiz)
+    # Margem bruta ancorada na MEDIA DE 5 ANOS (10.0.0; fallback 3a e default).
     margem_bruta = (
         _numero(
-            agregados.get("margem_bruta_media_3a"),
-            _numero(defaults_setor.get("margem_bruta"), 0.30),
+            agregados.get("margem_bruta_media_5a"),
+            _numero(
+                agregados.get("margem_bruta_media_3a"),
+                _numero(defaults_setor.get("margem_bruta"), 0.30),
+            ),
         )
         + da_pct_rl
     )
 
-    # SG&A, outras e equivalencia a partir do Ano 0 real (3.04.xx da CVM).
-    caminho_dre = raiz / "data" / "raw" / "cvm" / f"{ticker}_dre.json"
-    sgna_pct = _numero(defaults_setor.get("sgna_pct_receita"), 0.15)
-    outras_pct = 0.0
-    equivalencia_pct = 0.0
-    if caminho_dre.exists():
-        dados = pd.DataFrame(carregar_json(caminho_dre))
-        receita = _valor_ano0_dre(dados, "receita_liquida")
-        if receita > 0:
-            despesas_vendas = _valor_ano0_dre(dados, "despesas_vendas")
-            desp_g_adm = _valor_ano0_dre(dados, "despesas_gerais_administrativas")
-            perdas = _valor_ano0_dre(dados, "perdas_nao_recuperabilidade")
-            outras_rec = _valor_ano0_dre(dados, "outras_receitas_operacionais")
-            outras_desp = _valor_ano0_dre(dados, "outras_despesas_operacionais")
-            equiv = _valor_ano0_dre(dados, "resultado_equivalencia_patrimonial")
-            # SG&A = comerciais + G&A (despesas negativas -> ratio positivo).
-            sgna_abs = abs(despesas_vendas + desp_g_adm)
-            if sgna_abs > 0:
-                sgna_pct = sgna_abs / receita
-            # Outras = impairment + outras receitas/despesas operacionais (com sinal).
-            outras_pct = (perdas + outras_rec + outras_desp) / receita
-            equivalencia_pct = equiv / receita
+    # SG&A, outras e equivalencia pela MEDIA DE 5 ANOS (10.0.0), calculada das
+    # razoes historicas ano a ano (nao mais so o Ano 0).
+    dre = _carregar_bruto(ticker, raiz, "dre")
+    receita_por_ano = _serie_anual(dre, "receita_liquida")
+    dv = _serie_anual(dre, "despesas_vendas")
+    dga = _serie_anual(dre, "despesas_gerais_administrativas")
+    sgna_por_ano = {
+        ano: _numero(dv.get(ano), 0.0) + _numero(dga.get(ano), 0.0)
+        for ano in set(dv) | set(dga)
+    }
+    # SG&A = comerciais + G&A (despesas negativas -> razao positiva por abs).
+    sgna_pct = _numero(
+        _media_pct_hist(sgna_por_ano, receita_por_ano, usar_abs=True),
+        _numero(defaults_setor.get("sgna_pct_receita"), 0.15),
+    )
+    # Outras (com sinal) = impairment + outras receitas/despesas operacionais.
+    perdas = _serie_anual(dre, "perdas_nao_recuperabilidade")
+    outras_rec = _serie_anual(dre, "outras_receitas_operacionais")
+    outras_desp = _serie_anual(dre, "outras_despesas_operacionais")
+    outras_por_ano = {
+        ano: _numero(perdas.get(ano), 0.0)
+        + _numero(outras_rec.get(ano), 0.0)
+        + _numero(outras_desp.get(ano), 0.0)
+        for ano in set(perdas) | set(outras_rec) | set(outras_desp)
+    }
+    outras_pct = _numero(
+        _media_pct_hist(outras_por_ano, receita_por_ano, usar_abs=False), 0.0
+    )
+    equiv = _serie_anual(dre, "resultado_equivalencia_patrimonial")
+    equivalencia_pct = _numero(
+        _media_pct_hist(equiv, receita_por_ano, usar_abs=False), 0.0
+    )
 
     # Deducoes via DVA (razao RB/RL do Ano 0); deducoes% = 1 - RL/RB.
     razao, fonte_razao = carregar_razao_receita_bruta(ticker, raiz)
@@ -243,7 +343,10 @@ def _ancoras_dre_completa(
         "deducoes_pct": deducoes_pct,
         "outras_despesas_pct_receita": round(outras_pct, 5),
         "equivalencia_pct_receita": round(equivalencia_pct, 5),
-        "aliquota_efetiva": _numero(agregados.get("aliquota_efetiva_media_3a"), None),
+        "aliquota_efetiva": _numero(
+            agregados.get("aliquota_efetiva_media_5a"),
+            _numero(agregados.get("aliquota_efetiva_media_3a"), None),
+        ),
         "fonte_deducoes": fonte_deducoes,
     }
 
