@@ -12,8 +12,8 @@ Decisões já executadas, estabilizadas e sem pergunta pendente (D-001…D-079,
 não precisa ler.
 
 Status: `⏳ aberta` | `✅ aprovada` | `🔁 revertida`.
-Última verificação ponta a ponta: **22/07/2026** — 204 testes verdes, 12 tickers
-no app sem exceção, 10 Excels recalculados fórmula a fórmula (0 divergência).
+Última verificação ponta a ponta: **23/07/2026** — 207 testes verdes, `black`/
+`flake8` limpos, `verificar_semana3` SEMANA 3 OK (Prompt 10.0.0 concluído).
 
 ---
 
@@ -24,16 +24,26 @@ flag `premissas_automaticas: true`):
 
 | ticker | target | preço | upside |     | ticker | target | preço | upside |
 |--------|-------:|------:|-------:|-----|--------|-------:|------:|-------:|
-| DIRR3  |  20,88 | 12,05 |   +73% |     | VALE3  |  41,32 | 74,18 |   −44% |
+| DIRR3  |   9,89 | 12,05 |   −18% |     | VALE3  |  41,32 | 74,18 |   −44% |
 | BBAS3  |  40,77 | 20,58 |   +98% |     | RENT3  |  20,65 | 41,10 |   −50% |
-| ITUB4  |  54,33 | 44,30 |   +23% |     | WEGE3  |   9,44 | 46,51 |   −80% |
-| ABEV3  |  11,87 | 15,63 |   −24% |     | MGLU3  |   0,77 |  5,05 |   −85% |
-| PETR4  |   1,35 | 40,90 |   −97% |     | SMFT3  |  −3,93 | 21,20 |  −119% |
+| ITUB4  |  54,33 | 44,30 |   +23% |     | WEGE3  |  16,91 | 46,51 |   −64% |
+| ABEV3  |  11,87 | 15,63 |   −24% |     | MGLU3  |  −3,97 |  5,05 |  −179% |
+| PETR4  |   1,35 | 40,90 |   −97% |     | SMFT3  |   0,29 | 21,20 |   −99% |
 | TOTS3  |  −1,70 | 29,19 |  −106% |     | RADL3  |  −2,18 | 18,77 |  −112% |
 
-**Por que:** a premissa de partida é gerada por âncora histórica (CAGR 3a, margem
-3a, capex 3a) com fade conservador. Não é uma tese — é um ponto de partida. PETR4
-−97%, TOTS3 e RADL3 negativos são consequência disso somada ao Kd derivado (A-2).
+> **Atualização 23/07/2026 (Prompt 10.0.0):** os **4 golden** (DIRR3, WEGE3,
+> MGLU3, SMFT3) foram regenerados com o novo default **média-5a achatada**; os
+> outros 8 ainda carregam premissa pré-10.0.0 e vão se mover quando regerados.
+> DIRR3 caiu de +73% para −18% e **virou VENDA**: o payout agora é fato histórico
+> (média-5a robusta = **48%**, contra os 30% fixos de antes), o que drena caixa e
+> aumenta a dívida líquida no bridge.
+
+**Por que:** a premissa de partida é gerada por âncora histórica **achatada na
+média de 5 anos** (10.0.0), não uma tese. Para nomes de crescimento alto (DIRR3,
+SMFT3, WEGE3) a média-5a bate no teto de sanidade e o vetor sai **plano em +15%**
+por 8 anos — mais agressivo que o antigo fade, o que **acentua** o quanto o alvo
+automático precisa da sua revisão. PETR4 −97%, TOTS3 e RADL3 negativos ainda
+carregam premissa antiga; serão re-explicados quando regerados.
 
 **A decisão é sua:**
 - **(a) manter** — a etapa ② existe exatamente para você escrever a tese ticker a
@@ -189,8 +199,17 @@ Medido em 5 tickers: das 891 linhas anuais que existem nas duas versões, **47
   DIRR3.
 - **Excel = 8 abas:** Capa, Premissas, Modelo, FCFF, FCFE, Macro, Sensibilidades,
   Avisos — padrão Direcional, com fórmulas vivas.
-- **Horizonte 8 anos**, sempre 8 valores individuais por premissa (nunca uma taxa
-  replicada).
+- **Horizonte 8 anos**, sempre 8 campos individuais por premissa (`_ano1..8`). O
+  **default** deles passou a ser a **média-5a ACHATADA** (mesmo valor nos 8 anos,
+  10.0.0), com salvaguarda de outlier (mediana quando um ano se afasta >1,5× da
+  mediana). O editor 8× do app segue permitindo sobrescrever ano a ano — é lá que
+  você escreve a narrativa.
+- **Kd e beta são INPUT seu** (10.0.0): Kd default = CDI + spread (2pp); beta
+  default = yfinance ~5a, usado direto no CAPM (sem Hamada/clamp).
+- **Payout e minoritários são fato histórico** (média-5a robusta), não mais
+  slider — saíram do painel ②. **Caixa mínimo** saiu do painel também, mas segue
+  vivo como parâmetro da política de dívida em `config/parametros.json` (2% da
+  receita) — é o gatilho da captação (A-6/10.0.1).
 - **Margem de partida é BRUTA pré-D&A**; a margem EBITDA virou derivada
   (bruta − SG&A), somente leitura.
 - **WACC manual vence o build-up CAPM** quando preenchido; a decomposição CAPM

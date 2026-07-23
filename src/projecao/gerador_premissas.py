@@ -191,13 +191,46 @@ def _serie_anual(dados: pd.DataFrame, nome: str, n: int = 5) -> dict[int, float]
     return {ano: por_ano[ano] for ano in anos}
 
 
-def _media_pct_hist(
+def _num_opt(valor: Any) -> float | None:
+    """Float defensivo sem aceitar booleanos; invalido vira None."""
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+        return None
+    return float(valor)
+
+
+def _central_robusta(valores: list[float]) -> float | None:
+    """Valor central ACHATADO robusto a outlier (10.0.0).
+
+    Regra: usa a MEDIA, salvo quando ha um ANO EXTREMO — algum ponto que se
+    afasta da mediana em mais de 1,5x o |mediana| (ex.: dividendo especial que
+    triplica o payout de um unico ano). Nesse caso a MEDIANA e mais fiel ao
+    regime tipico da empresa. Lista vazia devolve None; mediana ~0 cai na
+    media (razoes centradas em zero, como equivalencia, nao tem outlier util).
+    """
+    if not valores:
+        return None
+    ordenados = sorted(valores)
+    n = len(ordenados)
+    media = sum(ordenados) / n
+    meio = n // 2
+    if n % 2 == 1:
+        mediana = ordenados[meio]
+    else:
+        mediana = (ordenados[meio - 1] + ordenados[meio]) / 2
+    if abs(mediana) < 1e-9:
+        return media
+    if any(abs(v - mediana) > 1.5 * abs(mediana) for v in ordenados):
+        return mediana
+    return media
+
+
+def _central_pct_hist(
     numerador: dict[int, float],
     denominador: dict[int, float],
     n: int = 5,
     usar_abs: bool = True,
 ) -> float | None:
-    """Media das razoes num/den nos ultimos n anos comuns (den != 0)."""
+    """Central robusta (media-5a achatada) das razoes num/den (den != 0)."""
     anos = sorted(set(numerador) & set(denominador))[-n:]
     razoes: list[float] = []
     for ano in anos:
@@ -206,9 +239,34 @@ def _media_pct_hist(
             continue
         num = abs(numerador[ano]) if usar_abs else numerador[ano]
         razoes.append(num / den)
-    if not razoes:
-        return None
-    return sum(razoes) / len(razoes)
+    return _central_robusta(razoes)
+
+
+def _ancora_flat_5a(
+    agregados: dict[str, Any],
+    campo: str,
+    fallback: float | None,
+) -> float | None:
+    """Ancora ACHATADA da media de 5 anos com salvaguarda de outlier (10.0.0).
+
+    Preferencia: media-5a; se a media-5a e a mediana-5a divergem forte (ano
+    extremo), usa a mediana-5a; sem 5a cai para a media-3a e depois para o
+    ``fallback``. E a base do default achatado dos vetores de premissa.
+    """
+    media5 = _num_opt(agregados.get(f"{campo}_media_5a"))
+    mediana5 = _num_opt(agregados.get(f"{campo}_mediana_5a"))
+    if media5 is not None:
+        if (
+            mediana5 is not None
+            and abs(mediana5) > 1e-9
+            and abs(media5 - mediana5) > 0.5 * abs(mediana5)
+        ):
+            return mediana5
+        return media5
+    media3 = _num_opt(agregados.get(f"{campo}_media_3a"))
+    if media3 is not None:
+        return media3
+    return fallback
 
 
 def _vetor_flat(valor: float) -> dict[int, float]:
@@ -277,14 +335,12 @@ def _ancoras_dre_completa(
     Sao PONTOS DE PARTIDA — o analista revisa.
     """
     da_pct_rl = _da_pct_receita_ano0(ticker, raiz)
-    # Margem bruta ancorada na MEDIA DE 5 ANOS (10.0.0; fallback 3a e default).
+    # Margem bruta ancorada na MEDIA-5a ACHATADA robusta (10.0.0) + D&A%RL.
     margem_bruta = (
-        _numero(
-            agregados.get("margem_bruta_media_5a"),
-            _numero(
-                agregados.get("margem_bruta_media_3a"),
-                _numero(defaults_setor.get("margem_bruta"), 0.30),
-            ),
+        _ancora_flat_5a(
+            agregados,
+            "margem_bruta",
+            _numero(defaults_setor.get("margem_bruta"), 0.30),
         )
         + da_pct_rl
     )
@@ -301,7 +357,7 @@ def _ancoras_dre_completa(
     }
     # SG&A = comerciais + G&A (despesas negativas -> razao positiva por abs).
     sgna_pct = _numero(
-        _media_pct_hist(sgna_por_ano, receita_por_ano, usar_abs=True),
+        _central_pct_hist(sgna_por_ano, receita_por_ano, usar_abs=True),
         _numero(defaults_setor.get("sgna_pct_receita"), 0.15),
     )
     # Outras (com sinal) = impairment + outras receitas/despesas operacionais.
@@ -315,11 +371,11 @@ def _ancoras_dre_completa(
         for ano in set(perdas) | set(outras_rec) | set(outras_desp)
     }
     outras_pct = _numero(
-        _media_pct_hist(outras_por_ano, receita_por_ano, usar_abs=False), 0.0
+        _central_pct_hist(outras_por_ano, receita_por_ano, usar_abs=False), 0.0
     )
     equiv = _serie_anual(dre, "resultado_equivalencia_patrimonial")
     equivalencia_pct = _numero(
-        _media_pct_hist(equiv, receita_por_ano, usar_abs=False), 0.0
+        _central_pct_hist(equiv, receita_por_ano, usar_abs=False), 0.0
     )
 
     # Deducoes via DVA (razao RB/RL do Ano 0); deducoes% = 1 - RL/RB.
@@ -343,31 +399,43 @@ def _ancoras_dre_completa(
         "deducoes_pct": deducoes_pct,
         "outras_despesas_pct_receita": round(outras_pct, 5),
         "equivalencia_pct_receita": round(equivalencia_pct, 5),
-        "aliquota_efetiva": _numero(
-            agregados.get("aliquota_efetiva_media_5a"),
-            _numero(agregados.get("aliquota_efetiva_media_3a"), None),
-        ),
+        "aliquota_efetiva": _ancora_flat_5a(agregados, "aliquota_efetiva", None),
         "fonte_deducoes": fonte_deducoes,
     }
 
 
-def _minoritarios_pct_ano0(ticker: str, raiz: Path) -> float:
-    """Ancora historica de minoritarios: |3.11.02| / |3.11| do Ano 0.
+def _payout_hist_5a(ticker: str, raiz: Path) -> float | None:
+    """Payout historico ACHATADO: media-5a robusta de |dividendos|/LL.
 
-    Sem as linhas (ou LL ~0) devolve 0.0 (default do 9.0.2.6).
+    Fonte: dividendos pagos no DFC (financiamento) sobre o Lucro Liquido do
+    ano (DRE). 10.0.0: o payout deixa de ser input do analista e vira FATO
+    HISTORICO achatado. Sem as linhas (ou LL ~0 em todo o periodo) devolve
+    None — o gerador cai no default do subtipo. Clampado em [0, 1].
     """
-    caminho = raiz / "data" / "raw" / "cvm" / f"{ticker}_dre.json"
-    if not caminho.exists():
+    dfc = _carregar_bruto(ticker, raiz, "dfc")
+    dre = _carregar_bruto(ticker, raiz, "dre")
+    dividendos = _serie_anual(dfc, "dividendos_pagos_dfc")
+    lucro = _serie_anual(dre, "lucro_liquido")
+    valor = _central_pct_hist(dividendos, lucro, usar_abs=True)
+    if valor is None:
+        return None
+    return min(max(valor, 0.0), 1.0)
+
+
+def _minoritarios_hist_5a(ticker: str, raiz: Path) -> float:
+    """Minoritarios ACHATADO: media-5a robusta de |nao_controladores|/|LL|.
+
+    10.0.0: minoritarios deixa de ser input e vira FATO HISTORICO (media dos
+    ultimos 5 anos, suavizada por outlier). Sem as linhas (ou LL ~0) devolve
+    0.0 (default do 9.0.2.6). Clampado em [0, 0.5].
+    """
+    dre = _carregar_bruto(ticker, raiz, "dre")
+    nao_controladores = _serie_anual(dre, "lucro_atribuido_nao_controladores")
+    lucro = _serie_anual(dre, "lucro_liquido")
+    valor = _central_pct_hist(nao_controladores, lucro, usar_abs=True)
+    if valor is None:
         return 0.0
-    dados = pd.DataFrame(carregar_json(caminho))
-    if dados.empty:
-        return 0.0
-    lucro_total = _valor_ano0_dre(dados, "lucro_liquido")
-    nao_controladores = _valor_ano0_dre(dados, "lucro_atribuido_nao_controladores")
-    if abs(lucro_total) < 1e-9 or nao_controladores == 0.0:
-        return 0.0
-    pct = abs(nao_controladores) / abs(lucro_total)
-    return min(max(pct, 0.0), 0.5)
+    return min(max(valor, 0.0), 0.5)
 
 
 def gerar_premissas_nao_financeira(
@@ -381,26 +449,43 @@ def gerar_premissas_nao_financeira(
     agregados = _metricas(ticker, raiz).get("agregados", {})
     mercado = _mercado(ticker, raiz)
 
-    crescimento_inicial = _numero(
-        agregados.get("cagr_receita_3a"),
-        _numero(defaults.get("crescimento_receita"), 0.05),
+    # 10.0.0: o default de cada vetor passa a ser a MEDIA-5a ACHATADA nos 8
+    # anos (nao mais CAGR/fade). O analista sobrescreve ano a ano no app (o
+    # editor 8x segue vivo) para escrever a narrativa; ate la o vetor sai
+    # achatado no fato historico, com salvaguarda de outlier (media/mediana).
+    crescimento_flat = _clamp(
+        _numero(
+            _ancora_flat_5a(
+                agregados,
+                "crescimento_receita_yoy",
+                _numero(
+                    agregados.get("cagr_receita_3a"),
+                    _numero(defaults.get("crescimento_receita"), 0.05),
+                ),
+            ),
+            _numero(defaults.get("crescimento_receita"), 0.05),
+        ),
+        LIMITES_CRESCIMENTO,
     )
-    crescimento_final = _numero(defaults.get("crescimento_receita"), 0.04)
-    margem_inicial = _numero(
-        agregados.get("margem_ebitda_media_3a"),
-        _numero(defaults.get("margem_ebitda"), 0.15),
-    )
-    margem_final = _numero(
-        defaults.get("margem_ebitda"),
-        margem_inicial,
-    )
-    capex_inicial = _numero(
-        agregados.get("capex_receita_media_3a"),
-        _numero(defaults.get("capex_receita"), -0.04),
+    margem_ebitda_flat = _clamp(
+        _ancora_flat_5a(
+            agregados,
+            "margem_ebitda",
+            _numero(defaults.get("margem_ebitda"), 0.15),
+        ),
+        LIMITES_MARGEM,
     )
     # CAPEX e saida de caixa: forca sinal negativo mesmo com historico ruidoso.
-    capex_inicial = -abs(capex_inicial)
-    capex_final = -abs(_numero(defaults.get("capex_receita"), capex_inicial))
+    capex_flat = _clamp(
+        -abs(
+            _ancora_flat_5a(
+                agregados,
+                "capex_receita",
+                _numero(defaults.get("capex_receita"), -0.04),
+            )
+        ),
+        LIMITES_CAPEX_RECEITA,
+    )
 
     premissas: dict[str, Any] = {
         "ticker": ticker,
@@ -408,15 +493,9 @@ def gerar_premissas_nao_financeira(
         "tipo": "nao_financeira",
     }
     vetores = {
-        "crescimento_receita": _interpolar_vetor(
-            crescimento_inicial, crescimento_final, LIMITES_CRESCIMENTO
-        ),
-        "margem_ebitda": _interpolar_vetor(
-            margem_inicial, margem_final, LIMITES_MARGEM
-        ),
-        "capex_receita": _interpolar_vetor(
-            capex_inicial, capex_final, LIMITES_CAPEX_RECEITA
-        ),
+        "crescimento_receita": _vetor_flat(crescimento_flat),
+        "margem_ebitda": _vetor_flat(margem_ebitda_flat),
+        "capex_receita": _vetor_flat(capex_flat),
     }
     for nome, vetor in vetores.items():
         for ano, valor in vetor.items():
@@ -429,24 +508,16 @@ def gerar_premissas_nao_financeira(
         str(metadados.get("subtipo") or "outros"), raiz
     )
     ancoras = _ancoras_dre_completa(ticker, raiz, agregados, defaults_setor)
+    # 10.0.0: vetores da DRE ACHATADOS na ancora historica de 5 anos (sem fade).
     vetores_dre = {
-        "margem_bruta": _interpolar_vetor(
-            ancoras["margem_bruta"],
-            _numero(defaults_setor.get("margem_bruta"), ancoras["margem_bruta"]),
-            LIMITES_MARGEM_BRUTA,
+        "margem_bruta": _vetor_flat(
+            _clamp(ancoras["margem_bruta"], LIMITES_MARGEM_BRUTA)
         ),
-        "sgna_pct_receita": _interpolar_vetor(
-            ancoras["sgna_pct_receita"],
-            _numero(
-                defaults_setor.get("sgna_pct_receita"),
-                ancoras["sgna_pct_receita"],
-            ),
-            LIMITES_SGNA,
+        "sgna_pct_receita": _vetor_flat(
+            _clamp(ancoras["sgna_pct_receita"], LIMITES_SGNA)
         ),
-        "deducoes_pct_receita_bruta": _interpolar_vetor(
-            ancoras["deducoes_pct"],
-            ancoras["deducoes_pct"],
-            LIMITES_DEDUCOES,
+        "deducoes_pct_receita_bruta": _vetor_flat(
+            _clamp(ancoras["deducoes_pct"], LIMITES_DEDUCOES)
         ),
     }
     for nome, vetor in vetores_dre.items():
@@ -467,18 +538,18 @@ def gerar_premissas_nao_financeira(
         # gera o vetor (o RET incide sobre a Receita Bruta projetada).
         aliquota_base = _numero(ancoras.get("aliquota_efetiva"), 0.34)
         aliquota_base = min(max(aliquota_base, 0.15), 0.45)
-        vetor_aliquota = _interpolar_vetor(aliquota_base, aliquota_base, (0.15, 0.45))
-        for ano, valor in vetor_aliquota.items():
-            # Re-clamp: o leque minimo do interpolador (+-0,2pp) pode
-            # estourar o clamp [15%, 45%] quando a base esta na borda.
-            premissas[f"aliquota_ir_ano{ano}"] = round(min(max(valor, 0.15), 0.45), 5)
+        # 10.0.0: aliquota ACHATADA na efetiva historica de 5 anos (sem fade).
+        for ano, valor in _vetor_flat(aliquota_base).items():
+            premissas[f"aliquota_ir_ano{ano}"] = round(valor, 5)
         # WK multi-driver (dias por conta derivados do Ano 0 no schedule).
         premissas["modo_capital_giro"] = "dias_multi_driver"
-    premissas["minoritarios_pct_ll"] = round(_minoritarios_pct_ano0(ticker, raiz), 5)
+    # Minoritarios = FATO HISTORICO ACHATADO (media-5a robusta), nao mais input.
+    premissas["minoritarios_pct_ll"] = round(_minoritarios_hist_5a(ticker, raiz), 5)
     premissas["origem_dre_completa"] = (
-        "PRE-D&A (9.0.2): margem_bruta = historica + D&A%RL "
-        f"({ancoras['da_pct_rl']:.4f}); SG&A/deducoes de ancoras historicas + "
-        f"defaults do subtipo; deducoes: {ancoras['fonte_deducoes']}; REVISAR"
+        "PRE-D&A (9.0.2) + vetores ACHATADOS na media-5a (10.0.0): margem_bruta "
+        f"= historica + D&A%RL ({ancoras['da_pct_rl']:.4f}); SG&A/deducoes de "
+        "ancoras historicas; payout/minoritarios = media-5a do historico; "
+        f"deducoes: {ancoras['fonte_deducoes']}; REVISAR"
     )
 
     premissas["dso"] = round(_numero(agregados.get("dso_media_3a"), 45.0))
@@ -508,9 +579,15 @@ def gerar_premissas_nao_financeira(
     )
     premissas["erp"] = ERP_PADRAO
     premissas["crp"] = CRP_PADRAO
-    payout = defaults.get("payout_dividendos")
-    if isinstance(payout, (int, float)) and not isinstance(payout, bool):
-        premissas["payout_dividendos"] = float(payout)
+    # Payout = FATO HISTORICO ACHATADO (10.0.0): media-5a de |dividendos|/LL.
+    # Sem historico de dividendos, cai no default do subtipo.
+    payout_hist = _payout_hist_5a(ticker, raiz)
+    if payout_hist is not None:
+        premissas["payout_dividendos"] = round(payout_hist, 5)
+    else:
+        payout = defaults.get("payout_dividendos")
+        if isinstance(payout, (int, float)) and not isinstance(payout, bool):
+            premissas["payout_dividendos"] = float(payout)
     if mercado.get("acoes_em_circulacao"):
         premissas["acoes_fully_diluted"] = float(mercado["acoes_em_circulacao"])
     return premissas

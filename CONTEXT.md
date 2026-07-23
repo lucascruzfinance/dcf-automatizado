@@ -125,8 +125,10 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
 
 > **ATUALIZAR ESTA SEÇÃO AO FINAL DE CADA SESSÃO.**
 
-- **Data da última atualização:** 23/07/2026 (Semana 10 iniciada — Prompt
-  10.0.0 parcial: Kd e beta viraram INPUT no motor; ver sessão datada abaixo)
+- **Data da última atualização:** 23/07/2026 (Semana 10 — **Prompt 10.0.0
+  CONCLUÍDO**: Kd/beta viraram INPUT + vetores viraram média-5a achatada +
+  payout/minoritários viraram fato histórico; ver as duas sessões datadas 23/07
+  abaixo. `PROMPTS_OPUS.md` reescrito p/ manter a amortização de dívida atual.)
 - **Versão alvo:** **v2.1** — **Semana 9.0 CONCLUÍDA** (6 prompts 9.0.0 → 9.0.5
   no `PROMPTS_FABLE.md`; Excel "Modelo" padrão **Direcional**, não Smartfit —
   unit economics adiado p/ v3.0). **Semana 10 PLANEJADA** (gráficos vivos no
@@ -256,6 +258,60 @@ Não-financeiras: balanço fecha nos 8 anos; ROIIC < 50% nos 2 últimos anos; CA
   - O RET deveria incidir sobre Receita Bruta, mas o coletor atual só traz Receita Líquida (CVM 3.01); a DRE projetada usa Receita Líquida como proxy até existir uma linha confiável de Receita Bruta.
   - Com o WK ancorado para DIRR3, o `soma_vp_fcff` recalculado ficou negativo nas premissas-teste atuais; isso corrige o caixa fictício do ano 1, mas exige revisão humana das premissas de crescimento/margem/capital de giro antes de usar como tese real.
   - `python -m src.verificar_semana3` roda a cadeia completa, mas no estado atual imprime `SEMANA 3 COM FALHAS`: DIRR3 e MGLU3 falham em E6 por `target_price` negativo; ambos alertam S3 por múltiplo de saída abaixo de 3x.
+
+### Sessão 23/07/2026 (Claude Opus 4.8) — Semana 10, Prompt 10.0.0 (PARTE 2): média-5a achatada + payout/minoritários históricos + `PROMPTS_OPUS.md` (manter amortização)
+
+- **Contexto:** retomada da PARTE 1 (que ficou num commit "parte 1" a meio
+  caminho: helpers e janelas 5a adicionados, mas os vetores ainda desciam por
+  fade). Lucas pediu (a) **não** tornar a dívida flat — manter a amortização
+  atual e documentá-la — e reescrever o `PROMPTS_OPUS.md`; (b) terminar os itens
+  restantes do 10.0.0.
+- **Como a dívida amortiza HOJE (documentado, MANTIDO):** perfil CP/LP — a CP do
+  Ano 0 amortiza inteira no ano 1; a LP amortiza linear em `prazo_amortizacao_
+  lp_anos` (5a); juros = Kd × dívida de abertura; se o caixa cair abaixo do
+  **caixa mínimo** (2% da receita), capta a diferença (tranche nova, linear 5a,
+  1a de carência); reclassifica CP/LP no fechamento; `instrumentos_divida`
+  opcional modela cada debênture. **Por isso o caixa mínimo NÃO foi removido** —
+  é o gatilho da captação; só saiu do painel de premissas.
+- **`PROMPTS_OPUS.md` reescrito (PARTE 1):** 10.0.1 mudou de "dívida flat" para
+  "manter amortização ATUAL e documentar" (título, objetivo, spec passo a passo
+  1–6, DoD, "não fazer", a linha de FCF do DFC com amortização+captação, e as
+  linhas do Apêndice C/D). 10.0.0 marcou o caixa mínimo como "sai do painel, não
+  do código".
+- **Entregue nesta PARTE 2 (motor — `gerador_premissas.py`):**
+  - **Vetores = média-5a ACHATADA** (não mais CAGR/fade): `crescimento_receita`,
+    `margem_bruta`, `sgna_pct_receita`, `aliquota_ir`, `capex_receita` e
+    `margem_ebitda` saem planos nos 8 anos. Helpers novos `_ancora_flat_5a`
+    (usa as janelas 5a do `metricas_historicas`, com fallback 3a→default) e
+    `_central_robusta` (**salvaguarda de outlier**: usa a mediana quando algum
+    ano se afasta >1,5× do |mediana| — ex.: dividendo especial). `_vetor_flat`
+    já existia da PARTE 1; agora está ligado.
+  - **Payout e minoritários = FATO HISTÓRICO achatado** (`_payout_hist_5a` =
+    média-5a robusta de `|dividendos_pagos_dfc|/LL`; `_minoritarios_hist_5a` =
+    idem de `|não_controladores|/LL`). Outras/equivalência via `_central_pct_hist`
+    (robusto). Removida a `_minoritarios_pct_ano0` (era só Ano 0).
+  - **App (`app.py` ② ⑥ Outros):** removidos os sliders de payout, minoritários e
+    caixa mínimo (derivados/política); Kd e beta com legenda de proveniência;
+    rótulo do beta corrigido (era "desalavancado", agora "input; default
+    yfinance ~5a"). `caixa_minimo_pct_receita` é 100% da config (o schedule já
+    lia de lá; o slider era um no-op).
+  - **Testes:** `test_gerador_premissas` ajustado (vetor achatado ⇒
+    `len(set)==1`) + 2 testes novos (`_central_robusta` pega a mediana no ano
+    extremo; payout/minoritários históricos).
+- **Re-baseline do golden (regenerando metricas 5a → premissas → motor):**
+  DIRR3 16,84 → **9,89** (VENDA; payout 5a robusto 48% — a mediana pegou o
+  dividendo especial de 2025 de 148% — drena caixa e sobe a dívida líquida);
+  MGLU3 −0,05 → **−3,97** (crescimento 5a robusto = mediana 3,5% + alíquota
+  efetiva capada em 45%); SMFT3 −3,93 → **+0,29** (alíquota 5a via mediana 15% +
+  margem bruta 57%; ainda com leasing pesado — muda no 10.0.1); WEGE3 9,21 →
+  **16,91**. Os outros 8 tickers seguem com premissa pré-10.0.0 até serem
+  regerados.
+- **Validação:** `pytest tests -q` → **207 passed**; `black --workers 1` /
+  `flake8` limpos; `verificar_semana3` → **SEMANA 3 OK** (balanço fecha E3).
+- **Pendências para os próximos prompts:** referência histórica ao lado das
+  premissas no app/Excel (10.0.5); WC de 4 contas + leasing fora do resultado
+  (10.0.1, muda SMFT3). A-1 atualizado (targets automáticos ficaram MAIS
+  agressivos com o achatamento da média-5a no teto de +15%).
 
 ### Sessão 23/07/2026 (Claude Opus 4.8) — Semana 10, Prompt 10.0.0 (parcial): Kd e beta viram INPUT (fim dos "números estranhos")
 

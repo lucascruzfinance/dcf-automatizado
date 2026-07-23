@@ -41,7 +41,7 @@ possui** — nenhum número nasce num gráfico.
 | Semana | Período | Tema | Prompts | Status |
 |---|---|---|---|---|
 | 9.0 | 17→20/07/2026 | Automação fiel à CVM + motor "padrão Direcional" + Excel "Modelo" 8 abas | 9.0.0…9.0.5 | ✅ CONCLUÍDA (fora deste doc) |
-| **10** | — | **Motor correto, enxuto e explicável: inputs certos (Kd/beta), schedules simplificados, valuation/retornos/múltiplos consolidados, DDM para financeiras, macro reformatada, formatação BR global no Excel** | **10.0.0…10.0.5** | 🟡 A EXECUTAR |
+| **10** | — | **Motor correto, enxuto e explicável: inputs certos (Kd/beta), schedules simplificados, valuation/retornos/múltiplos consolidados, DDM para financeiras, macro reformatada, formatação BR global no Excel** | **10.0.0…10.0.5** | 🟡 EM EXECUÇÃO (**10.0.0 ✅**) |
 | **11** | — | **Front-end institucional: tema, tabelas bonitas, gráficos vivos (ROIC/ROIIC, margens, retorno em blocos, waterfall EV→Equity, heatmap de sensibilidade, football field só com as faixas próprias), diferenciação financeira/não-financeira no app, aba de Ajuda** | **11.0.0…11.0.5** | 🟡 A EXECUTAR |
 
 Semana 10 é **back-end/cálculo/dados/Excel** — porque os gráficos da Semana 11 só valem se os
@@ -58,8 +58,10 @@ números estiverem certos. Não abra a Semana 11 antes de fechar a Semana 10.
   orquestradores (`main.py`, `src/pipeline.py`, `src/verificar_semana3.py`) chamam nessa ordem.
 - **Trilha financeira:** `src/projecao/projetor_financeiro.py` existe (LL direto, sem bridge
   EV→Equity). Hoje roda FCFE/Ke; a Semana 10 troca isso por **DDM** (Prompt 10.0.3).
-- **Gerador de premissas:** `src/projecao/gerador_premissas.py` cria as premissas automáticas
-  (hoje por CAGR/margem/capex com *fade*). Será trocado por **média-5a achatada** (Prompt 10.0.0).
+- **Gerador de premissas:** `src/projecao/gerador_premissas.py` cria as premissas automáticas.
+  **Default = média-5a ACHATADA** nos 8 anos (10.0.0 CONCLUÍDO), com salvaguarda de outlier
+  (mediana quando há ano extremo, via `_ancora_flat_5a`/`_central_robusta`); payout/minoritários
+  viram fato histórico achatado; o editor 8× do app segue permitindo override ano a ano.
 - **Blocos persistidos** em `data/processed/<TICKER>_projecao.json`: `ano0`, `dre`, `wk`, `ppe`,
   `divida`, `leasing`, `balanco` (com `verificacao_balanco`), `dfc`, `fcff` (com `roic`/`roiic`
   por ano), `fcfe`, `fcfe_valuation`, `retornos` (`tir_moic`, `multiplos`, `cenarios`), `wacc`,
@@ -212,11 +214,26 @@ passando a conter apenas **Kd** (com o default CDI+spread visível), **beta** (i
 visível), **g** e o vetor **capex_receita**. Mostre, ao lado de cada premissa de vetor, os **valores
 históricos** que formaram a média (referência — ver Prompt 10.0.5 para o formato no Excel).
 
-> **STATUS (23/07/2026): Kd e beta CONCLUÍDOS e validados.** O `calculador_wacc` usa a premissa
-> `custo_divida_kd` (default CDI+spread) e o beta INPUT direto (sem Hamada/clamp); o `gerador_
-> premissas` define esses defaults; o Excel e o `verificar_semana3` (E6 alinhado à invariante #5)
-> acompanharam. Caixa já rendia CDI (D-065). **Falta neste prompt:** default média-5a achatada dos 4
-> vetores + payout/minoritários/outras via histórico achatado + ajuste do painel ②.
+> **STATUS (23/07/2026): PROMPT 10.0.0 CONCLUÍDO.**
+> **(1) Kd e beta viraram INPUT:** `calculador_wacc` usa `custo_divida_kd` (default CDI+spread) e o
+> beta INPUT direto (sem Hamada/clamp); Excel e `verificar_semana3` (E6 alinhado à invariante #5)
+> acompanharam. Caixa rende CDI (D-065).
+> **(2) Vetores = média-5a ACHATADA** (helpers `_ancora_flat_5a`/`_central_robusta`, com salvaguarda
+> de outlier → mediana quando um ano se afasta >1,5× da mediana): `crescimento_receita`,
+> `margem_bruta`, `sgna_pct_receita`, `aliquota_ir`, `capex_receita` e `margem_ebitda` saem achatados
+> (as janelas 5a foram adicionadas em `metricas_historicas.py`). O editor 8× segue vivo (override
+> ano a ano).
+> **(3) Payout e minoritários viraram FATO HISTÓRICO achatado** (`_payout_hist_5a` = média-5a robusta
+> de `|dividendos_pagos_dfc|/LL`; `_minoritarios_hist_5a` = idem de `|não_controladores|/LL`);
+> outras/equivalência idem, via `_central_pct_hist`.
+> **(4) Painel ② "⑥ Outros"** perdeu payout, minoritários e o slider de caixa mínimo (derivados /
+> política); Kd e beta ganharam legenda de proveniência. `caixa_minimo_pct_receita` permanece em
+> `config/parametros.json` (só saiu do painel).
+> **Re-baseline do golden** (target — premissas AUTOMÁTICAS, REVISAR): DIRR3 16,84 → **9,89** (payout
+> 5a 48% drena caixa → flip COMPRA→VENDA), MGLU3 −0,05 → **−3,97** (crescimento 5a robusto 3,5% +
+> alíquota efetiva capada em 45%), SMFT3 −3,93 → **+0,29** (alíquota 5a via mediana 15% + margem
+> bruta 57%), WEGE3 9,21 → **16,91**. `pytest` **207** / `black` / `flake8` limpos; `verificar_
+> semana3` **SEMANA 3 OK**. (SMFT3 ainda inclui o leasing pesado — muda no 10.0.1.)
 
 ## Definição de Pronto (DoD)
 

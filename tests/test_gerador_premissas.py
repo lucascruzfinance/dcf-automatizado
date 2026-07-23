@@ -103,8 +103,10 @@ def test_gerador_gera_conjunto_dre_completa(tmp_path: Path) -> None:
     for prefixo in ("margem_bruta", "sgna_pct_receita", "deducoes_pct_receita_bruta"):
         valores = [premissas[f"{prefixo}_ano{ano}"] for ano in range(1, 9)]
         assert all(isinstance(v, (int, float)) for v in valores)
-        # 8 valores individuais (nunca uma taxa unica replicada).
-        assert len(set(valores)) > 1
+        # 10.0.0: default = media-5a ACHATADA nos 8 anos (mesmo valor). Os 8
+        # campos _ano1..8 continuam existindo e o analista sobrescreve cada um
+        # no app (o editor 8x segue vivo) para escrever a narrativa.
+        assert len(set(valores)) == 1
     # margem EBITDA permanece (retrocompat com consumidores v2).
     assert "margem_ebitda_ano1" in premissas
     assert premissas["modo_aliquota"] == "marginal"
@@ -134,3 +136,51 @@ def test_gerador_sem_dva_deducoes_zero_com_aviso(
     ]
     assert max(deducoes) < 0.01
     assert "deducoes = 0" in caplog.text
+
+
+def _linha_ano(codigo: str, nome: str, valor: float, ano: int) -> dict[str, object]:
+    """Linha bruta da CVM (ULTIMO, 31/12) de um exercicio especifico."""
+    return {
+        "ano_arquivo": ano,
+        "DT_FIM_EXERC": f"{ano}-12-31",
+        "ORDEM_EXERC": "ÚLTIMO",
+        "CD_CONTA": codigo,
+        "nome_padronizado": nome,
+        "valor_padronizado": valor,
+    }
+
+
+def test_central_robusta_usa_mediana_com_ano_extremo() -> None:
+    """A media vale, salvo com um ano extremo (spike), quando usa a mediana."""
+    from src.projecao.gerador_premissas import _central_robusta
+
+    # 4 anos ~0,30 + 1 ano extremo 3,0 (dividendo especial) -> mediana 0,30.
+    assert _central_robusta([0.30, 0.30, 0.30, 0.30, 3.0]) == 0.30
+    # Sem ano extremo -> media.
+    assert abs(_central_robusta([0.30, 0.32, 0.28, 0.31, 0.29]) - 0.30) < 1e-9
+    assert _central_robusta([]) is None
+
+
+def test_payout_e_minoritarios_historicos_achatados(tmp_path: Path) -> None:
+    """Payout e minoritarios saem do historico (media-5a robusta), nao input."""
+    from src.projecao.gerador_premissas import (
+        _minoritarios_hist_5a,
+        _payout_hist_5a,
+    )
+
+    anos = range(2021, 2026)
+    # Payout: 4 anos a 30% + 2025 com dividendo especial (300%) -> mediana 0,30.
+    dfc = [
+        _linha_ano("6.01", "dividendos_pagos_dfc", -30.0 if a < 2025 else -300.0, a)
+        for a in anos
+    ]
+    dre: list[dict[str, object]] = []
+    for a in anos:
+        dre.append(_linha_ano("3.11", "lucro_liquido", 100.0, a))
+        dre.append(_linha_ano("3.11.02", "lucro_atribuido_nao_controladores", 10.0, a))
+    salvar_json(tmp_path / "data" / "raw" / "cvm" / "HIST3_dfc.json", dfc)
+    salvar_json(tmp_path / "data" / "raw" / "cvm" / "HIST3_dre.json", dre)
+
+    assert abs(_payout_hist_5a("HIST3", tmp_path) - 0.30) < 1e-9
+    # Minoritarios 10/100 constante -> 0,10 achatado.
+    assert abs(_minoritarios_hist_5a("HIST3", tmp_path) - 0.10) < 1e-9

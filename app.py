@@ -524,7 +524,10 @@ def _premissas_nao_financeira(
                     f"{formatar_percentual_br(float(wacc_projetado), 2)}."
                 )
 
-    # Grupo 6: Outros (escalares).
+    # Grupo 6: Outros. 10.0.0: payout, minoritarios e caixa minimo SAIRAM do
+    # painel — viraram fato historico achatado (payout/minoritarios, media-5a)
+    # ou parametro da politica de divida (caixa minimo, em config). O grupo
+    # guarda o giro (DSO/DIO/DPO) + Kd, beta e g (os inputs de Lucas).
     with st.expander("⑥ Outros (capital de giro, custo de capital, g)"):
         coluna_esquerda, coluna_direita = st.columns(2)
         with coluna_esquerda:
@@ -537,41 +540,19 @@ def _premissas_nao_financeira(
             novas["dpo"] = st.slider(
                 "DPO em dias", 0, 400, int(premissas.get("dpo", 30))
             )
-            novas["payout_dividendos"] = st.slider(
-                "Payout de dividendos",
-                0.0,
-                1.0,
-                float(premissas.get("payout_dividendos", 0.0) or 0.0),
-                step=0.05,
-            )
-            novas["minoritarios_pct_ll"] = st.slider(
-                "Participacao de minoritarios (% do LL)",
-                0.0,
-                0.5,
-                float(premissas.get("minoritarios_pct_ll", 0.0) or 0.0),
-                step=0.01,
-            )
         with coluna_direita:
             novas["beta"] = st.slider(
-                "Beta desalavancado (build-up CAPM)",
+                "Beta (input; default yfinance ~5a)",
                 0.2,
                 3.0,
                 float(premissas.get("beta", 1.0)),
                 step=0.05,
             )
             novas["custo_divida_kd"] = st.slider(
-                "Kd — custo da divida (decimal)",
+                "Kd — custo da divida (input; default CDI + spread)",
                 0.01,
                 0.35,
                 float(premissas.get("custo_divida_kd", 0.10)),
-                step=0.005,
-                format="%.3f",
-            )
-            novas["caixa_minimo_pct_receita"] = st.slider(
-                "Caixa minimo (% da receita)",
-                0.0,
-                0.20,
-                float(premissas.get("caixa_minimo_pct_receita", 0.02) or 0.02),
                 step=0.005,
                 format="%.3f",
             )
@@ -583,6 +564,21 @@ def _premissas_nao_financeira(
                 step=0.0025,
                 format="%.4f",
             )
+        st.caption(
+            "Beta e Kd sao INPUT do analista (beta ideal: Bloomberg vs. "
+            "Ibovespa, usado DIRETO no CAPM sem Hamada; Kd = ultimas emissoes "
+            "~ CDI + spread). Os defaults acima sao apenas o ponto de partida."
+        )
+        # 10.0.0: payout, minoritarios e caixa minimo agora sao DERIVADOS.
+        payout_der = float(premissas.get("payout_dividendos", 0.0) or 0.0)
+        minoritarios_der = float(premissas.get("minoritarios_pct_ll", 0.0) or 0.0)
+        st.caption(
+            "Derivados do historico (nao sao mais input — 10.0.0): payout = "
+            f"{formatar_percentual_br(payout_der)} (media-5a de dividendos/LL) "
+            f"| minoritarios = {formatar_percentual_br(minoritarios_der)} "
+            "(media-5a). Caixa minimo virou parametro da politica de divida "
+            "(config/parametros.json)."
+        )
 
     bloqueado = _validar_premissas_nf(novas, conteudo, agregados)
 
